@@ -1,0 +1,39 @@
+# ADR-0002 — Service template & contribution surface (embodies the contract)
+
+**Status:** accepted (resolution of wayfinder ticket "Define the service template & contribution surface"); amends ADR-0001 (base contract item 9, callable surfaces)
+
+## Context
+
+ADR-0001 defines what every service API must be; the template is how a service comes to exist as code. Easy contributions are a stated goal: the template and a contributor guide are the community's front door. The platform ships its services in one repo (`wordslab-platform/services/`), is contributed by a single person for the foreseeable future, and simplicity is the main feature — everything here is cut to that.
+
+## Decision
+
+A new service is a folder in `services/<name>/` in the wordslab-platform repo, produced by **copying `template/`** at the repo root. No generator CLI. The per-domain repos (wordslab-voice, wordslab-images, wordslab-llms, wordslab-webscraper) are **out of scope** — stale studies, ignored entirely, not archived or touched.
+
+### The template (what a service looks like as code)
+
+1. **Self-contained (vendored contract).** `src/<service>/contract/` holds the base contract machinery (`base/`: auth, errors, pagination, health, idempotency — always kept, never edited) and the nine family modules (`families/`: keep what `service.toml` declares, delete the rest; all nine ship in the template). **No shared SDK package** — services stay fully independent; drift is caught by the conformance suite (`tests/contract/`, vendored with the template, family-parameterized: base always runs, families per declaration). Contract changes flow ADR → template → services, verified by the suite.
+2. **Capabilities (sub-services).** A service decomposes into in-process `capabilities/` modules — e.g. audio: stt, tts, vad, voice cloning, realtime voice chat. Each capability owns its business logic, model declarations, routes and UI pages, while **sharing the service's contract surfaces** (one `/health`, one auth, one `/mcp`, one OpenAPI) and **one SQLite database** (SQLModel; namespaced tables per capability). Realtime voice needs STT+TTS+VAD in one low-latency loop — separate deployable services would force LAN HTTP round-trips. A capability may later be promoted to its own service.
+3. **Callable surfaces (amends ADR-0001, base item 9).** Every service is driven three ways: a **human surface** (its own workflow-oriented UI), an **agent surface** (stateless MCP at `/mcp`), and a **deterministic surface** (the OpenAPI REST API). MCP tools are **auto-generated from the OpenAPI spec** by default (zero drift — the MCP surface *is* the API, machine-translated); service authors override with hand-written `@tool` definitions where the machine-optimized API needs an English-friendly interface. Family 3 (tool services) narrows to `resources`/`prompts` and tool-service semantics.
+4. **Human surface.** FastHTML pages (Starlette-based, coexists with FastAPI in one process), client-side interactivity via **Alpine.js** (vendored locally; FastHTML's native Surreal disabled), Pico base styles. All JS/CSS **vendored in `ui/static/` — no CDN** (a home LAN may be offline). A **shared UI kit** (design tokens, components, nav shell) is copied by the template so every service and the dashboard look like one product.
+5. **Declaration.** `service.toml` = identity (name/version/description), families, capabilities, UI nav, and the **inference policy + privacy tier** (`local-only`/`local-then-cloud`/`cloud-only`; `default`/`no-retention`/`no-training` — default `local-only` + `default`). The API self-declares via `/openapi.json` (base contract). Models are declared **per capability** in `models.toml`: description, source (**local weights or a cloud provider reference**), license, links (release / repo / license / evaluations), download & disk sizes, accuracy & speed ranks within the capability's list, input/output modalities, max context length, and VRAM formula inputs (weights GB, KV cache per token **at the recommended KV quant**, overhead GB, batch/context params). **`supported`/`recommended` are computed, never stored** — from the machine's hardware + the model selection goal (`accuracy`/`size`/`speed`/`balanced`, per-service install setting).
+
+### Contribution surface (solo-first)
+
+`template/` at repo root; copy-to-start ritual (copy, rename, edit `service.toml`, delete undeclared families, implement capabilities) documented in a **short CONTRIBUTING.md checklist**; conformance gate = `uv run check` locally + **one minimal GitHub Actions workflow** on PRs touching `services/`. Community machinery (generator CLI, issue templates, governance) is deferred until real demand — the story is optimized for one contributor today, extensible later.
+
+## Considered options
+
+- **Shared SDK vs vendored contract** — vendored: full independence, one-language readability, no packaging; drift caught by the conformance suite. A shared package would add versioning/coupling for a 6-service home platform.
+- **Capabilities in-process vs separate services** — in-process: realtime voice needs STT+TTS+VAD in one loop; one install, one dashboard entry; promotion path kept open.
+- **Auto-generated vs hand-declared MCP tools** — auto-generated default guarantees coverage and sync; `@tool` overrides for author-curated interfaces.
+- **Surreal (FastHTML-native) vs Alpine.js** — Alpine: mainstream declarative model, large community/docs (matters for contributions); both are script-tag includes, no build step.
+- **FastLite vs SQLModel** — SQLModel gives schema/validation/OpenAPI typing the contract requires; FastLite stays for exploration notebooks.
+- **Computed vs stored `supported`/`recommended`** — computed from hardware + goal: no stale flags, one truth; model metadata stays factual (ranks, sizes, links).
+
+## Consequences
+
+- Unblocks: v1 catalog (#18, instantiates services from the template), composition (#13, any service callable via MCP), dashboard (#8, UI kit + model/goal management), capability registry (#20, every service registers tools), published apps (#21, a published app is or is not a service — decided there).
+- Sharpens: model management (#4 — aggregation of `models.toml` + resource story), inference providers (#19 — expanded with cloud access machinery: connectors, credentials, billing, quotas).
+- Amends ADR-0001: base contract item 9 (callable surfaces); family 3 narrowed.
+- The template itself is a build step once the spec lands — the spec's service chapters describe it chapter-and-verse.
