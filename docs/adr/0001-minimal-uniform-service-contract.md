@@ -1,6 +1,6 @@
 # ADR-0001 — Minimal uniform service contract (base + family contracts)
 
-**Status:** accepted (resolution of wayfinder ticket "Define the minimal uniform service contract"); **amended by ADR-0002** (base item 9 — callable surfaces; family 3 narrowed)
+**Status:** accepted (resolution of wayfinder ticket "Define the minimal uniform service contract"); **amended by ADR-0002** (base item 9 — callable surfaces; family 3 narrowed) and **ADR-0004** (family conformance: capability API = union of implementation variants)
 
 ## Context
 
@@ -23,6 +23,8 @@ The service contract is **one base contract applying to every service API, plus 
 9. **Callable surfaces** *(amended by ADR-0002)* — every service is driven three ways: a **human surface** (its own workflow-oriented UI), an **agent surface** (stateless MCP at `/mcp`, tools auto-generated from the OpenAPI spec, with author `@tool` overrides for English-friendly interfaces), and a **deterministic surface** (the OpenAPI REST API itself). MCP is no longer optional per function — it is a universal surface.
 
 ### Family contracts (a service implements base + the families its function needs)
+
+**Conformance (amended by ADR-0004):** a capability's API is the **union of its implementation variants** — the family contract documents which implementation supports what (a per-implementation support matrix and documented deviations), rather than force-fitting every implementation into one identical shape. Implementations of a capability solve the same problem with different tradeoffs (size/speed/performance, data domains) and may expose very similar but not identical APIs.
 
 1. **LLM & agents inference** — the unique LLM inference service (optionally several instances on different machines with different local models; instance choice is model-routing, not contract) exposes the **OpenAI Responses API by reference** at `POST /v1/responses`: request, typed streaming events, tool calling (function tools + MCP servers), structured outputs, citations, reasoning items, refusals, `usage` in tokens. **Multimodal input is in** (`input_text`/`input_image`/`input_audio`); generation output is text/structured. Rule: follow upstream OpenAI shapes; document deviations, pinned to a reference date. Chat Completions is not required. Engine gap (local engines lag on vision-through-Responses) is absorbed by the service adapter, not a contract deviation — verify Responses+vision on Ollama at template build time.
 2. **Other model inference** — **copy the most successful service per modality, by reference**: embeddings `POST /v1/embeddings`, images `POST /v1/images/generations` + `/edits`, audio `POST /v1/audio/transcriptions` + `/speech`, video `POST /v1/videos` + `GET /v1/videos/{id}`. Where no dominant OpenAI shape exists (rerank, OCR, classification, segmentation, classic models, document understanding), copy the most successful OSS service in the niche (TEI for rerank; LightOn/mixedbread-style document APIs). `usage` in the reference API's native unit. The reference API decides sync vs async; the sync/async variant pattern (family 5) applies.
