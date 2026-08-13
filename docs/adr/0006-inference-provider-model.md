@@ -1,6 +1,6 @@
 # ADR-0006 — Inference provider model (cloud access machinery)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the inference provider model"); **amends ADR-0002** (privacy-tier vocabulary) and sharpens **ADR-0005 §9** (remaining-% adapter data flow, LiteLLM backstop role)
+**Status:** accepted (resolution of wayfinder ticket "Design the inference provider model"); **amends ADR-0002** (privacy-tier vocabulary) and sharpens **ADR-0005 §9** (remaining-% adapter data flow, LiteLLM backstop role); **amended by ADR-0007** (inference-policy vocabulary removed — privacy tier is a property of each explicitly chosen implementation)
 
 ## Context
 
@@ -76,7 +76,7 @@ There are **exactly three privacy tiers**, a property of each implementation (mo
 
 The tier is **documented, prominently and everywhere it matters**: on the **API and MCP documentation** for that implementation (prominent), **discoverable** through the API and MCP **description** (so it is machine-readable — surfaced in the capability registry #20 and tool discovery), and **displayed on the UI** when the user uses that service.
 
-The **user chooses implementations manually and is warned** about the privacy guarantees. The platform does **not** silently auto-route around a tier; its enforcement is **visibility + user decision** — no magic, no black box. *(Replaces ADR-0002's `default`/`no-retention`/`no-training` privacy-tier vocabulary; services keep an *inference policy* for routing — `local-only`/`local-then-cloud`/`cloud-only` — and the *privacy tier* becomes this three-tier data-class taxonomy on each implementation.)*
+The **user chooses implementations manually and is warned** about the privacy guarantees. The platform does **not** silently auto-route around a tier; its enforcement is **visibility + user decision** — no magic, no black box. *(Replaces ADR-0002's `default`/`no-retention`/`no-training` privacy-tier vocabulary; the earlier *inference policy* for routing (`local-only`/`local-then-cloud`/`cloud-only`) is abolished by ADR-0007 — the *privacy tier* is this three-tier data-class taxonomy on each implementation, and implementation choice is explicit.)*
 
 ### 8. Boundary
 

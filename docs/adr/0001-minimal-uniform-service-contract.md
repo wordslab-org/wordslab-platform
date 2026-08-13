@@ -1,6 +1,6 @@
 # ADR-0001 — Minimal uniform service contract (base + family contracts)
 
-**Status:** accepted (resolution of wayfinder ticket "Define the minimal uniform service contract"); **amended by ADR-0002** (base item 9 — callable surfaces; family 3 narrowed), **ADR-0004** (family conformance: capability API = union of implementation variants) and **ADR-0005** (429 taxonomy: `cloud-spend` resource name)
+**Status:** accepted (resolution of wayfinder ticket "Define the minimal uniform service contract"); **amended by ADR-0002** (base item 9 — callable surfaces; family 3 narrowed), **ADR-0004** (family conformance: capability API = union of implementation variants), **ADR-0005** (429 taxonomy: `cloud-spend` resource name) and **ADR-0007** (family 9 authoring shape: agents carry accessible + preloaded tool lists; workflows are Python programs with the composition primitive set)
 
 ## Context
 

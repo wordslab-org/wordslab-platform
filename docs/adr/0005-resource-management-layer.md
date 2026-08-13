@@ -1,6 +1,6 @@
 # ADR-0005 — Resource management layer (reservation ledger, load/unload policy, quotas)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the resource management layer (disk, RAM, VRAM across machines)"); **amends ADR-0001** (base contract 429 taxonomy: `cloud-spend` resource name)
+**Status:** accepted (resolution of wayfinder ticket "Design the resource management layer (disk, RAM, VRAM across machines)"); **amends ADR-0001** (base contract 429 taxonomy: `cloud-spend` resource name); **amended by ADR-0007** (a refused load surfaces and the user re-chooses an implementation — no inference-policy fallback)
 
 ## Context
 
@@ -53,7 +53,7 @@ The dependency graph declares concurrency per edge in three explicit levels, fee
   - **Idle sweep:** members past their idle timeout (default ~30 min, per-capability adjustable; **pin** keeps resident) are unloaded on the next sweep — their own inactivity, not a choice.
   - **Pressure unload:** when a load doesn't fit, first free what's already idle; then **ask the user** when there is genuine ambiguity — if exactly one way frees the needed amount (one candidate alone, or one viable combination), do it silently; if several distinct ways exist, ask the user to choose, showing each option and what it frees. **Remembered decisions** are explicit per-load rules ("to load X, when ambiguous between A and B, choose A") — stored visibly, editable, and applied without asking when they resolve the ambiguity. **Never** pinned implementations, **never** auto-evicting user reservations.
 - **The fit lever:** before unloading anything, the platform proposes **lower parameters** for the incoming implementation (within the hardware-capped ranges — max context / image size / sound length) to fit, then lower parameters of a resident implementation (user asked — it affects running work).
-- **Refusal:** if nothing frees enough or the user declines, the load is refused with `429 resource_exhausted` (binding resource: `ram`/`vram`/`disk`, shortfall in GB on the dashboard), **no queue in v1**, and the service's inference policy decides cloud fallback.
+- **Refusal:** if nothing frees enough or the user declines, the load is refused with `429 resource_exhausted` (binding resource: `ram`/`vram`/`disk`, shortfall in GB on the dashboard), **no queue in v1**; the user then re-chooses an implementation (e.g., a cloud-gateway one) explicitly — **no automatic inference-policy fallback** (ADR-0007).
 
 ### 7. Performance dimension — placement clues
 

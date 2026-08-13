@@ -1,6 +1,6 @@
 # ADR-0004 — Multi-machine topology (discovery, placement, routing, cloud, storage)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the multi-machine topology"); **amends ADR-0001** (family-contract conformance: capability API = union of implementation variants) and **ADR-0002** (implementations layer; heavy-dependency coordination)
+**Status:** accepted (resolution of wayfinder ticket "Design the multi-machine topology"); **amends ADR-0001** (family-contract conformance: capability API = union of implementation variants) and **ADR-0002** (implementations layer; heavy-dependency coordination); **amended by ADR-0007** (inference-policy fallback removed — cloud offered as an explicit implementation choice, never automatic; privacy-tier vocabulary on placements)
 
 ## Context
 
@@ -42,7 +42,7 @@ Nothing starts standalone on the joining machine; the leader dashboard is the en
 
 ### 5. Placement = simulation, user-confirmed, no scheduler
 
-- The **simulation** resolves an activity's graph: pick implementations (recommended per hardware + model selection goal), check fit (per-implementation resource profile, hardware-capped capacity, disk via the storage view), enforce privacy tiers as a hard constraint (`local-only` never lands on cloud nodes), **spread concurrent capabilities across machines** (fleet capacity is the point; proximity edges respected), and offer cloud when nothing local fits — with cost shown.
+- The **simulation** resolves an activity's graph: pick implementations (recommended per hardware + model selection goal), check fit (per-implementation resource profile, hardware-capped capacity, disk via the storage view), enforce privacy tiers as a hard constraint (an **"own machines"** implementation never lands on cloud nodes), **spread concurrent capabilities across machines** (fleet capacity is the point; proximity edges respected), and offer cloud when nothing local fits — with cost shown.
 - **Co-resident = sum, swappable = max:** co-resident capabilities' RAM/VRAM add up on their machine; swappable ones count only as the largest (they share VRAM by load/unload). The one rule that makes "will it fit?" computable and explainable.
 - One-click confirm → implementations download/load → the **working set** populates. The working set is the set of loaded implementations of the user's current activities: a live dashboard surface (rendering is #8's, semantics ours), auto-populated by activity launches, auto-cleared by an idle timeout (default ~30 min, per-capability adjustable; **pin** keeps resident), and **manually drivable** — drag an implementation to another machine = move its execution + model load there (download/load on target, unload on source; constraints enforced, refusals explained); delete = unload + free disk.
 - The simulation is **re-runnable on demand** as needs or the fleet evolve; it starts from current state and proposes deltas.
@@ -50,13 +50,13 @@ Nothing starts standalone on the joining machine; the leader dashboard is the en
 
 ### 6. Model routing
 
-A model-backed call = a dependency on an llm/vlm implementation. **Routing is which loaded implementation serves the call**, chosen by the graph's placement: same machine as the caller first (localhost), else the machine where the working set placed the implementation, least-loaded tiebreak, cloud per the inference policy when nothing local fits. No per-call knob, no hidden load balancer; the routing table is the working set's placement. Every call records "served by: machine · implementation · model" in the action trail. Runtime switching between installed implementations is a per-capability UI choice.
+A model-backed call = a dependency on an llm/vlm implementation. **Routing is which loaded implementation serves the call**, chosen by the graph's placement: same machine as the caller first (localhost), else the machine where the working set placed the implementation, least-loaded tiebreak, offer a cloud implementation when nothing local fits — an **explicit user choice, never an automatic fallback** (ADR-0007). No per-call knob, no hidden load balancer; the routing table is the working set's placement. Every call records "served by: machine · implementation · model" in the action trail. Runtime switching between installed implementations is a per-capability UI choice.
 
 ### 7. Cloud as a node
 
-- **Two cloud modes, cleanly split.** A **provider subscription** (inference/tools on provider machines) is *not* a node — it is the cloud-routing leg of the inference policy, machinery in "Design the inference provider model" (#19). A **rented machine** is a first-class node: joins over the overlay like any worker, activities can place implementations on it, it can be the leader in single-node configs. Guidance ladder: cloud-first (provider subscriptions) when no powerful machine; rent a machine as the next step for self-hosting, sensitive data, large-scale processing, or training classic models.
+- **Two cloud modes, cleanly split.** A **provider subscription** (inference/tools on provider machines) is *not* a node — it is the cloud-routing leg, delivered as a **cloud-gateway implementation** of an Inference capability (machinery in "Design the inference provider model", #19). A **rented machine** is a first-class node: joins over the overlay like any worker, activities can place implementations on it, it can be the leader in single-node configs. Guidance ladder: cloud-first (provider subscriptions) when no powerful machine; rent a machine as the next step for self-hosting, sensitive data, large-scale processing, or training classic models.
 - **Join:** overlay first (Tailscale default, self-hosted WireGuard alternative — one guided screen explaining the tradeoff, choice remembered), then the join code over it. **No public ports, ever.** Any Linux VPS can join (native-Linux path). VM creation automation (provider API key in `secrets`) is a convenience layer for the common providers; guided manual steps otherwise. Provider credentials/billing/quotas = #19.
-- **Privacy on cloud nodes:** the simulation **warns on every `local-only` placement on a cloud node** ("data leaves your home"); a cloud leader means users/secrets/logs live on the rented box. Surfaced, never silent.
+- **Privacy on cloud nodes:** the simulation **warns on every "own machines" implementation placed on a cloud node** ("data leaves your home"); a cloud leader means users/secrets/logs live on the rented box. Surfaced, never silent.
 
 ### 8. Multi-disk = data locations
 
