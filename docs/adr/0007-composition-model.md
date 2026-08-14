@@ -58,13 +58,13 @@ A workflow definition **is plain Python** — not a declarative DSL. Python is t
 - **`model(...)` is the Responses API** — the rich, typed inference surface (streaming, structured outputs) for when there is **no natural-language interface**: a deterministic structured-output transform (extraction, classification) with a JSON schema.
 - **`agent(...)` runs a native agent** — the natural-language task surface (open-ended, loop, tools, memory).
 
-### 6. Documents: DocETL pipelines as an abstract request to the Document service
+### 6. Documents: DocETL pipelines as an abstract request to the Knowledge service (the DocETL engine)
 
-**DocETL is to unstructured data what SQL is to structured data.** A workflow builds a **DocETL pipeline expression natively in Python** (the Frame-API chain), serializes it as an **abstract request**, and sends it to the **Document/Knowledge service** *(the home is being split by #26 — Document owns source/filter/retrieval operators; Knowledge owns entity linking/grounding/aggregation/facts — see "Design the document transformation engine (DocETL pipelines as an abstract request)")*, which **optimizes and executes it where the data lives** (data locality) — the "database engine for unstructured data" (remote LINQ-to-SQL / OData analogue). The *request programming* is native Python in the workflow; the *engine* (optimizer + execution) is the Document/Knowledge service's.
+**DocETL is to unstructured data what SQL is to structured data.** A workflow builds a **DocETL pipeline expression natively in Python** (the Frame-API chain), serializes it as an **abstract request**, and sends it to the **Knowledge service** — the home of the DocETL engine (the Document/Knowledge split, #26; see "Design the document transformation engine (DocETL pipelines as an abstract request)", #24) — which **optimizes and executes it**, dispatching primitive + bundle-structural operators to the **Document service** where the raw data lives (data locality) — the "database engine for unstructured data" (remote LINQ-to-SQL / OData analogue). The *request programming* is native Python in the workflow; the *engine* (optimizer + execution) is the Knowledge service's.
 
 DocETL's LLM-powered operators route their model calls through the **Inference service** as **explicit implementation choices** (#13 §10), never a raw external key. The optimized plan it produces is **visible** (no black box).
 
-Hand-in-hand: **entity resolution / concept repository / knowledge-graph building** grounds extracted entities to canonical concept/entity IDs (design ticket: "Design entity resolution, the concept repository & knowledge-graph building") — a Document-service capability that gives indexed documents a structured grounding layer.
+Hand-in-hand: **entity resolution / concept repository / knowledge-graph building** grounds extracted entities to canonical concept/entity IDs (design ticket: "Design entity resolution, the concept repository & knowledge-graph building") — a **Knowledge-service** capability that gives indexed documents a structured grounding layer.
 
 ### 7. Triggers & scheduling
 
@@ -108,7 +108,7 @@ The `agent` entry *format* (accessible + preloaded tool lists) is this model's; 
 - **#21 owns:** publishing (definition → published).
 - **#4 / ADR-0005 own:** model load/fit/refusal and cloud-spend quotas — with the amendment that refusal *surfaces + user re-chooses* (no inference-policy fallback).
 - **ADR-0003:** the core never executes composition (unchanged).
-- **Document service (new tickets):** the DocETL engine, and entity resolution / concept repository / knowledge-graph building.
+- **Document/Knowledge services (new tickets, re-homed by #26):** the DocETL engine lives in the **Knowledge service**, and entity resolution / concept repository / knowledge-graph building lives in the **Knowledge service**; the **Document service** holds the raw bundles, indexes, and the primitive + bundle-structural operators.
 
 ## Considered options
 
