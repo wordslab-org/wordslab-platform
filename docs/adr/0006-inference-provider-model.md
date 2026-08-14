@@ -1,6 +1,6 @@
 # ADR-0006 — Inference provider model (cloud access machinery)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the inference provider model"); **amends ADR-0002** (privacy-tier vocabulary) and sharpens **ADR-0005 §9** (remaining-% adapter data flow, LiteLLM backstop role); **amended by ADR-0007** (inference-policy vocabulary removed — privacy tier is a property of each explicitly chosen implementation)
+**Status:** accepted (resolution of wayfinder ticket "Design the inference provider model"); **amends ADR-0002** (privacy-tier vocabulary) and sharpens **ADR-0005 §9** (remaining-% adapter data flow, LiteLLM backstop role); **amended by ADR-0007** (inference-policy vocabulary removed — privacy tier is a property of each explicitly chosen implementation) and **ADR-0008** (privacy-tier labels → `local` / `cloud_no_data` / `cloud`)
 
 ## Context
 
@@ -68,11 +68,11 @@ At the cap, cloud-routed calls return `429 resource_exhausted` with resource `cl
 
 ### 7. Privacy: three-tier taxonomy, documented + user-chosen
 
-There are **exactly three privacy tiers**, a property of each implementation (model implementation / provider leg), describing where data goes and with what guarantee:
+There are **exactly three privacy tiers**, a property of each implementation (model implementation / provider leg), describing where data goes and with what guarantee. The **canonical labels platform-wide** are **`local` / `cloud_no_data` / `cloud`** (ADR-0008; friendlier, still unambiguous — these replace the earlier `own machines / ZDR / other` names, semantics unchanged):
 
-1. **Your own machines** — local, *or* a cloud host joined to your **private overlay network** (data never leaves your control; "own machine" = wherever your private network is).
-2. **A cloud service with Zero Data Retention** (ZDR / `data_collection: deny`).
-3. **A cloud service with any other policy** (retention, training, etc.).
+1. **`local`** — your own machines: local, *or* a cloud host joined to your **private overlay network** (data never leaves your control; "own machine" = wherever your private network is).
+2. **`cloud_no_data`** — a cloud service with **Zero Data Retention** (ZDR / `data_collection: deny`).
+3. **`cloud`** — a cloud service with **any other policy** (retention, training, etc.).
 
 The tier is **documented, prominently and everywhere it matters**: on the **API and MCP documentation** for that implementation (prominent), **discoverable** through the API and MCP **description** (so it is machine-readable — surfaced in the capability registry #20 and tool discovery), and **displayed on the UI** when the user uses that service.
 

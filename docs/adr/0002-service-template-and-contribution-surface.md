@@ -1,6 +1,6 @@
 # ADR-0002 — Service template & contribution surface (embodies the contract)
 
-**Status:** accepted (resolution of wayfinder ticket "Define the service template & contribution surface"); amends ADR-0001 (base contract item 9, callable surfaces); **amended by ADR-0004** (implementations layer; heavy-dependency coordination), **ADR-0006** (privacy-tier vocabulary → three-tier data-class taxonomy) and **ADR-0007** (inference policy removed from the service declaration; callable-surface mapping clarified)
+**Status:** accepted (resolution of wayfinder ticket "Define the service template & contribution surface"); amends ADR-0001 (base contract item 9, callable surfaces); **amended by ADR-0004** (implementations layer; heavy-dependency coordination), **ADR-0006** (privacy-tier vocabulary → three-tier data-class taxonomy), **ADR-0007** (inference policy removed from the service declaration; callable-surface mapping clarified) and **ADR-0008** (privacy-tier labels → `local` / `cloud_no_data` / `cloud`)
 
 ## Context
 

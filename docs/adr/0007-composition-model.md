@@ -1,6 +1,6 @@
 # ADR-0007 — Composition model (workflows & agents)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the composition model"); **amends ADR-0001** (family 9 authoring shape detail), **ADR-0002** (removes the inference policy from the service declaration; callable-surface mapping), **ADR-0004/0005** (resource refusal → surface + user re-chooses, not inference-policy fallback), **ADR-0006** (§7 routing-vs-privacy contrast removed)
+**Status:** accepted (resolution of wayfinder ticket "Design the composition model"); **amends ADR-0001** (family 9 authoring shape detail), **ADR-0002** (removes the inference policy from the service declaration; callable-surface mapping), **ADR-0004/0005** (resource refusal → surface + user re-chooses, not inference-policy fallback), **ADR-0006** (§7 routing-vs-privacy contrast removed; privacy-tier labels → `local`/`cloud_no_data`/`cloud`); **registry mechanics realized by ADR-0008** (thin index + name authority, per-agent scoping, name→URL resolution); DocETL/entity-resolution homes re-scoped by the **Document/Knowledge split (#26)**
 
 ## Context
 
@@ -60,7 +60,7 @@ A workflow definition **is plain Python** — not a declarative DSL. Python is t
 
 ### 6. Documents: DocETL pipelines as an abstract request to the Document service
 
-**DocETL is to unstructured data what SQL is to structured data.** A workflow builds a **DocETL pipeline expression natively in Python** (the Frame-API chain), serializes it as an **abstract request**, and sends it to the **Document service**, which **optimizes and executes it where the data lives** (data locality) — the "database engine for unstructured data" (remote LINQ-to-SQL / OData analogue). The *request programming* is native Python in the workflow; the *engine* (optimizer + execution) is the Document service's (design ticket: "Design the document transformation engine (DocETL pipelines as an abstract request)").
+**DocETL is to unstructured data what SQL is to structured data.** A workflow builds a **DocETL pipeline expression natively in Python** (the Frame-API chain), serializes it as an **abstract request**, and sends it to the **Document/Knowledge service** *(the home is being split by #26 — Document owns source/filter/retrieval operators; Knowledge owns entity linking/grounding/aggregation/facts — see "Design the document transformation engine (DocETL pipelines as an abstract request)")*, which **optimizes and executes it where the data lives** (data locality) — the "database engine for unstructured data" (remote LINQ-to-SQL / OData analogue). The *request programming* is native Python in the workflow; the *engine* (optimizer + execution) is the Document/Knowledge service's.
 
 DocETL's LLM-powered operators route their model calls through the **Inference service** as **explicit implementation choices** (#13 §10), never a raw external key. The optimized plan it produces is **visible** (no black box).
 
@@ -82,10 +82,10 @@ A workflow **starts** from a trigger; it **pauses mid-run** on `delay`/`event`/`
 
 ### 9. Discovery & the capability registry (#20)
 
-The **capability registry is the universal name→URL resolver** for all composition references.
+The **capability registry is the universal name→URL resolver** for all composition references (ADR-0008: thin index + name authority on the leader core; entries `tool | agent | workflow | skill | data_source`).
 
 - **Workflow:** references capabilities by **explicit, stable names in the Python** (`call("document.parse", ...)`). The registry resolves name→endpoint at run time. **No search** — the name is already in the program.
-- **Agent:** *discovers* names via the registry **search/load tool** — but **only within an allowlist**: the agent definition declares (a) the **accessible tool set** (which registry tools the agent may search and invoke) and (b) the **preloaded subset** (a subset of accessible, systematically loaded into the system prompt). The registry's search respects the per-agent scope. (This is both control and security; feeds #14.)
+- **Agent:** *discovers* names via the registry **search/load tool** — but **only within an allowlist**: the agent definition declares (a) the **accessible tool set** (which registry tools the agent may search and invoke) and (b) the **preloaded subset** (a subset of accessible, systematically loaded into the system prompt). The registry enforces the accessible set **server-side** on both search and load (the allowlist lives in the agent definition; the registry reads it at search time). (This is both control and security; feeds #14.)
 
 The `agent` entry *format* (accessible + preloaded tool lists) is this model's; the registry *mechanics* are #20's.
 
@@ -94,7 +94,7 @@ The `agent` entry *format* (accessible + preloaded tool lists) is this model's; 
 **The inference policy (`local-only` / `local-then-cloud` / `cloud-only`) is abolished as a concept platform-wide** — not in the service contract (ADR-0002), not in composition, not in routing/fallback. In its place, the model is simply:
 
 - Every **model-backed step explicitly names the implementation it uses** (local or cloud-gateway), chosen at authoring time (by the author or with the agent-chat assistant's help). The choice is explicit and visible.
-- **Privacy is a property of the chosen implementation** (the ADR-0006 three-tier taxonomy: own machines / ZDR / other). Choosing the implementation *is* choosing the privacy. **There is no privacy override, no privacy rule, no "strictest wins," no routing policy** — the author names an implementation, and that's the whole story.
+- **Privacy is a property of the chosen implementation** (the ADR-0006 three-tier taxonomy, labels `local` / `cloud_no_data` / `cloud`). Choosing the implementation *is* choosing the privacy. **There is no privacy override, no privacy rule, no "strictest wins," no routing policy** — the author names an implementation, and that's the whole story.
 - The **read-only visual view shows the privacy level of each call**, derived directly from the chosen implementation.
 - **No automatic cloud fallback.** If a chosen implementation is refused (fit / resource / quota) or unavailable, the platform **surfaces the refusal and the user re-chooses** (e.g., deliberately picks a cloud-gateway implementation). It never silently routes or falls back on the user's behalf.
 
