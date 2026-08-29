@@ -19,7 +19,7 @@ The **dashboard** is the platform core's human surface and the **platform's sing
 
 1. **"Install and configure my platform"** (Administrator) — S0 install web UI → machines (topology, working set, storage, simulation) → install/update services → cloud providers → users → backup. Supporting: core `install`/`resources`/`users`/`secrets` (ADR-0003), topology (0004), resources (0005), providers (0006), backup (#22).
 2. **"Use an AI capability"** (User) — browse the capability catalog, launch a capability's own UI, choose an implementation (dependency-declaration choice), handle a load that doesn't fit (load dialogue). Supporting: all 12 services' human surfaces (ADR-0002), registry (0008), resources (0005).
-3. **"Build an agent / workflow / app"** (Builder) — Development, agent builder (set accessible tool set + preloaded subset), workflow builder (Python + primitives), app publishing, publish to My registry. Supporting: agent/workflow (0007), registry name-authority (0008), Development, publishing (#21).
+3. **"Build an agent / workflow / app"** (Builder) — Development, agent builder (set accessible tool set + preloaded subset), workflow builder (Python + primitives), app publishing, publish to My registry. Supporting: agent/workflow (0007), registry name-authority (0008), Development, publishing (0019 — Builder = own devs + compliance authoring; Administrator = read-only audit).
 4. **"Keep an eye on the platform"** (everyone) — the always-on right rail (GPU/VRAM + CPU/RAM primary, cloud % spent when in use), hover for a machine's full stats, click for the full-metrics screen. Supporting: resources gauges (0005), providers spend (0006).
 5. **"Respond when the leader fails"** (Administrator) — the leader-failure banner shows authority surfaces down while services keep working. Supporting: ADR-0004 §1, recovery (#22).
 
@@ -39,7 +39,7 @@ The **dashboard** is the platform core's human surface and the **platform's sing
 - **Contextual:** load dialogue (ADR-0005 §6) · dependency-declaration choice (ADR-0008 §11).
 - **Administrator:** Overview · Machines: Topology (0004 §2) / Working set cards (0004 §5, 0005 §6) / Storage (0004 §8, 0005 §8) / Simulation (0004 §5) · Install & Updates (0014, #10 lanes) · Backup (#22) · Cloud: Provider cards + inline keys (0006 §2/§5), Spend & remaining-% (0006 §6), Privacy & cloud-enablement (0006 §7, 0008 privacy labels) · Users (0003) · Connectors & service keys co-located (0006 §5, 0003 keys) · Registry manage (0008) · Activity & logs (0003).
 - **User:** Home · Capabilities (all services' UIs, ADR-0002) · My Activity (0003).
-- **Builder:** Development · Agent builder (0007, 0008 scoping) · Workflow builder (0007) · App publishing (#21) · My registry (0008).
+- **Builder:** Development · Agent builder (0007, 0008 scoping) · Workflow builder (0007) · App publishing (0019 — projects, deployable-packages catalog, start/stop/update/version; compliance authoring for own developments) · My registry (0008).
 
 ### Key flows
 

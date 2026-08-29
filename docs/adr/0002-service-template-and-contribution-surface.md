@@ -22,7 +22,7 @@ A new service is a folder in `services/<name>/` in the wordslab-platform repo, p
 
 ### Contribution surface (solo-first)
 
-`template/` at repo root; copy-to-start ritual (copy, rename, edit `service.toml`, delete undeclared families, implement capabilities) documented in a **short CONTRIBUTING.md checklist**; conformance gate = `uv run check` locally + **one minimal GitHub Actions workflow** on PRs touching `services/`. Community machinery (generator CLI, issue templates, governance) is deferred until real demand — the story is optimized for one contributor today, extensible later. *(The community-catalog *listing* surface — a `catalog.toml` pointing at these `service.toml`/`implementation.toml` files, and the review/quality-bar/graduation process — is designed in ADR-0018, not here.)*
+`template/` at repo root; copy-to-start ritual (copy, rename, edit `service.toml`, delete undeclared families, implement capabilities) documented in a **short CONTRIBUTING.md checklist**; conformance gate = `uv run check` locally + **one minimal GitHub Actions workflow** on PRs touching `services/`. Community machinery (generator CLI, issue templates, governance) is deferred until real demand — the story is optimized for one contributor today, extensible later. *(The community-catalog *listing* surface — a `platform.toml` pointing at these `service.toml`/`implementation.toml` files (renamed from `catalog.toml` by ADR-0019), and the review/quality-bar/graduation process — is designed in ADR-0018, not here.)*
 
 ## Considered options
 

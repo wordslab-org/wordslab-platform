@@ -105,7 +105,7 @@ The `agent` entry *format* (accessible + preloaded tool lists) is this model's; 
 - **#18 owns:** the hosting services (Workflow + Chat + Agents) and the catalog.
 - **#19 / ADR-0006 own:** the provider registry, provider rows, implementation-selection machinery, privacy-tier taxonomy. #13 consumes them as explicit implementation choice.
 - **#14 owns:** container network policy, harness accept/refuse, connector audit/approval (execution safety).
-- **#21 owns:** publishing (definition → published).
+- **#21 / ADR-0019 own:** publishing (definition → published) — the combined Publishing & Governance service's publishing half.
 - **#4 / ADR-0005 own:** model load/fit/refusal and cloud-spend quotas — with the amendment that refusal *surfaces + user re-chooses* (no inference-policy fallback).
 - **ADR-0003:** the core never executes composition (unchanged).
 - **Document/Knowledge services (new tickets, re-homed by #26):** the DocETL engine lives in the **Knowledge service** (ADR-0010), and entity resolution / concept repository / knowledge-graph building lives in the **Knowledge service**; the **Document service** holds the raw bundles, indexes, and produces **faithful representations** (formats, splits, contextualized splits, raw structured extraction, embeddings, across all modalities) via its representation capabilities.

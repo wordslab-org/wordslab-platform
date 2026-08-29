@@ -1,6 +1,6 @@
 # ADR-0018 — Community governance of the service catalog (the governance half of the combined Publishing & Governance service)
 
-**Status:** accepted (resolution of wayfinder ticket "Design community governance of the service catalog", #15); **amends none**; **sharpens ADR-0002** (implementation declarations as a named `implementation.toml`, symmetric with `service.toml`; the community-catalog listing surface); **feeds** "Define how agents publish generated web apps & services" (#21 — the combined service's publishing half resolves alongside; the `33-publishing-governance.md` chapter fills when #21 closes); **references but does NOT resolve** "Define the platform's component license policy" (#23) and "Define what evaluation means in the platform" (#16).
+**Status:** accepted (resolution of wayfinder ticket "Design community governance of the service catalog", #15); **amends none**; **sharpens ADR-0002** (implementation declarations as a named `implementation.toml`, symmetric with `service.toml`; the community-catalog listing surface); **sharpened by ADR-0019** (`catalog.toml` renamed `platform.toml` everywhere, including the community-catalog listing file); **feeds** "Define how agents publish generated web apps & services" (#21 — the combined service's publishing half resolves alongside; the `33-publishing-governance.md` chapter fills when #21 closes); **references but does NOT resolve** "Define the platform's component license policy" (#23) and "Define what evaluation means in the platform" (#16).
 
 ## Context
 
@@ -56,7 +56,7 @@ A service/implementation is acceptable to list when it:
 A catalog entry's status is a **pure function of where the code lives + official-catalog membership**, so there is no status field that can drift or lie:
 
 - **`bundled`** — implemented **in the `wordslab-platform` repo itself**: ships with the platform, appears in the v1 catalog on install, and the platform **takes on updating/maintaining it with the bundle** (ADR-0016 Tier 2/3 bundled lane). The strongest bar.
-- **`listed`** — implemented **in another repo** but **referenced in wordslab-platform's `catalog.toml`**: accepted via the PR + light maintainer look into the official community catalog.
+- **`listed`** — implemented **in another repo** but **referenced in wordslab-platform's `platform.toml`** (the catalog listing file, renamed from `catalog.toml` by ADR-0019): accepted via the PR + light maintainer look into the official community catalog.
 - **`third-party`** — implemented elsewhere and **not referenced** by wordslab-platform's catalog: living in someone else's catalog repo, **not reviewed by the platform at all**. Installable, but visibly unvetted.
 
 Status is **derived**, not declared — no hidden judgment field, no black box. Because `third-party` exists, entries carry **source/attribution** (which catalog repo they came from) so the "unreviewed" label is traceable.
@@ -85,7 +85,7 @@ Two metadata kinds must not be conflated:
 - `service.toml` for a full service (ADR-0002 §5);
 - **`implementation.toml`** for an implementation — a named file symmetric with `service.toml`, formalizing what ADR-0002 §5 described as per-capability implementation declarations (identity, source, resource profile, privacy tier, license, links). *(Sharpen of ADR-0002, recorded here.)*
 
-**Catalog listing metadata** — what a catalog repo actually *is*: a **thin index of listing records**, each **pointing to** the description above, never duplicating it. One **`catalog.toml`** per repo lists the `service.toml`/`implementation.toml` files available from this repo **or other repos**. Each listing record carries:
+**Catalog listing metadata** — what a catalog repo actually *is*: a **thin index of listing records**, each **pointing to** the description above, never duplicating it. One **`platform.toml`** per repo lists the `service.toml`/`implementation.toml` files available from this repo **or other repos**. *(Renamed from `catalog.toml` by ADR-0019 — a project root now carries `platform.toml` (platform services/implementations) + `publish.toml` (generic publishables); the name `catalog.toml` is retired.)* Each listing record carries:
 
 - **name** + **type** (`service` vs `implementation`);
 - **source/attribution** — which catalog repo + which source repo it points to (traceability, §5);
@@ -97,7 +97,7 @@ TOML throughout — one language, consistent with the soul's "whole stack readab
 
 ### 9. Reference integrity — version + checksum
 
-When a `catalog.toml` references another repo, it references a **version and a checksum** of the package. A reference is a **pinned, verifiable pointer** — consistent with ADR-0016 versioning (per-tier versions, float-or-pin) and ADR-0017's update-authenticity stance (checksummed third-party artifacts). No unverifiable "latest whatever" reference.
+When a `platform.toml` references another repo, it references a **version and a checksum** of the package. A reference is a **pinned, verifiable pointer** — consistent with ADR-0016 versioning (per-tier versions, float-or-pin) and ADR-0017's update-authenticity stance (checksummed third-party artifacts). No unverifiable "latest whatever" reference.
 
 ### 10. The compliance catalog — the "governance" half of the combined service
 
@@ -127,7 +127,7 @@ This is the monitoring/audit side of governance; the community catalog is the di
 
 - **Creates ADR-0018** — the governance half of the combined Publishing & Governance service. `33-publishing-governance.md` **deferred** until #21 resolves the whole combined service (ADR-0013 §6; the chapter is combined by design, so writing half now would mean a placeholder + near-total rewrite; the ADR is the source of truth until then).
 - **Sharpens ADR-0002** — implementation declarations formalized as a named **`implementation.toml`** symmetric with `service.toml`; the community-catalog listing surface (a catalog repo is a thin index of pointing records, not a re-statement of service definitions).
-- **Glossary (CONTEXT.md):** add "community catalog", "catalog.toml", "implementation.toml", "bundled service", "listed service", "third-party service", "compliance catalog", "graduation".
+- **Glossary (CONTEXT.md):** add "community catalog", "platform.toml" (renamed from `catalog.toml`), "implementation.toml", "bundled service", "listed service", "third-party service", "compliance catalog", "graduation".
 - **References, does not resolve:** license policy → #23 (this ticket's quality bar references a license *check*, never decides the policy); evaluation → #16 (quality-of-model is out of this bar).
 - **Feeds #21** (publishing) — the combined service's scope resolves together; #21's body updated with an "Updated by #15" provenance note. The `33-publishing-governance.md` chapter fills when #21 closes.
 - **Unblocks:** the dashboard's Install & Updates / Administrator surfaces (ADR-0015) can render the compliance catalog; the v1 catalog (#18) can mark bundled services by the computed rule.

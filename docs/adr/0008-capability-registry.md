@@ -1,6 +1,6 @@
 # ADR-0008 — Capability registry & search/load service
 
-**Status:** accepted (resolution of wayfinder ticket "Design the capability registry & search/load service"); **realizes ADR-0007 §9** (registry = universal name→URL resolver; per-agent scoping) and **ADR-0006** (privacy tier discoverable in the description; bundle tool legs); **relabels the privacy-tier vocabulary** across ADR-0006/0007/0002/0004 and CONTEXT.md to `local / cloud_no_data / cloud`
+**Status:** accepted (resolution of wayfinder ticket "Design the capability registry & search/load service"); **realizes ADR-0007 §9** (registry = universal name→URL resolver; per-agent scoping) and **ADR-0006** (privacy tier discoverable in the description; bundle tool legs); **relabels the privacy-tier vocabulary** across ADR-0006/0007/0002/0004 and CONTEXT.md to `local / cloud_no_data / cloud`; **sharpened by ADR-0019** (entry types extended to seven: adds `api` and `webapp` for published things; one entry per exposed surface)
 
 ## Context
 
@@ -18,21 +18,25 @@ The soul shapes everything: **no magic, no black box** — discovery must show *
 - Distribution mirrors ADR-0006's credentials pattern: entries are **pushed** on install/change, **pull-on-start** reconciles stragglers, and the operating model is **eventual consistency** (a cached index may be briefly stale; the source of truth is the leader).
 - The **registry is a *thin* discovery index — never a store of payloads.** Each entry holds only: `id` · `type` · **one-line description** (with privacy label) · **a reference to the owning service**. The **full definition lives in the owning service** and is fetched on demand. `load(entry_id)` = the registry resolves the reference → fetches the full definition from the owning service.
 
-### 2. Entry types — five typed entries (v1)
+### 2. Entry types — seven typed entries (v1, sharpened by ADR-0019)
 
-`tool | agent | workflow | skill | data_source`. **Models are not entries.** The registry indexes the *capability you invoke*, never the model that powers it:
+`tool | api | agent | workflow | skill | data_source | webapp`. **Models are not entries.** The registry indexes the *capability you invoke*, never the model that powers it:
 - **LLMs** are the agent's reasoning substrate — never a discoverable leaf (chosen at planning time, ADR-0007 §10). Truly out.
 - **Other model types** (image gen, STT/TTS, embeddings, classic models) are exposed as *capabilities* that get an MCP surface → become **tool** entries. The registry indexes "image_generate" (the callable capability), not "FLUX.2-klein" (the implementation). Models are **implementation metadata** on a tool entry, never standalone leaves.
 - **A capability's name may include the model name by user choice** when the model is the main component (e.g. "FLUX.2 image generator", "Whisper STT") — a naming preference for human discoverability, not a violation of "models out."
 
 **Connectors bring `tool` entries** (web search, fetch, x/twitter… — callable tools with audit/approval). A connector can *feed* a data source (fetch → index → data_source), but the connector itself registers tools. **Workspaces/environments stay out** — they are execution state/resources allocated by the `resources` capability and mounted into sessions, not discoverable capabilities.
 
-**The five types:**
+**The seven types:**
 - **tool** — MCP tool surface (ADR-0001 family 3: `{id, name, one-line, endpoint, tools: [{name, one-line}]}`), backed by a service's capability or a bundle's tool leg (executed via Connectors).
 - **agent** — the #13 agent definition (model, system prompt, accessible tool set, preloaded subset); lives in the Chat + Agents service.
 - **workflow** — a workflow definition (the Python program / Studio deployment); lives in the Workflow service.
 - **skill** — a SKILL.md body (frontmatter + instructions + linked files); lives in the Chat + Agents service.
 - **data_source** — an index/collection produced by the **Document service** (raw document-set indexes) **or the Knowledge service** (ontologies, concept graphs, knowledge bases — after the Document/Knowledge split, #26).
+- **api** *(added by ADR-0019)* — a **published** programmatic interface (**OpenAPI**): a published thing's deterministic surface, called by code/workflows (`call("…")`) or by an agent, but not necessarily shaped for an LLM agentic loop. Backed by a published thing's own HTTP surface (ADR-0019 §3/§4).
+- **webapp** *(added by ADR-0019)* — a **published** web UI, drivable by a human and (via the **webMCP** protocol) manipulable by an agent. **A static site is a simpler implementation of `webapp`**, not a separate type. A published thing that is only a human-facing site and is never agent-driven needs no entry (a plain dashboard link).
+
+*Published things register **one entry per surface actually exposed** (an app may register an `api` and/or a `tool` and/or a `webapp`), because "discoverable = launchable" holds per surface (ADR-0019 §4). `tool` remains the LLM-optimized MCP surface — a specialized kind of API, not a separate thing from `api`.*
 
 ### 3. Entry shape — progressive disclosure
 
@@ -50,6 +54,7 @@ e.g. `web.search — tool — Search the web and return ranked results — cloud
 - **skill** → the SKILL.md body + metadata in the **Chat + Agents service** (registry holds description + reference).
 - **agent** → the #13 agent definition in the **Chat + Agents service**.
 - **data_source** → the index/collection details in the **Document / Knowledge service**.
+- **api / webapp** *(added by ADR-0019)* → the published thing's invocation surface (OpenAPI for `api`; the webMCP/UI surface for `webapp`), in the **Publishing service** (the owning service for published things).
 
 Every full definition carries **provenance** (service, capability, surface) so the catalog UI can render the hierarchy. **One-level load for v1** — `load` pulls the full definition; a full definition may itself reference further sub-resources (skill linked files, workflow steps) fetched as needed, but there is no multi-level load protocol in v1.
 
@@ -76,8 +81,9 @@ The registry exposes a standard pair:
   - **tool** → the owning service's MCP tool surfaces;
   - **agent / workflow / skill** → the **Chat + Agents** service (and **Workflow** service for workflows) registers authored entries;
   - **data_source** → the **Document** / **Knowledge** service registers its indexes/collections;
-  - **bundle tool legs** → register as tool entries identifying **Connectors** as the executing service.
-- **When:** **at install** (a service comes up, pushes its catalog), **on change** (capability added/removed; agent/skill/workflow published/updated/deleted), **pull-on-start** (consumers refresh at boot). **Authored entries (agent/workflow/skill) register on publish only** (Studio deploy-style, ADR-0001 family 9) — a draft is not discoverable; **discoverable = launchable**. Drafts stay private to their author's editing surface.
+  - **bundle tool legs** → register as tool entries identifying **Connectors** as the executing service;
+  - **api / webapp** *(added by ADR-0019)* → the **Publishing service** registers published things on publish.
+- **When:** **at install** (a service comes up, pushes its catalog), **on change** (capability added/removed; agent/skill/workflow published/updated/deleted), **pull-on-start** (consumers refresh at boot). **Authored entries (agent/workflow/skill) and published things (api/webapp, via the Publishing service) register on publish only** (Studio deploy-style, ADR-0001 family 9) — a draft is not discoverable; **discoverable = launchable**. Drafts stay private to their author's editing surface.
 - The registry is **populated by registration, never by scraping.**
 
 ### 7. Two roles, one index — search/discovery AND name→URL resolution
@@ -146,4 +152,4 @@ State in the resolution comment: **#20 = registry mechanics** (index, search/loa
 - **Realizes ADR-0006**: privacy label is in the one-line description AND the full definition; bundle tool legs register as tool entries executed via Connectors; models stay out.
 - **Expands** "Design the integrated UI (dashboard)" (#8 — registry browse/search UI, version/pin browsing, privacy labels, per-agent scoping display), "Define the security model" (#14 — server-side scoping as the control boundary; harness accept/refuse; connector approval), "Split the Document service into Document + Knowledge" (#26 — data_source entries produced by both).
 - **Feeds** "Design the single-click installer" (#7 — registration on install), "Design the update & versioning flow" (#10 — version retention/float-pin), the spec anatomy (#12 — this chapter lands in the spec).
-- **Glossary (CONTEXT.md):** capability registry (thin index + name authority), registry entry (five typed entries), one-line description, full definition (owning service), search/load tool (hardcoded core primitive), accessible tool set, preloaded subset, per-agent scoping, name authority, stable name, float/pin resolution, dependency declaration (loose/specific), privacy labels (`local`/`cloud_no_data`/`cloud`).
+- **Glossary (CONTEXT.md):** capability registry (thin index + name authority), registry entry (seven typed entries: tool/api/agent/workflow/skill/data_source/webapp), one-line description, full definition (owning service), search/load tool (hardcoded core primitive), accessible tool set, preloaded subset, per-agent scoping, name authority, stable name, float/pin resolution, dependency declaration (loose/specific), privacy labels (`local`/`cloud_no_data`/`cloud`).
