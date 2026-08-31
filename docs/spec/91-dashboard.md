@@ -1,6 +1,6 @@
 # 91 — Dashboard
 
-> **Status:** drafted at the resolution of wayfinder ticket "Design the integrated UI (dashboard)" (#8) — the first spec chapter to be created (per Laurent, other chapters kept deferred). **Source of truth:** ADR-0015 (dashboard UX) plus the ADRs whose surfaces it renders (0003 core, 0004 topology, 0005 resources, 0006 providers, 0008 registry, 0014 install). This chapter is the **organized build-view** — it cites, never restates.
+> **Status:** drafted at the resolution of wayfinder ticket "Design the integrated UI (dashboard)" (#8) — the first spec chapter to be created (per Laurent, other chapters kept deferred). **Amended at the resolution of "Design the learning experience" (#29, ADR-0024)** — the learning assistant's surface and the onboarding/first-run experience. **Source of truth:** ADR-0015 (dashboard UX) plus the ADRs whose surfaces it renders (0003 core, 0004 topology, 0005 resources, 0006 providers, 0008 registry, 0014 install, 0024 learning experience). This chapter is the **organized build-view** — it cites, never restates.
 
 ## Identity
 
@@ -10,18 +10,21 @@ The **dashboard** is the platform core's human surface and the **platform's sing
 
 ### What the user sees and does
 
-- **On first use**, the dashboard hosts the **initial install web UI** (the wizard's Phase 3 — the rest of the install via the core's `install` capability), then the **first-run welcome**: recap of everything installed and running, the front-door address (`wordslab.local`), and a short guided tour that defers to its chapter (updates, security, backup; datasets opt-in, off).
+- **On first use**, the dashboard hosts the **initial install web UI** (the wizard's Phase 3 — the rest of the install via the core's `install` capability), then the **first-run welcome** (ADR-0024 §4, onboarding): recap of everything installed and running, the front-door address (`wordslab.local`), a short guided tour that defers to its chapter (updates, security, backup; datasets opt-in, off), and — specifically — entering the **backup passphrase**, told explicitly that it must be remembered because it encrypts the backups so only the user can decrypt them.
 - **On every screen**, a **view selector** (Administrator · User · Builder) and a **bottom status bar**; the **left + top bars** carry navigation; a **narrow right rail** shows always-on metrics.
+- **The learning assistant** (Hermes Agent) is accessible from the dashboard; launching it from a view runs it as that **acting identity** (User → `user`, Builder → `builder`, Administrator → `admin`), with docs mounted for all and tools/skills scoped by role (ADR-0024 §2).
 - **Administrators** see the Administrator view (ops). **Everyone** sees User (capability explorer) and Builder (dev/agent/workflow/publishing) views. (ADR-0015 §3.)
 - **Every surface teaches**: one plain-language line per screen, one line explaining each decision, and the *cause* behind every status color; "Learn more"/"Why?" deepens on demand. (ADR-0015 §4.)
 
 ### Representative use cases
 
 1. **"Install and configure my platform"** (Administrator) — S0 install web UI → machines (topology, working set, storage, simulation) → install/update services → cloud providers → users → backup. Supporting: core `install`/`resources`/`users`/`secrets` (ADR-0003), topology (0004), resources (0005), providers (0006), backup (#22).
-2. **"Use an AI capability"** (User) — browse the capability catalog, launch a capability's own UI, choose an implementation (dependency-declaration choice), handle a load that doesn't fit (load dialogue). Supporting: all 12 services' human surfaces (ADR-0002), registry (0008), resources (0005).
-3. **"Build an agent / workflow / app"** (Builder) — Development, agent builder (set accessible tool set + preloaded subset), workflow builder (Python + primitives), app publishing, publish to My registry. Supporting: agent/workflow (0007), registry name-authority (0008), Development, publishing (0019 — Builder = own devs + compliance authoring; Administrator = read-only audit).
-4. **"Keep an eye on the platform"** (everyone) — the always-on right rail (GPU/VRAM + CPU/RAM primary, cloud % spent when in use), hover for a machine's full stats, click for the full-metrics screen. Supporting: resources gauges (0005), providers spend (0006).
-5. **"Respond when the leader fails"** (Administrator) — the leader-failure banner shows authority surfaces down while services keep working. Supporting: ADR-0004 §1, recovery (#22).
+2. **"Complete first-run and set my backup passphrase"** (everyone, onboarding) — the first-run welcome, guided tour, datasets opt-in (off), and entering the backup passphrase (told to remember it — it encrypts backups so only the user can decrypt). Supporting: install (0014), backup (0021), learning experience (0024 §4).
+3. **"Use an AI capability"** (User) — browse the capability catalog, launch a capability's own UI, choose an implementation (dependency-declaration choice), handle a load that doesn't fit (load dialogue). Supporting: all 12 services' human surfaces (ADR-0002), registry (0008), resources (0005).
+4. **"Ask my learning assistant"** (everyone) — launch Hermes Agent from a view; it runs as that acting identity with the installed services' docs/skills/tools/diagnostics mounted (docs for all, tools by role); learn about or build with any capability. Supporting: learning experience (0024 §2), Chat + Agents (0007/0008), #31 (consent).
+5. **"Build an agent / workflow / app"** (Builder) — Development, agent builder (set accessible tool set + preloaded subset), workflow builder (Python + primitives), app publishing, publish to My registry; the guided build process (versioned skill set + process docs) steers the flow. Supporting: agent/workflow (0007), registry name-authority (0008), Development, learning experience (0024 §3), publishing (0019 — Builder = own devs + compliance authoring; Administrator = read-only audit).
+6. **"Keep an eye on the platform"** (everyone) — the always-on right rail (GPU/VRAM + CPU/RAM primary, cloud % spent when in use), hover for a machine's full stats, click for the full-metrics screen. Supporting: resources gauges (0005), providers spend (0006).
+7. **"Respond when the leader fails"** (Administrator) — the leader-failure banner shows authority surfaces down while services keep working. Supporting: ADR-0004 §1, recovery (#22).
 
 ## Part 2 — Build spec (organized reference + citations)
 
@@ -34,8 +37,8 @@ The **dashboard** is the platform core's human surface and the **platform's sing
 
 ### The screens (rendering settled semantics; each cites its ADR)
 
-- **Global shells:** view selector · metrics right rail · leader-failure banner (ADR-0004 §1).
-- **S0 Install web UI + first-run welcome** (ADR-0014 §3/§8; core `install`).
+- **Global shells:** view selector · metrics right rail · leader-failure banner (ADR-0004 §1) · **learning assistant** (Hermes Agent, accessible everywhere; launched from a view runs as that acting identity — User → `user`, Builder → `builder`, Administrator → `admin`; docs mounted for all, tools/skills by role; ADR-0024 §2).
+- **S0 Install web UI + first-run welcome** (ADR-0014 §3/§8; core `install`) — the first-run welcome includes the **backup-passphrase** step (ADR-0024 §4, ADR-0021).
 - **Contextual:** load dialogue (ADR-0005 §6) · dependency-declaration choice (ADR-0008 §11).
 - **Administrator:** Overview · Machines: Topology (0004 §2) / Working set cards (0004 §5, 0005 §6) / Storage (0004 §8, 0005 §8) / Simulation (0004 §5) · Install & Updates (0014, #10 lanes) · Backup (#22) · Cloud: Provider cards + inline keys (0006 §2/§5), Spend & remaining-% (0006 §6), Privacy & cloud-enablement (0006 §7, 0008 privacy labels) · Users (0003) · Connectors & service keys co-located (0006 §5, 0003 keys) · Registry manage (0008) · Activity & logs (0003).
 - **User:** Home · Capabilities (all services' UIs, ADR-0002) · My Activity (0003).
@@ -49,4 +52,4 @@ The **dashboard** is the platform core's human surface and the **platform's sing
 
 ### ADR cross-references
 
-ADR-0002 (callable surfaces, service UIs) · 0003 (core, users/keys/secrets, logs) · 0004 (topology, working set, storage, simulation) · 0005 (gauges, load dialogue, quotas) · 0006 (providers, spend, privacy, secrets) · 0007 (composition, agents/workflows) · 0008 (registry, name authority, per-agent scoping, dependency choice) · 0013 (spec anatomy) · 0014 (install, first-run, launcher) · **0015 (this chapter's governing ADR — dashboard UX, views, layout, educational layer)**.
+ADR-0002 (callable surfaces, service UIs, learning bar) · 0003 (core, users/keys/secrets, logs) · 0004 (topology, working set, storage, simulation) · 0005 (gauges, load dialogue, quotas) · 0006 (providers, spend, privacy, secrets) · 0007 (composition, agents/workflows) · 0008 (registry, name authority, per-agent scoping, dependency choice) · 0013 (spec anatomy) · 0014 (install, first-run, launcher) · **0015 (this chapter's governing ADR — dashboard UX, views, layout, educational layer)** · **0021 (backup / passphrase)** · **0024 (learning experience — assistant surface, onboarding, acting identity)**.
