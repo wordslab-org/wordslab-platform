@@ -45,7 +45,7 @@ Each service chapter: identity + capabilities, then Part 1 (use cases, decompose
 
 The anatomy surfaced two scope changes. #12 records the *direction* but the *content* lands where it belongs:
 
-- **Evaluation (#16) is a capability of the Training and Evaluation service** — the Training service is renamed and gains the evaluation capability. Chapter `22-training.md` becomes the Training and Evaluation chapter. Content → #16.
+- **Evaluation (#16) is a capability of the Training and Evaluation service** — the Training service is renamed and gains the evaluation capability. Chapter `24-training-evaluation.md` becomes the Training and Evaluation chapter. Content → #16 / #30.
 - **Publishing (#21) + Governance (#15) form a single combined service** — publishing moved off the Development service's surface, and governance (the catalog of all solutions built/run on the platform, with the documentation and monitoring to check compliance) joins it. The combined **Publishing & Governance** service is the candidate 13th, chapter `33-publishing-governance.md` (created by #15 + #21; ADR-0018 governance + ADR-0019 publishing). Content → #15, #21 (both resolved); catalog note → #18.
 
 ### 7. ADRs: "spec cites, never restates" + bidirectional cross-reference

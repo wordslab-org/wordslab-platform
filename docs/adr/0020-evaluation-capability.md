@@ -1,10 +1,10 @@
 # ADR-0020 — Evaluation capability of the Training and Evaluation service
 
-**Status:** accepted (resolution of wayfinder ticket "Define what evaluation means in the platform", #16); **amends none**; **sharpens none**; **consumes** the platform's data-consent-and-handling model (its own graduated ticket, #31 — see below); **references** ADR-0013 (Training → Training and Evaluation; chapter `22-training.md` fills on resolution) and ADR-0019 (publishing); **feeds** the `22-training.md` (Training and Evaluation) spec chapter — **deferred until the Training service grilling resolves** (see §"Deferred chapter").
+**Status:** accepted (resolution of wayfinder ticket "Define what evaluation means in the platform", #16); **amends none**; **sharpens none**; **consumes** the platform's data-consent-and-handling model (its own graduated ticket, #31 — see below); **references** ADR-0013 (Training → Training and Evaluation; the chapter fills on resolution) and ADR-0019 (publishing); **feeds** the `24-training-evaluation.md` (Training and Evaluation) spec chapter — **now filled by ADR-0025 (#30); see §"Deferred chapter".**
 
 ## Context
 
-Evaluation is listed among the centralized platform services, but its concrete meaning at home scale was unresolved. The spec-anatomy session (ADR-0013 §6) renamed the Training service to **Training and Evaluation** and made evaluation a capability of it, with the spec chapter `22-training.md` filling on this ticket's resolution. This ADR resolves what evaluation *concretely is* at home scale: of what, by what, how minimal, and where it appears in the UI.
+Evaluation is listed among the centralized platform services, but its concrete meaning at home scale was unresolved. The spec-anatomy session (ADR-0013 §6) renamed the Training service to **Training and Evaluation** and made evaluation a capability of it, with the spec chapter filling on this ticket's resolution. This ADR resolves what evaluation *concretely is* at home scale: of what, by what, how minimal, and where it appears in the UI.
 
 The soul shapes every decision: **no magic, no black box** — evaluation must be a **user-understood, user-triggered, visible** activity with explained results, never a hidden background scorer, never an automatic rating that silently steers the platform. Home scale is the deliberate inverse of enterprise evaluation infrastructure.
 
@@ -77,16 +77,16 @@ Evaluation is run by the **builder** on **their own** published artifact. At hom
 
 ## Deferred chapter
 
-Per ADR-0013 §6/§7 (the maintenance loop), this resolution would normally also create/update the consuming spec chapter **`docs/spec/22-training.md`** (the **Training and Evaluation** chapter) in the same commit. That is **deferred**: the chapter covers the whole Training *and* Evaluation service, and the Training side (training & fine-tuning capabilities) is not yet settled — writing the chapter now would force inventing the training half. The Training service grilling is graduated as its own ticket (see below), which **blocks** the fill of the `22-training.md` chapter. ADR-0020 is the source of truth for the evaluation half until then.
+Per ADR-0013 §6/§7 (the maintenance loop), this resolution would normally also create/update the consuming spec chapter **`docs/spec/24-training-evaluation.md`** (the **Training and Evaluation** chapter) in the same commit. That was **deferred**: the chapter covers the whole Training *and* Evaluation service, and the Training side (training & fine-tuning capabilities) was not yet settled — writing the chapter then would force inventing the training half. The Training service grilling was graduated as its own ticket #30, which **blocked** the fill. **#30 / ADR-0025 have now resolved** and filled the chapter — including the chapter-number amendment (`22-training.md` was superseded by `24-training-evaluation.md`, `22` being Document at #28). ADR-0020 remains the source of truth for the evaluation half.
 
-**Feeds spec chapter `docs/spec/22-training.md` (Training and Evaluation) — deferred until the Training service grilling resolves.**
+**Feeds spec chapter `docs/spec/24-training-evaluation.md` (Training and Evaluation).**
 
 ## Graduated tickets
 
 This resolution graduates two cross-cutting decisions into their own open tickets (per the wayfinder grilling practice — a side-quest that re-visions a different settled scope gets its own ticket, not folded in):
 
 - **#31 — "Design the data consent & handling / GDPR-aware usage-data model (platform core + all services)"** — the platform-wide data consent & handling model described in §5. It is a cross-cutting concern spanning the platform core and all services, not evaluation-specific. Evaluation *consumes* it (its real input is always the core's filtered+anonymized data; the raw-traces path is dropped). It should also surface as a cross-cutting principle in the Foundations chapter / a dedicated ADR when that ticket resolves.
-- **#30 — "Sharpen the Training service design (training & fine-tuning capabilities)"** — the training half of the Training and Evaluation service, which is not settled here. This ticket **blocks** the fill of the `22-training.md` chapter.
+- **#30 — "Sharpen the Training service design (training & fine-tuning capabilities)"** — the training half of the Training and Evaluation service, which is not settled here. This ticket **blocked** the chapter fill (now done via ADR-0025; see §"Deferred chapter").
 
 ## Reference documents
 
@@ -113,6 +113,6 @@ The evaluation capabilities and process are designed from the application-centri
 - **Creates ADR-0020** — the evaluation capability of the Training and Evaluation service (five capabilities + the pipeline).
 - **Glossary (CONTEXT.md):** add **evaluation**, **evaluation run**, **eval dataset**, **LLM-as-judge**, **open coding / axial coding**; update the **Training service** gloss to **Training and Evaluation**; add the data-consent-and-handling terms.
 - **Graduates #30** (Training service design) and **#31** (data consent & handling model) — see §"Graduated tickets".
-- **Defers** the `docs/spec/22-training.md` (Training and Evaluation) chapter until #30 resolves.
-- **Feeds** the dashboard (Builder view evaluation surface; implementation-card eval links), Publishing (simulation + temporary annotation-UI deployment), Development (notebook-driven), and the future `22-training.md` chapter.
+- **Defers** the `docs/spec/24-training-evaluation.md` (Training and Evaluation) chapter until #30 resolves.
+- **Feeds** the dashboard (Builder view evaluation surface; implementation-card eval links), Publishing (simulation + temporary annotation-UI deployment), Development (notebook-driven), and the `24-training-evaluation.md` chapter.
 - **References, does not resolve:** the data consent & handling model (→ #31, open); the Training service (→ #30, open); license (#23), backup (#22), Document/Knowledge (#28), learning experience (#29). One ticket per session — none of these are resolved here.
