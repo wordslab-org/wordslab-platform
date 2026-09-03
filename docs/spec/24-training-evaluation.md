@@ -44,7 +44,7 @@ The two are one service because they share the *same raw material* — **dataset
 
 - **Sources** (shared by `train.dataset` / `eval.dataset`): **anonymized core datasets** (the only real-usage path — always filtered + anonymized, no raw-traces path) · **downloaded** (HF etc.) · **synthetic** (grounded on the anonymized data's dimensions: personas + target use-cases + source documents → LLM-generated candidates → human-filtered → versioned).
 - **Builder sphere** needs no anonymization (no personal data); **user sphere** reaches Training only via the core's filtered+anonymized extraction.
-- The **consent model is #31** (open) — Training/Evaluation consume it, never re-implement it.
+- The **consent model is #31 (now resolved by ADR-0026)** — Training/Evaluation consume it, never re-implement it.
 
 ### Fine-tune shapes per model class (ADR-0025 §6)
 
@@ -75,4 +75,4 @@ The two are one service because they share the *same raw material* — **dataset
 
 ### ADR cross-references
 
-ADR-0020 (**evaluation half** — eval.dataset/simulate/annotate/judge/report, Arize Phoenix, annotation UI, consent §5) · **ADR-0025 (this chapter's training half** — train.dataset/fine-tune/publish, Trackio, license gates, publish→Inference) · ADR-0002 (service template, capability pattern, learning bar) · ADR-0005 (resource guardian) · ADR-0007 (composition — explicit implementation choice, no inference policy) · ADR-0022 (model compliance profile — fine-tune/train-on-output gates) · ADR-0024 (learning experience — guided build steers to eval) · ADR-0013 (spec anatomy — chapter numbering). Contract per ADR-0001 (family 9 Tinker training sessions); data residency per ADR-0003/0004; #31 (consent) + #32 (implementation declaration) open.
+ADR-0020 (**evaluation half** — eval.dataset/simulate/annotate/judge/report, Arize Phoenix, annotation UI, consent §5) · **ADR-0025 (this chapter's training half** — train.dataset/fine-tune/publish, Trackio, license gates, publish→Inference) · ADR-0002 (service template, capability pattern, learning bar) · ADR-0005 (resource guardian) · ADR-0007 (composition — explicit implementation choice, no inference policy) · ADR-0022 (model compliance profile — fine-tune/train-on-output gates) · ADR-0024 (learning experience — guided build steers to eval) · ADR-0013 (spec anatomy — chapter numbering). Contract per ADR-0001 (family 9 Tinker training sessions); data residency per ADR-0003/0004; #31 (consent, resolved by ADR-0026) + #32 (implementation declaration) open.

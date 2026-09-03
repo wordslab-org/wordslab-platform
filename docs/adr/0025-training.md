@@ -1,6 +1,6 @@
 # ADR-0025 — Training half of the Training and Evaluation service
 
-**Status:** accepted (resolution of wayfinder ticket "Sharpen the Training service design", #30); **creates** the Training and Evaluation spec chapter `docs/spec/24-training-evaluation.md`; **resolves** the chapter deferred by ADR-0020 §"Deferred chapter"; **amends** the chapter-number reference recorded in ADR-0013/0020 (`22-training.md` → `24-training-evaluation.md`, `22` being taken by Document at #28); **consumes** the data-consent-and-handling model (its own graduated ticket, #31) and the model compliance profile (ADR-0022); **references** #32 (implementation-declaration reconciliation, open); **feeds** the map's destination.
+**Status:** accepted (resolution of wayfinder ticket "Sharpen the Training service design", #30); **creates** the Training and Evaluation spec chapter `docs/spec/24-training-evaluation.md`; **resolves** the chapter deferred by ADR-0020 §"Deferred chapter"; **amends** the chapter-number reference recorded in ADR-0013/0020 (`22-training.md` → `24-training-evaluation.md`, `22` being taken by Document at #28); **consumes** the data-consent-and-handling model (its own graduated ticket, #31 — **now resolved by ADR-0026**) and the model compliance profile (ADR-0022); **references** #32 (implementation-declaration reconciliation, open); **feeds** the map's destination.
 
 ## Context
 
@@ -61,7 +61,7 @@ This placement is deliberately narrow and simple: dataset prep stays a neutral, 
 - **Synthetic data** is grounded on those anonymized dimensions (personas + target use-cases + source documents → LLM-generated candidates → human-filtered → versioned dataset).
 - **Builder sphere** (simulated interactions / builder-injected data) runs as the builder identity — **no filter/anonymize needed** (ADR-0021 #22: the builder sphere holds no personal data; builder traces need no anonymization).
 - **User sphere** reaches Training **only** via the core's filtered+anonymized extraction — never raw.
-- The **consent model itself stays #31** — Training *consumes* the settled attribution; it does not design the consent rules.
+- The **consent model itself is #31 (now resolved by ADR-0026)** — Training *consumes* the settled attribution; it does not design the consent rules.
 
 So `train.dataset`'s sources mirror `eval.dataset`'s (ADR-0020 §5): **anonymized core datasets** (the only real-usage path) · **downloaded** (HF etc.) · **synthetic** (grounded on the anonymized data's dimensions). Training consumes **builder-sphere and anonymized real data only**; trained artifacts are builder-sphere artifacts (§2) — which is why they can live in HF repos or the workspace without anonymization: no personal data ever entered training.
 
@@ -102,7 +102,7 @@ Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consumi
 
 ## Graduated tickets (consumed, not resolved)
 
-- **#31 — "Design the data consent & handling / GDPR-aware usage-data model"** — the data-consent-and-handling model Training consumes (§5). #31 is open; Training follows its boundary, does not re-implement it.
+- **#31 — "Design the data consent & handling / GDPR-aware usage-data model"** — the data-consent-and-handling model Training consumes (§5). #31 is now **resolved by ADR-0026**; Training follows its boundary, does not re-implement it.
 - **#32 — "Clarify the implementation-declaration model: reconcile models.toml vs implementation.toml"** — how a trained model (an Inference implementation) is *declared*. #32 is open; #30 records the publish target (→ Inference) and forward-references #32 for the declaration syntax (§7).
 
 ## Reference documents
@@ -126,4 +126,4 @@ Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consumi
 - **Consumes** (not resolves) the data-consent model (#31) and the implementation-declaration reconciliation (#32).
 - **Glossary (CONTEXT.md):** add training, fine-tune, dataset prep, Trackio; update the Training and Evaluation gloss to the settled shape; mark #30 resolved.
 - **Feeds** the dashboard (Builder-view training surface via notebooks), Development (notebook-driven JupyterLab), Inference (#32 declaration), and the new chapter.
-- **References, does not resolve:** the data-consent model (#31, open); the implementation declaration (models.toml vs implementation.toml, #32, open); eval (ADR-0020, settled); license (ADR-0022, settled).
+- **References, does not resolve:** the data-consent model (#31 — now resolved by ADR-0026); the implementation declaration (models.toml vs implementation.toml, #32, open); eval (ADR-0020, settled); license (ADR-0022, settled).

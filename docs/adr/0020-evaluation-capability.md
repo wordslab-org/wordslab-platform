@@ -115,4 +115,4 @@ The evaluation capabilities and process are designed from the application-centri
 - **Graduates #30** (Training service design) and **#31** (data consent & handling model) — see §"Graduated tickets".
 - **Defers** the `docs/spec/24-training-evaluation.md` (Training and Evaluation) chapter until #30 resolves.
 - **Feeds** the dashboard (Builder view evaluation surface; implementation-card eval links), Publishing (simulation + temporary annotation-UI deployment), Development (notebook-driven), and the `24-training-evaluation.md` chapter.
-- **References, does not resolve:** the data consent & handling model (→ #31, open); the Training service (→ #30, open); license (#23), backup (#22), Document/Knowledge (#28), learning experience (#29). One ticket per session — none of these are resolved here.
+- **References, does not resolve:** the data consent & handling model (now resolved — ADR-0026, #31); the Training service (→ #30, open at the time; now resolved by ADR-0025); license (#23), backup (#22), Document/Knowledge (#28), learning experience (#29).
