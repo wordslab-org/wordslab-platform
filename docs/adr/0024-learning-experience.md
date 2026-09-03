@@ -1,6 +1,6 @@
 # ADR-0024 — The learning experience: per-service learning bar, continual personal assistant, guided AI build process
 
-**Status:** accepted (resolution of wayfinder ticket "Design the learning experience", #29 — the per-service learning/operability bar, the continual learning assistant, and the guided AI build process, plus the folded-in onboarding experience from #22); **amends ADR-0002** (the service template gains a required learning/operability bar declaration); **creates the `10-foundations.md` spec chapter** (hosting the learning-experience cross-cutting thread, resolving the deferral recorded by #28); **amends `91-dashboard.md`** (the learning assistant's surface + the onboarding/first-run experience); **feeds** "data consent & handling" (#31 — role-scoped tool access for the assistant, recorded in #31's body) and the "Training service" (#30 — the guided build process steers learners to the eval capability, recorded in #30's body); **references but does NOT resolve** "Clarify the implementation-declaration model" (#32, created this session — the bar's per-implementation half awaits the `models.toml`→`implementation.toml` reconciliation).
+**Status:** accepted (resolution of wayfinder ticket "Design the learning experience", #29 — the per-service learning/operability bar, the continual learning assistant, and the guided AI build process, plus the folded-in onboarding experience from #22); **amends ADR-0002** (the service template gains a required learning/operability bar declaration); **creates the `10-foundations.md` spec chapter** (hosting the learning-experience cross-cutting thread, resolving the deferral recorded by #28); **amends `91-dashboard.md`** (the learning assistant's surface + the onboarding/first-run experience); **feeds** "data consent & handling" (#31 — role-scoped tool access for the assistant, recorded in #31's body) and the "Training service" (#30 — the guided build process steers learners to the eval capability, recorded in #30's body); **references** the implementation-declaration reconciliation (its per-implementation half is now concrete: #32, resolved by ADR-0027 — the bar is declared per implementation in `implementation.toml`).
 
 ## Context
 
@@ -14,7 +14,7 @@ Three settled mechanics the design rests on (not re-decided):
 - **Registry (ADR-0008):** thin index + name authority on the leader core; entries `tool | api | agent | workflow | skill | data_source | webapp`; per-agent scoping enforced server-side (accessible set lives in the agent definition); skills are registry `skill` entries living in the Chat + Agents service.
 - **Dashboard (ADR-0015):** the single human front door; role-aware (Administrator · User · Builder, gated by the settled admin/member level — every user is also a builder); hosts the UI of every service capability; hosts first-run welcome.
 
-A clarifying decision: **models vs implementations.** The service template's model-declaration mechanism evolved from a per-capability `models.toml` (ADR-0002 as written) to per-implementation `implementation.toml` (ADR-0004's implementation layer, formalized by ADR-0018). The two names still coexist inconsistently across the docs; that cleanup is a **separate clarifying ticket (#32)**, created this session. This ADR designs the learning bar against the *implementation* model and cross-references #32; it does not settle the file naming.
+A clarifying decision: **models vs implementations.** The service template's model-declaration mechanism evolved from a per-capability `models.toml` (ADR-0002 as written) to per-implementation `implementation.toml` (ADR-0004's implementation layer, formalized by ADR-0018, reconciled by ADR-0027). This ADR designs the learning bar against the *implementation* model; #32 (ADR-0027) resolved the file naming — `models.toml` is retired.
 
 ## Decision
 
@@ -26,7 +26,7 @@ Every **service** and every **implementation** carries a required, graded set of
 - **Skills + MCPs** — so agents can **configure and use** the capability (the platform's own AI can operate it). MCP tools are **auto-generated from the OpenAPI spec** by default (ADR-0002/0008 — the MCP surface *is* the API), with hand-written `@tool` overrides where the machine API needs an English-friendly interface. Each capability additionally ships a **how-an-agent-drives-me `skill`** (a registry `skill` entry) as a first-class bar artifact. Where a capability genuinely can't be agent-driven, the bar records an explicit **"not agent-operable"** note rather than a fake skill — no theater.
 - **Diagnostics tools** — to fix problems and optimize behavior.
 
-**The bar is a declared, auditable requirement, not an aspirational guideline.** It is **declared in the service template** (ADR-0002): per-service/capability in the service declaration, per-implementation once the file naming is reconciled by #32. The bar is **enforced at contribution time**, mirroring the mechanical/compliance quality bar (ADR-0018's computed tiers): **mandatory to publish for `bundled` and `listed`** things (they can't be listed/bundled without it), **recommended-with-tracked-gaps for `third-party`** (the gap is recorded, not blocking). Applies to published things' documentation/skills/diagnostics surface too (ADR-0019).
+**The bar is a declared, auditable requirement, not an aspirational guideline.** It is **declared in the service template** (ADR-0002): per-service/capability in the service declaration, per-implementation in `implementation.toml` (ADR-0027, #32). The bar is **enforced at contribution time**, mirroring the mechanical/compliance quality bar (ADR-0018's computed tiers): **mandatory to publish for `bundled` and `listed`** things (they can't be listed/bundled without it), **recommended-with-tracked-gaps for `third-party`** (the gap is recorded, not blocking). Applies to published things' documentation/skills/diagnostics surface too (ADR-0019).
 
 ### 2. A continual learning assistant for every user (built on Hermes Agent)
 
@@ -56,7 +56,7 @@ The **first-run/initial journey** is part of the learning/guidance experience. A
 ### 5. Where it lands
 
 - **ADR-0024** (this decision) is the source of truth.
-- **Amends ADR-0002** — the service template gains the required learning/operability bar declaration (per-service/capability now; per-implementation pending #32).
+- **Amends ADR-0002** — the service template gains the required learning/operability bar declaration (per-service/capability now; per-implementation in `implementation.toml`, ADR-0027/#32).
 - **Creates `docs/spec/10-foundations.md`** — hosting the learning-experience cross-cutting thread as part of the platform-wide substrate, resolving the deferral #28 recorded (this ticket is one of the cross-cutting tickets #28 was waiting on).
 - **Amends `docs/spec/91-dashboard.md`** — the learning assistant's surface (the preloaded/embedded assistant, launch-by-view → acting identity) and the onboarding/first-run experience.
 
@@ -76,6 +76,6 @@ The **first-run/initial journey** is part of the learning/guidance experience. A
 - **Amends `docs/spec/91-dashboard.md`** — learning-assistant surface + onboarding/first-run (incl. the backup-passphrase step).
 - **Feeds #31 (data consent)** — the assistant's role-scoped tool access (user-own-data / builder-anonymized / admin-platform-ops) is recorded in #31's body as consent content; #31 designs the action-context enforcement.
 - **Feeds #30 (Training)** — the guided build process steers learners to the eval capability; recorded in #30's body.
-- **References #32 (created this session)** — the bar's per-implementation half awaits the `models.toml`→`implementation.toml` reconciliation; a forward reference, not a dependency.
+- **Resolves #32** — the bar's per-implementation half is now concrete (ADR-0027: the bar is declared per implementation in `implementation.toml`).
 - **Model-license note (ADR-0022):** any model-backed step in the learning experience (e.g. the LLM behind the assistant's skills or the guided-build/eval flow) routes through the Inference service as an explicit implementation choice carrying its privacy tier and respecting its model compliance profile.
 - **Glossary (CONTEXT.md):** adds "learning/operability bar", "learning assistant", "acting identity", "guided build process"; sharpens the Development service (agentic-dev-workflow carries the guided build) and the Chat + Agents service (Hermes as the learning assistant; skills home).

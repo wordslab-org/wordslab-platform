@@ -37,7 +37,7 @@ Component license rules map onto ADR-0018's **computed review-status levels** (`
 
 ### 3. Models / implementations — the five-question compliance profile
 
-Model **weights licenses are not OSI software licenses**. Instead of forcing them into the software-license frame, the policy captures each model's terms in a **five-question compliance profile**, recorded per model (in the registry's license tag, ADR-0008/0017; surfaced in `models.toml` / `implementation.toml`):
+Model **weights licenses are not OSI software licenses**. Instead of forcing them into the software-license frame, the policy captures each model's terms in a **five-question compliance profile**, recorded per model (in the registry's license tag, ADR-0008/0017; surfaced in `implementation.toml`):
 
 1. **Pay-to-use** — do we need to pay a license or subscription to use the model?
 2. **Use restriction** — (a) is the model restricted to **research use only**? (b) is **commercial use** allowed, and up to what revenue without a license?

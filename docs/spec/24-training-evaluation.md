@@ -35,7 +35,7 @@ The two are one service because they share the *same raw material* — **dataset
 **Training half (ADR-0025 §3):**
 - **`train.dataset`** — dataset prep shared with evaluation: gather (HF import / downloadable), version (versioned, project-tied), anonymize (real usage only via the core's filtered+anonymized extraction). Feeding both training and evaluation.
 - **`train.fine-tune`** — the fine-tune/train operation **on a model** (base model from the Inference catalog + dataset + Trackio metrics); **the ADR-0022 license gate lives here**.
-- **`train.publish`** — publish a trained artifact to Inference as a new implementation (declaration syntax → #32).
+- **`train.publish`** — publish a trained artifact to Inference as a new implementation (a model implementation declared in `implementation.toml`, with its engine dependency — ADR-0027/#32).
 
 **Evaluation half (ADR-0020 §3):**
 - **`eval.dataset`** · **`eval.simulate`** · **`eval.annotate`** · **`eval.judge`** · **`eval.report`** — the five-stage pipeline (dataset → simulate → open/axial coding → LLM-as-judge validated against human labels → version comparison + history in the project repo).
@@ -63,7 +63,7 @@ The two are one service because they share the *same raw material* — **dataset
 
 ### Publish-to-Inference (ADR-0025 §7, → #32)
 
-- A trained artifact (adapter or classic model) **always lands as an Inference implementation** via `train.publish` — the standard implementation path. The exact **`implementation.toml` vs `models.toml` reconciliation is #32** (open); #30 forward-references it and does not resolve it.
+- A trained artifact (adapter or classic model) **always lands as an Inference implementation** via `train.publish` — the standard implementation path. A trained artifact declares as a **model implementation** (`llm.model` / `diffusion.model` / `ml.model`) in its `implementation.toml`, with its engine dependency (ADR-0027, #32); `models.toml` is retired.
 
 ### Human surface (ADR-0025 §2, ADR-0020 §4)
 
@@ -75,4 +75,4 @@ The two are one service because they share the *same raw material* — **dataset
 
 ### ADR cross-references
 
-ADR-0020 (**evaluation half** — eval.dataset/simulate/annotate/judge/report, Arize Phoenix, annotation UI, consent §5) · **ADR-0025 (this chapter's training half** — train.dataset/fine-tune/publish, Trackio, license gates, publish→Inference) · ADR-0002 (service template, capability pattern, learning bar) · ADR-0005 (resource guardian) · ADR-0007 (composition — explicit implementation choice, no inference policy) · ADR-0022 (model compliance profile — fine-tune/train-on-output gates) · ADR-0024 (learning experience — guided build steers to eval) · ADR-0013 (spec anatomy — chapter numbering). Contract per ADR-0001 (family 9 Tinker training sessions); data residency per ADR-0003/0004; #31 (consent, resolved by ADR-0026) + #32 (implementation declaration) open.
+ADR-0020 (**evaluation half** — eval.dataset/simulate/annotate/judge/report, Arize Phoenix, annotation UI, consent §5) · **ADR-0025 (this chapter's training half** — train.dataset/fine-tune/publish, Trackio, license gates, publish→Inference) · ADR-0002 (service template, capability pattern, learning bar) · ADR-0005 (resource guardian) · ADR-0007 (composition — explicit implementation choice, no inference policy) · ADR-0022 (model compliance profile — fine-tune/train-on-output gates) · ADR-0024 (learning experience — guided build steers to eval) · ADR-0013 (spec anatomy — chapter numbering). Contract per ADR-0001 (family 9 Tinker training sessions); data residency per ADR-0003/0004; #31 (consent, resolved by ADR-0026) + #32 (implementation declaration, resolved by ADR-0027 — model implementations in `implementation.toml`).

@@ -45,7 +45,7 @@ Service business logic, DBs, UIs and APIs (full independence — no central roun
 
 ### Support matrix (v1)
 
-One runtime (Linux); hosts = Windows 10/11 via WSL2 (primary) + native Linux + rented cloud hosts (native-Linux install path); one GPU stack (CUDA; ROCm and MLX deferred, kept possible by the per-OS bootstrap, engine variants, and hardware-spanning models.toml). Configurations: **no-GPU cheap** (all model calls via cloud providers — per-service `cloud-only` inference policy) and **GPU small/middle/big** (local, private).
+One runtime (Linux); hosts = Windows 10/11 via WSL2 (primary) + native Linux + rented cloud hosts (native-Linux install path); one GPU stack (CUDA; ROCm and MLX deferred, kept possible by the per-OS bootstrap, engine variants, and hardware-spanning model implementations declared in `implementation.toml` — ADR-0027). Configurations: **no-GPU cheap** (all model calls via cloud providers — per-service `cloud-only` inference policy) and **GPU small/middle/big** (local, private).
 
 ## Considered options
 

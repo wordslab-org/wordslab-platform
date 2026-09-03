@@ -45,7 +45,7 @@ The platform's added value on the provider side is **removing the pain of provid
 
 ### 4. Bundles = one provider row with capability-tagged legs
 
-A **bundle** (one subscription covering models *and* tools, e.g. Nous portal) is **one provider row whose legs are tagged by capability**: `{modality: llm}`, `{modality: diffusion}`, `{modality: tool (web search)}`, … Model legs feed the Inference service via `models.toml` (`source` = provider ref); **tool legs register as MCP tools in the capability registry (#20) and execute via the Connectors service (#18)**. **One credential covers all legs.** The registry distributes the row to both the Inference service and the Connectors service; each keeps only the legs it owns. The dashboard shows one subscription card (not two entries the user must rejoin), and "what leaves the machine" reports per-subscription across both services.
+A **bundle** (one subscription covering models *and* tools, e.g. Nous portal) is **one provider row whose legs are tagged by capability**: `{modality: llm}`, `{modality: diffusion}`, `{modality: tool (web search)}`, … Model legs feed the Inference service as **model implementations declared in `implementation.toml`** (`source` = provider ref); **tool legs register as MCP tools in the capability registry (#20) and execute via the Connectors service (#18)**. **One credential covers all legs.** The registry distributes the row to both the Inference service and the Connectors service; each keeps only the legs it owns. The dashboard shows one subscription card (not two entries the user must rejoin), and "what leaves the machine" reports per-subscription across both services.
 
 ### 5. Credentials: one shared vault, push + pull-on-start, eventual consistency
 

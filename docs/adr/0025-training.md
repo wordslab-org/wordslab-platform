@@ -1,6 +1,6 @@
 # ADR-0025 — Training half of the Training and Evaluation service
 
-**Status:** accepted (resolution of wayfinder ticket "Sharpen the Training service design", #30); **creates** the Training and Evaluation spec chapter `docs/spec/24-training-evaluation.md`; **resolves** the chapter deferred by ADR-0020 §"Deferred chapter"; **amends** the chapter-number reference recorded in ADR-0013/0020 (`22-training.md` → `24-training-evaluation.md`, `22` being taken by Document at #28); **consumes** the data-consent-and-handling model (its own graduated ticket, #31 — **now resolved by ADR-0026**) and the model compliance profile (ADR-0022); **references** #32 (implementation-declaration reconciliation, open); **feeds** the map's destination.
+**Status:** accepted (resolution of wayfinder ticket "Sharpen the Training service design", #30); **creates** the Training and Evaluation spec chapter `docs/spec/24-training-evaluation.md`; **resolves** the chapter deferred by ADR-0020 §"Deferred chapter"; **amends** the chapter-number reference recorded in ADR-0013/0020 (`22-training.md` → `24-training-evaluation.md`, `22` being taken by Document at #28); **consumes** the data-consent-and-handling model (its own graduated ticket, #31 — **now resolved by ADR-0026**) and the model compliance profile (ADR-0022); **references** #32 (implementation-declaration reconciliation — **now resolved by ADR-0027**: a trained artifact declares as a model implementation in `implementation.toml`); **feeds** the map's destination.
 
 ## Context
 
@@ -82,7 +82,7 @@ A trained model **always publishes back as a new implementation of the relevant 
 - An **LLM/VLM LoRA or diffusion adapter** on a base model → the published artifact is an **implementation of Inference** (a served endpoint wrapping base-model + adapter).
 - A **classic model** (classifier / regressor / embedding) → also an **implementation of Inference**, for the capability that covers such outputs.
 
-So a trained artifact always lands as an **Inference implementation** under the standard implementation path (`implementation.toml`). The **exact reconciliation of `implementation.toml` vs `models.toml`** — how a trained implementation is declared, versioned, and updated — is **deferred to #32** (open, "Clarify the implementation-declaration model: reconcile models.toml vs implementation.toml"). #30 does **not** resolve it; it forward-references #32 for how a trained model is declared. `train.publish` records the publish target and the plan for declaring the implementation; the precise declaration syntax lands with #32.
+So a trained artifact always lands as an **Inference implementation** under the standard implementation path (`implementation.toml`). The reconciliation of `implementation.toml` vs `models.toml` is **resolved by #32 (ADR-0027)**: a trained artifact is declared as a new **model implementation** (`llm.model` / `diffusion.model` / `ml.model`) in its `implementation.toml`, carrying its **engine dependency** like any model — an LLM/VLM LoRA or diffusion adapter is a `llm.model`/`diffusion.model` implementation on its base model's engine (min version), and a classic model is an `ml.model` implementation. `models.toml` is retired. `train.publish` records the publish target (the model capability) and the engine dependency; the precise declaration syntax is the standard `implementation.toml` shape (ADR-0002 §5, ADR-0027).
 
 ### 8. Training location & the v1.1 job-runner boundary
 
@@ -103,11 +103,11 @@ Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consumi
 ## Graduated tickets (consumed, not resolved)
 
 - **#31 — "Design the data consent & handling / GDPR-aware usage-data model"** — the data-consent-and-handling model Training consumes (§5). #31 is now **resolved by ADR-0026**; Training follows its boundary, does not re-implement it.
-- **#32 — "Clarify the implementation-declaration model: reconcile models.toml vs implementation.toml"** — how a trained model (an Inference implementation) is *declared*. #32 is open; #30 records the publish target (→ Inference) and forward-references #32 for the declaration syntax (§7).
+- **#32 — "Clarify the implementation-declaration model: reconcile models.toml vs implementation.toml"** — how a trained model (an Inference implementation) is *declared*. #32 is **resolved by ADR-0027**: a trained artifact publishes as a model implementation (`llm.model` / `diffusion.model` / `ml.model`) in `implementation.toml`, with its engine dependency.
 
 ## Reference documents
 
-- **ADR-0020** (evaluation half of this service; dataset-consent §5; deferred chapter). **ADR-0022** (model compliance profile — license gates). **ADR-0001** (contract — family 9 Tinker-by-reference training sessions). **ADR-0005** (resource management — resource guardian). **ADR-0007** (composition — explicit implementation choice, no inference policy). **ADR-0013** (spec anatomy — chapter numbering). **ADR-0024** (learning experience — guided build steers to eval). **#31 / #32** (open). Research: `research/non-llm-serving.md` (diffusion serving / ComfyUI bridge). CONTEXT "Training and Evaluation service".
+- **ADR-0020** (evaluation half of this service; dataset-consent §5; deferred chapter). **ADR-0022** (model compliance profile — license gates). **ADR-0001** (contract — family 9 Tinker-by-reference training sessions). **ADR-0005** (resource management — resource guardian). **ADR-0007** (composition — explicit implementation choice, no inference policy). **ADR-0013** (spec anatomy — chapter numbering). **ADR-0024** (learning experience — guided build steers to eval). **#31** (resolved by ADR-0026) / **#32** (resolved by ADR-0027). Research: `research/non-llm-serving.md` (diffusion serving / ComfyUI bridge). CONTEXT "Training and Evaluation service".
 
 ## Considered options
 
@@ -116,14 +116,14 @@ Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consumi
 - **License gates at dataset-prep AND fine-tune vs only at fine-tune** — gating at dataset-prep makes prep pre-judge what gathered data is for (an inference policy, ADR-0007) and breaks prep's reuse across training and evaluation. Chose the **narrow single gate at fine-tune only**, each with an explicit user-facing refusal reason (§4).
 - **Fine-tune as a model-backed capability vs a separate system** — a trained model is served through Inference and exercises the explicit implementation choice; chose **fine-tune as an operation ON a model** through the Inference catalog (§6).
 - **Full model re-train vs parameter-efficient adapters** — home scale + modest hardware favor adapters. LLM/VLM LoRA and diffusion adapters by default; classic fine-tunes of pretrained backbones (§6).
-- **Publish to Inference as a new implementation vs a separate trained-model registry vs a models.toml override** — a trained artifact serves through Inference, so it is an *implementation* of the relevant capability; the exact declaration relationship of models.toml/implementation.toml is #32's, not re-decided (§7).
+- **Publish to Inference as a new implementation vs a separate trained-model registry vs a models.toml override** — a trained artifact serves through Inference, so it is an *implementation* of the relevant model capability; the declaration relationship of models.toml/implementation.toml is resolved by #32/ADR-0027 (models.toml retired; trained artifact = a model implementation in `implementation.toml`).
 
 ## Consequences
 
 - **Creates ADR-0025** — the training half of the Training and Evaluation service.
 - **Creates** the spec chapter `docs/spec/24-training-evaluation.md` — the whole Training and Evaluation chapter (training + evaluation), resolving ADR-0020's deferred chapter.
 - **Amends** the chapter-number reference (ADR-0013 §6, ADR-0020 §"Deferred chapter": `22-training.md` → `24-training-evaluation.md`) — `22` being Document.
-- **Consumes** (not resolves) the data-consent model (#31) and the implementation-declaration reconciliation (#32).
+- **Consumes** (not resolves) the data-consent model (#31) and the implementation-declaration reconciliation (#32 — now resolved by ADR-0027).
 - **Glossary (CONTEXT.md):** add training, fine-tune, dataset prep, Trackio; update the Training and Evaluation gloss to the settled shape; mark #30 resolved.
-- **Feeds** the dashboard (Builder-view training surface via notebooks), Development (notebook-driven JupyterLab), Inference (#32 declaration), and the new chapter.
-- **References, does not resolve:** the data-consent model (#31 — now resolved by ADR-0026); the implementation declaration (models.toml vs implementation.toml, #32, open); eval (ADR-0020, settled); license (ADR-0022, settled).
+- **Feeds** the dashboard (Builder-view training surface via notebooks), Development (notebook-driven JupyterLab), Inference (#32 — a trained model publishes as a model implementation), and the new chapter.
+- **References, does not resolve:** the data-consent model (#31 — now resolved by ADR-0026); the implementation declaration (models.toml vs implementation.toml, #32 — now resolved by ADR-0027); eval (ADR-0020, settled); license (ADR-0022, settled).
