@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wordslab Platform — System Overview</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace; background:#020617; padding:2rem; color:#e2e8f0; }
+  .container { max-width:1280px; margin:0 auto; }
+  h1 { font-size:1.4rem; font-weight:700; }
+  .subtitle { color:#94a3b8; font-size:.8rem; margin:.5rem 0 1.5rem; }
+  .diagram { background:rgba(15,23,42,.5); border:1px solid #1e293b; border-radius:1rem; padding:1rem; overflow-x:auto; }
+  svg { width:100%; min-width:1100px; display:block; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-top:1.5rem; }
+  .card { background:rgba(15,23,42,.5); border:1px solid #1e293b; border-radius:.75rem; padding:1rem; }
+  .card h3 { font-size:.8rem; margin-bottom:.5rem; }
+  .card li { color:#94a3b8; font-size:.7rem; margin-bottom:.3rem; list-style:none; }
+</style>
+</head>
+<body><div class="container">
+<h1>Wordslab Platform — System Overview</h1>
+<p class="subtitle">Home-scale, 100% OSS AI platform — leader/worker fleet, services + control-only core, one front door (ADR-0003/0004/0014)</p>
+
+<div class="diagram">
+<svg viewBox="0 0 1240 860" font-family="'JetBrains Mono',monospace">
+<defs>
+  <marker id="a" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#64748b"/></marker>
+  <marker id="ac" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#22d3ee"/></marker>
+  <marker id="ar" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#fb7185"/></marker>
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+
+<!-- USER -->
+<rect x="30" y="380" width="120" height="60" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="90" y="405" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Users</text>
+<text x="90" y="421" fill="#94a3b8" font-size="9" text-anchor="middle">browser · LAN ·</text>
+<text x="90" y="432" fill="#94a3b8" font-size="9" text-anchor="middle">overlay</text>
+
+<!-- FRONT DOOR -->
+<rect x="200" y="380" width="130" height="60" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="265" y="402" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Front Door</text>
+<text x="265" y="418" fill="#94a3b8" font-size="9" text-anchor="middle">static reverse proxy</text>
+<text x="265" y="430" fill="#94a3b8" font-size="9" text-anchor="middle">wordslab.local</text>
+<line x1="150" y1="410" x2="198" y2="410" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ac)"/>
+<text x="174" y="402" fill="#94a3b8" font-size="8" text-anchor="middle">HTTPS</text>
+
+<!-- LEADER MACHINE BOUNDARY -->
+<rect x="360" y="60" width="560" height="700" rx="12" fill="rgba(52,211,153,0.04)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="372" y="82" fill="#34d399" font-size="11" font-weight="600">LEADER MACHINE (WSL2 VM — e.g. the family PC)</text>
+
+<!-- Dashboard -->
+<rect x="560" y="380" width="160" height="60" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="640" y="402" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Dashboard</text>
+<text x="640" y="416" fill="#94a3b8" font-size="9" text-anchor="middle">3 views: Admin·User·Builder</text>
+<text x="640" y="428" fill="#94a3b8" font-size="9" text-anchor="middle">hosts every service UI</text>
+<line x1="330" y1="410" x2="558" y2="410" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ac)"/>
+
+<!-- Platform core -->
+<rect x="380" y="380" width="150" height="60" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="455" y="401" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Platform Core</text>
+<text x="455" y="415" fill="#fda4af" font-size="8" text-anchor="middle">control only — never the request path</text>
+<text x="455" y="427" fill="#94a3b8" font-size="8" text-anchor="middle">fleet·install·catalog·resources·backup</text>
+<text x="455" y="437" fill="#94a3b8" font-size="8" text-anchor="middle">users·keys·secrets·logs·datasets</text>
+
+<!-- Registry & secrets annotations on core -->
+<rect x="380" y="300" width="150" height="52" rx="6" fill="rgba(136,19,55,0.25)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,4"/>
+<text x="455" y="318" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Capability Registry</text>
+<text x="455" y="332" fill="#fda4af" font-size="8" text-anchor="middle">thin index + name authority</text>
+<text x="455" y="343" fill="#94a3b8" font-size="8" text-anchor="middle">7 entry types · agent scoping</text>
+<line x1="455" y1="352" x2="455" y2="380" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="3,3"/>
+
+<!-- Leader services big box -->
+<rect x="380" y="130" width="520" height="150" rx="8" fill="rgba(6,78,59,0.15)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4"/>
+<text x="392" y="150" fill="#34d399" font-size="10" font-weight="600">SERVICES — independent: own DB (SQLite), logic, UI, API</text>
+<!-- row of service chips -->
+<g font-size="9" fill="#e2e8f0">
+<rect x="392" y="160" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="448" y="177" text-anchor="middle">Chat + Agents</text>
+<rect x="512" y="160" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="568" y="177" text-anchor="middle">Inference</text>
+<rect x="632" y="160" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="688" y="177" text-anchor="middle">Document</text>
+<rect x="752" y="160" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="808" y="177" text-anchor="middle">Knowledge</text>
+<rect x="392" y="194" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="448" y="211" text-anchor="middle">Workflow</text>
+<rect x="512" y="194" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="568" y="211" text-anchor="middle">Connectors</text>
+<rect x="632" y="194" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="688" y="211" text-anchor="middle">Image · Audio</text>
+<rect x="752" y="194" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="808" y="211" text-anchor="middle">Generation</text>
+<rect x="392" y="228" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="448" y="245" text-anchor="middle">Development</text>
+<rect x="512" y="228" width="232" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="628" y="245" text-anchor="middle">Training &amp; Evaluation</text>
+<rect x="752" y="228" width="112" height="26" rx="5" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/><text x="808" y="245" text-anchor="middle">Publish &amp; Gov</text>
+<text x="640" y="272" fill="#94a3b8" font-size="9" text-anchor="middle">Media transformations — capabilities inside services' callable surfaces</text>
+</g>
+<!-- core controls services -->
+<path d="M 455 380 L 455 356 Q 455 284 455 282 L 455 282" fill="none" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="3,3"/>
+<text x="472" y="290" fill="#fda4af" font-size="8">control (install·catalog·resources)</text>
+
+<!-- Bootstrap layer -->
+<rect x="380" y="470" width="520" height="44" rx="6" fill="rgba(30,41,59,0.6)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="640" y="490" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Bootstrap layer (native installer/updater — no API, no daemon) + resident launcher</text>
+<text x="640" y="504" fill="#94a3b8" font-size="9" text-anchor="middle">phased install: C# console → Python TUI → dashboard web UI · updates never touch data volumes</text>
+
+<!-- Data locations -->
+<rect x="380" y="540" width="520" height="50" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="640" y="560" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Data locations — volumes named after physical disks</text>
+<text x="640" y="576" fill="#c4b5fd" font-size="9" text-anchor="middle">models/ · workspace/ · per-service data — no shared storage in v1 · per-sphere encrypted backups</text>
+
+<!-- Layer 2 implementations -->
+<rect x="380" y="610" width="520" height="60" rx="6" fill="rgba(120,53,15,0.25)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="640" y="630" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Layer 2 — implementations (implementation.toml)</text>
+<text x="640" y="645" fill="#fcd34d" font-size="9" text-anchor="middle">models (llm.model·diffusion.model·ml.model) · engines pulled as deps (Ollama·vLLM·ComfyUI·cloud gateway)</text>
+<text x="640" y="658" fill="#94a3b8" font-size="9" text-anchor="middle">working set · reservation ledger · load/unload · privacy tier on every implementation</text>
+
+<!-- WORKER MACHINE -->
+<rect x="970" y="200" width="240" height="300" rx="12" fill="rgba(251,191,36,0.04)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="982" y="222" fill="#fbbf24" font-size="11" font-weight="600">WORKER MACHINE</text>
+<rect x="986" y="236" width="210" height="34" rx="6" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.2"/>
+<text x="1091" y="253" fill="#fff" font-size="10" text-anchor="middle" font-weight="600">Worker core (local caps)</text>
+<text x="1091" y="264" fill="#fda4af" font-size="8" text-anchor="middle">joined via type-in code · identity key</text>
+<rect x="986" y="282" width="210" height="60" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="1091" y="300" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Lean services</text>
+<text x="1091" y="314" fill="#94a3b8" font-size="8" text-anchor="middle">only what its activities need</text>
+<text x="1091" y="326" fill="#94a3b8" font-size="8" text-anchor="middle">(layer 1) + fit-gated impls (layer 2)</text>
+<rect x="986" y="354" width="210" height="40" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.2"/>
+<text x="1091" y="372" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Own data locations</text>
+<text x="1091" y="385" fill="#c4b5fd" font-size="8" text-anchor="middle">data lives where its service lives</text>
+<text x="1091" y="478" fill="#94a3b8" font-size="8" text-anchor="middle">placement = user-confirmed simulation,</text>
+<text x="1091" y="490" fill="#94a3b8" font-size="8" text-anchor="middle">routing = placement outcome, visible</text>
+<!-- LAN/overlay link -->
+<line x1="900" y1="350" x2="968" y2="350" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a)"/>
+<text x="934" y="342" fill="#34d399" font-size="8" text-anchor="middle">LAN/overlay</text>
+
+<!-- CLOUD -->
+<rect x="970" y="60" width="240" height="110" rx="12" fill="rgba(120,53,15,0.06)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="982" y="82" fill="#fbbf24" font-size="11" font-weight="600">CLOUD (as nodes / as models)</text>
+<rect x="986" y="96" width="210" height="30" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.2"/>
+<text x="1091" y="115" fill="#fff" font-size="9" text-anchor="middle">cloud node on the private overlay — can be the leader</text>
+<rect x="986" y="134" width="210" height="30" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.2"/>
+<text x="1091" y="147" fill="#fff" font-size="9" text-anchor="middle" font-weight="600">Cloud providers (BYOK)</text>
+<text x="1091" y="158" fill="#fcd34d" font-size="8" text-anchor="middle">via cloud-gateway engine impl · privacy tier: local / cloud_no_data / cloud</text>
+<line x1="900" y1="150" x2="968" y2="150" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="934" y="142" fill="#fbbf24" font-size="8" text-anchor="middle">overlay only</text>
+<text x="934" y="162" fill="#fda4af" font-size="8" text-anchor="middle">no public ports ever</text>
+
+<!-- Connectors door -->
+<rect x="200" y="560" width="130" height="60" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="265" y="582" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Connectors</text>
+<text x="265" y="596" fill="#fda4af" font-size="8" text-anchor="middle">the single audited door</text>
+<text x="265" y="608" fill="#94a3b8" font-size="8" text-anchor="middle">send/mutate ⇒ caller-scoped approval</text>
+<path d="M 330 590 L 340 590 Q 360 590 360 560 L 360 470 Q 360 440 380 430" fill="none" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#ar)"/>
+
+<!-- internet -->
+<rect x="30" y="560" width="120" height="60" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="90" y="585" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Internet</text>
+<text x="90" y="600" fill="#94a3b8" font-size="8" text-anchor="middle">published apps: LAN + private mesh in v1</text>
+<line x1="150" y1="590" x2="198" y2="590" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#a)"/>
+
+<!-- LEGEND -->
+<text x="380" y="720" fill="#fff" font-size="10" font-weight="600">Legend</text>
+<rect x="380" y="730" width="16" height="10" rx="2" fill="rgba(8,51,68,0.4)" stroke="#22d3ee"/><text x="402" y="739" fill="#94a3b8" font-size="8">human surface</text>
+<rect x="490" y="730" width="16" height="10" rx="2" fill="rgba(6,78,59,0.4)" stroke="#34d399"/><text x="512" y="739" fill="#94a3b8" font-size="8">service</text>
+<rect x="590" y="730" width="16" height="10" rx="2" fill="rgba(136,19,55,0.4)" stroke="#fb7185"/><text x="612" y="739" fill="#94a3b8" font-size="8">core / security</text>
+<rect x="720" y="730" width="16" height="10" rx="2" fill="rgba(76,29,149,0.4)" stroke="#a78bfa"/><text x="742" y="739" fill="#94a3b8" font-size="8">storage</text>
+<rect x="830" y="730" width="16" height="10" rx="2" fill="rgba(120,53,15,0.3)" stroke="#fbbf24"/><text x="852" y="739" fill="#94a3b8" font-size="8">implementations / cloud</text>
+<line x1="380" y1="755" x2="400" y2="755" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="3,3"/><text x="406" y="758" fill="#94a3b8" font-size="8">control path (never the request path)</text>
+<line x1="600" y1="755" x2="620" y2="755" stroke="#22d3ee" stroke-width="1.5"/><text x="626" y="758" fill="#94a3b8" font-size="8">user traffic</text>
+<rect x="380" y="775" width="0" height="0"/>
+<text x="380" y="790" fill="#64748b" font-size="8">Single leader, no HA in v1 · placement = user-confirmed simulation · no automatic cloud fallback · 3 privacy tiers on every implementation</text>
+</svg>
+</div>
+
+<div class="cards">
+  <div class="card"><h3>The three commitments</h3><ul>
+    <li>• Openness — 100% OSS, honestly visible</li>
+    <li>• Simplicity — the main feature; home scale</li>
+    <li>• Control — own data, choose impls, no black box</li>
+  </ul></div>
+  <div class="card"><h3>Control vs request path</h3><ul>
+    <li>• Core centralizes control only</li>
+    <li>• Services own their DBs, logic, UI, API</li>
+    <li>• Routing = placement outcome, visible per call</li>
+  </ul></div>
+  <div class="card"><h3>Trust model</h3><ul>
+    <li>• Join by type-in code → machine identity key</li>
+    <li>• Per-service Bearer keys</li>
+    <li>• No public ports; overlay (WireGuard) for internet crossings</li>
+  </ul></div>
+</div>
+</div></body></html>

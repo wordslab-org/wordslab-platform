@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wordslab Platform — Data, Knowledge & Memory</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'JetBrains Mono','SF Mono',Consolas,monospace; background:#020617; padding:2rem; color:#e2e8f0; }
+  .container { max-width:1400px; margin:0 auto; }
+  h1 { font-size:1.4rem; }
+  .subtitle { color:#94a3b8; font-size:.8rem; margin:.5rem 0 1.5rem; }
+  .diagram { background:rgba(15,23,42,.5); border:1px solid #1e293b; border-radius:1rem; padding:1rem; overflow-x:auto; }
+  svg { width:100%; min-width:1300px; display:block; }
+</style>
+</head>
+<body><div class="container">
+<h1>Wordslab Platform — Data, Knowledge &amp; Memory</h1>
+<p class="subtitle">The Document/Knowledge split (ADR-0009), the 9-part index and bidirectional grounding (ADR-0023), the memory substrate and knowledge-capture loop (ADR-0012), and the consent boundary (ADR-0026)</p>
+
+<div class="diagram">
+<svg viewBox="0 0 1340 980" font-family="'JetBrains Mono',monospace">
+<defs>
+  <marker id="v" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#a78bfa"/></marker>
+  <marker id="g" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#34d399"/></marker>
+  <marker id="r" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#fb7185"/></marker>
+  <marker id="y" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#fbbf24"/></marker>
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+
+<!-- ========== LEFT: Document service ========== -->
+<rect x="40" y="60" width="360" height="560" rx="12" fill="rgba(76,29,149,0.12)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="220" y="86" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">DOCUMENT SERVICE</text>
+<text x="220" y="102" fill="#c4b5fd" font-size="9" text-anchor="middle">"what's in my documents, where, and how do I find it"</text>
+<text x="220" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">stores &amp; indexes — never interprets · PostgreSQL hybrid index (scoped exception to SQLite)</text>
+
+<!-- bundles -->
+<rect x="60" y="130" width="320" height="90" rx="8" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.2"/>
+<text x="220" y="150" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Document bundles (raw — source of truth)</text>
+<g font-size="8" fill="#ddd6fe">
+<text x="220" y="168" text-anchor="middle">email + attachments + history · meeting transcript +</text>
+<text x="220" y="180" text-anchor="middle">slides + agenda · scanned envelope · conversation</text>
+<text x="220" y="192" text-anchor="middle">transcripts · user-profile dossier · task history</text>
+<text x="220" y="207" fill="#fbbf24" text-anchor="middle">multi-modal; audio/image representations made by other services</text>
+</g>
+
+<!-- 9 parts -->
+<rect x="60" y="240" width="320" height="130" rx="8" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.2"/>
+<text x="220" y="260" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">The 9-part index (all faithful representations)</text>
+<g font-size="9" fill="#ddd6fe">
+<rect x="80" y="272" width="70" height="24" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa"/><text x="115" y="288" text-anchor="middle">chunk</text>
+<rect x="158" y="272" width="70" height="24" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa"/><text x="193" y="288" text-anchor="middle">document</text>
+<rect x="236" y="272" width="70" height="24" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa"/><text x="271" y="288" text-anchor="middle">bundle</text>
+<text x="220" y="312" text-anchor="middle">× raw · generic summary · fact-claim triples</text>
+<text x="220" y="328" fill="#c4b5fd" text-anchor="middle">each part vectorized + indexed (pgvector late-interaction</text>
+<text x="220" y="340" fill="#c4b5fd" text-anchor="middle">+ BM25 + JSONB facets) — context-length optimization</text>
+<text x="220" y="358" fill="#fbbf24" text-anchor="middle">faithful = generic · mechanical · task-independent · verifiable</text>
+</g>
+
+<!-- bidirectional index -->
+<rect x="60" y="390" width="320" height="70" rx="8" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.2"/>
+<text x="220" y="410" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Bidirectional index</text>
+<text x="220" y="428" fill="#ddd6fe" font-size="9" text-anchor="middle">chunks indexed BY grounded concept/facet IDs</text>
+<text x="220" y="442" fill="#ddd6fe" font-size="9" text-anchor="middle">hybrid search filters by canonical entity ID</text>
+<text x="220" y="455" fill="#94a3b8" font-size="8" text-anchor="middle">registry data_source kind: `chunks`</text>
+
+<!-- flows into document -->
+<text x="220" y="490" fill="#94a3b8" font-size="9" text-anchor="middle">Also: structural operators (merge/check/format/order),</text>
+<text x="220" y="503" fill="#94a3b8" font-size="9" text-anchor="middle">document search agent, representation capabilities</text>
+<rect x="60" y="520" width="320" height="80" rx="8" fill="rgba(30,41,59,0.6)" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="220" y="542" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">EPISODIC MEMORY (raw layer)</text>
+<text x="220" y="558" fill="#94a3b8" font-size="8" text-anchor="middle">memory substrate: raw memory = document bundles,</text>
+<text x="220" y="570" fill="#94a3b8" font-size="8" text-anchor="middle">non-lossy, source of truth; summaries are separate</text>
+<text x="220" y="582" fill="#94a3b8" font-size="8" text-anchor="middle">derived artifacts living in Knowledge</text>
+
+<!-- ========== CENTER: Knowledge service ========== -->
+<rect x="490" y="60" width="380" height="560" rx="12" fill="rgba(6,78,59,0.12)" stroke="#34d399" stroke-width="1.5"/>
+<text x="680" y="86" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">KNOWLEDGE SERVICE</text>
+<text x="680" y="102" fill="#6ee7b7" font-size="9" text-anchor="middle">"what did we learn across them"</text>
+<text x="680" y="114" fill="#94a3b8" font-size="8" text-anchor="middle">semantic authority — computes meaning, delegates index values + query execution to Document · SQLite (no graph engine in v1)</text>
+
+<!-- three layers -->
+<rect x="510" y="130" width="340" height="56" rx="8" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="680" y="150" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Ontology</text>
+<text x="680" y="165" fill="#a7f3d0" font-size="8" text-anchor="middle">classes · relation types · validation rules</text>
+<text x="680" y="177" fill="#a7f3d0" font-size="8" text-anchor="middle">LLM-generated DRAFT → human review → versioned (~50 concepts)</text>
+<line x1="680" y1="186" x2="680" y2="200" stroke="#34d399" stroke-width="1.5" marker-end="url(#g)"/>
+
+<rect x="510" y="204" width="340" height="56" rx="8" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="680" y="224" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Knowledge base — canonical entities</text>
+<text x="680" y="239" fill="#a7f3d0" font-size="8" text-anchor="middle">knowledge.entities.resolve — mentions → canonical IDs,</text>
+<text x="680" y="251" fill="#a7f3d0" font-size="8" text-anchor="middle">scoped to ONE chosen KB · user profile is itself a KB</text>
+<line x1="680" y1="260" x2="680" y2="274" stroke="#34d399" stroke-width="1.5" marker-end="url(#g)"/>
+
+<rect x="510" y="278" width="340" height="56" rx="8" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="680" y="298" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">Knowledge graph — facts + provenance</text>
+<text x="680" y="313" fill="#a7f3d0" font-size="8" text-anchor="middle">facts/edges cite source `document.&lt;bundle&gt;` + spans —</text>
+<text x="680" y="325" fill="#a7f3d0" font-size="8" text-anchor="middle">never copy content · concepts indexed BY source documents</text>
+
+<!-- DocETL engine -->
+<rect x="510" y="352" width="340" height="76" rx="8" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="680" y="372" fill="#fff" font-size="11" font-weight="600" text-anchor="middle">DocETL abstract-request engine</text>
+<text x="680" y="388" fill="#a7f3d0" font-size="8" text-anchor="middle">"SQL for unstructured data" — pipelines authored in Python,</text>
+<text x="680" y="399" fill="#a7f3d0" font-size="8" text-anchor="middle">optimized plan shown as reviewable diff ("optimizer proposes,</text>
+<text x="680" y="410" fill="#a7f3d0" font-size="8" text-anchor="middle">human disposes") · traces persisted back as documents</text>
+
+<!-- review queue -->
+<rect x="510" y="444" width="340" height="156" rx="8" fill="rgba(251,146,60,0.2)" stroke="#fb923c" stroke-width="1.5"/>
+<text x="680" y="466" fill="#fff" font-size="11" font-weight="700" text-anchor="middle">REVIEW QUEUE — the one gate</text>
+<g font-size="9" fill="#fed7aa">
+<text x="680" y="486" text-anchor="middle">proposed knowledge items (validated deltas from HITL sessions)</text>
+<text x="680" y="502" text-anchor="middle">+ NIL entities · + generated knowledge from agents</text>
+<text x="680" y="522" fill="#fdba74" font-weight="600" text-anchor="middle">approve / reject / skip / create-new / edit-then-promote</text>
+<text x="680" y="544" text-anchor="middle">capture = "a human changed something" — record the delta</text>
+<text x="680" y="556" text-anchor="middle">(from → to) with full provenance; truth validated HERE only</text>
+<text x="680" y="578" fill="#fbbf24" text-anchor="middle">routing by one-axis determinism test (reviewer-confirmed):</text>
+</g>
+
+<!-- routing arrows from queue -->
+<path d="M 510 545 L 400 545" fill="none" stroke="#fb923c" stroke-width="1.5" marker-end="url(#g)"/>
+<text x="455" y="537" fill="#fdba74" font-size="8" text-anchor="middle">verified facts → graph</text>
+
+<!-- ========== RIGHT: capture loop & spheres ========== -->
+<rect x="920" y="60" width="390" height="300" rx="12" fill="rgba(136,19,55,0.08)" stroke="#fb7185" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="935" y="82" fill="#fb7185" font-size="11" font-weight="600">KNOWLEDGE-CAPTURE LOOP (ADR-0012)</text>
+
+<rect x="940" y="100" width="350" height="50" rx="8" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="1.2"/>
+<text x="1115" y="118" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Human-in-the-loop agent session</text>
+<text x="1115" y="133" fill="#fecdd3" font-size="8" text-anchor="middle">employee corrects/confirms the agent (incl. implicitly)</text>
+
+<rect x="940" y="170" width="350" height="50" rx="8" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="1.2"/>
+<text x="1115" y="188" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Delta logging (DocETL pipeline on the engine)</text>
+<text x="1115" y="203" fill="#fecdd3" font-size="8" text-anchor="middle">extract deltas from the transcript bundle → resolve → propose</text>
+<line x1="1115" y1="150" x2="1115" y2="168" stroke="#fb7185" stroke-width="1.5" marker-end="url(#r)"/>
+
+<rect x="940" y="240" width="350" height="100" rx="8" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="1.2"/>
+<text x="1115" y="260" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">Capture routing (after review)</text>
+<g font-size="9" fill="#fecdd3">
+<text x="1115" y="280" text-anchor="middle">facts / entities → knowledge.graph (grounded)</text>
+<text x="1115" y="296" text-anchor="middle">exact repeated procedures → Workflow service</text>
+<text x="1115" y="308" text-anchor="middle">(agent→workflow graduation path)</text>
+<text x="1115" y="326" text-anchor="middle">reusable approaches → a skill</text>
+</g>
+<!-- session→transcript bundle arrow to Document -->
+<path d="M 940 125 Q 700 125 420 165" fill="none" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#r)"/>
+<text x="680" y="118" fill="#fda4af" font-size="8" text-anchor="middle">session transcript stored as a document bundle (raw evidence)</text>
+
+<!-- consent / spheres panel -->
+<rect x="920" y="390" width="390" height="230" rx="12" fill="rgba(251,191,36,0.06)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="935" y="412" fill="#fbbf24" font-size="11" font-weight="600">DATA SPHERES &amp; CONSENT (ADR-0021/0026)</text>
+<g font-size="9">
+<rect x="940" y="428" width="110" height="40" rx="6" fill="rgba(34,211,238,0.25)" stroke="#22d3ee" stroke-width="1"/>
+<text x="995" y="445" fill="#fff" text-anchor="middle" font-weight="600">user sphere</text>
+<text x="995" y="459" fill="#a5f3fc" font-size="8" text-anchor="middle">private by default</text>
+<rect x="1060" y="428" width="120" height="40" rx="6" fill="rgba(34,211,238,0.25)" stroke="#22d3ee" stroke-width="1"/>
+<text x="1120" y="445" fill="#fff" text-anchor="middle" font-weight="600">builder sphere</text>
+<text x="1120" y="459" fill="#a5f3fc" font-size="8" text-anchor="middle">authored things · synthetic</text>
+<rect x="1190" y="428" width="100" height="40" rx="6" fill="rgba(34,211,238,0.25)" stroke="#22d3ee" stroke-width="1"/>
+<text x="1240" y="445" fill="#fff" text-anchor="middle" font-weight="600">admin sphere</text>
+<text x="1240" y="459" fill="#a5f3fc" font-size="8" text-anchor="middle">config · no user data</text>
+</g>
+<g font-size="8" fill="#fde68a">
+<text x="1115" y="488" text-anchor="middle">one physical user = three identities (laurent · laurent-builder · laurent-admin)</text>
+<text x="1115" y="506" text-anchor="middle">consent: "may use" default + visible private/secret toggle on every input,</text>
+<text x="1115" y="518" text-anchor="middle">withdraw/delete anytime; remembered defaults = user-written rules</text>
+<text x="1115" y="540" fill="#fbbf24" text-anchor="middle" font-weight="600">the single mediated boundary — core `datasets` capability:</text>
+<text x="1115" y="554" text-anchor="middle">1. FILTER = consent gate (private/secret excluded, mandatory)</text>
+<text x="1115" y="566" text-anchor="middle">2. ANONYMIZE = data replacement (personal data AND secrets,</text>
+<text x="1115" y="578" text-anchor="middle">dataset-wide dictionary, indistinguishability; text-only v1)</text>
+<text x="1115" y="596" fill="#fdba74" text-anchor="middle">anonymized datasets → eval / training (the only real-usage path)</text>
+</g>
+<!-- arrow from user sphere to core datasets (drawn toward center) -->
+<path d="M 940 448 Q 880 448 868 460 L 868 470" fill="none" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#y)"/>
+
+<!-- memory retrieval panel -->
+<rect x="40" y="650" width="1270" height="150" rx="12" fill="rgba(30,41,59,0.35)" stroke="#94a3b8" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="675" y="674" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">MEMORY — pulled into working memory on demand (memory = context engineering)</text>
+<g font-size="9" fill="#cbd5e1">
+<rect x="70" y="692" width="230" height="90" rx="8" fill="rgba(76,29,149,0.35)" stroke="#a78bfa" stroke-width="1.2"/>
+<text x="185" y="712" fill="#fff" font-weight="600" text-anchor="middle">episodic (raw)</text>
+<text x="185" y="728" text-anchor="middle">Document bundles — transcripts,</text>
+<text x="185" y="740" text-anchor="middle">profile dossier, task history;</text>
+<text x="185" y="752" text-anchor="middle">non-lossy source of truth</text>
+<rect x="330" y="692" width="230" height="90" rx="8" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.2"/>
+<text x="445" y="712" fill="#fff" font-weight="600" text-anchor="middle">semantic (derived)</text>
+<text x="445" y="728" text-anchor="middle">Knowledge derives lazily: compact profile,</text>
+<text x="445" y="740" text-anchor="middle">concepts/graph, grounded skills —</text>
+<text x="445" y="752" text-anchor="middle">each item traces back to bundle IDs</text>
+<rect x="590" y="692" width="230" height="90" rx="8" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.2"/>
+<text x="705" y="712" fill="#fff" font-weight="600" text-anchor="middle">procedural</text>
+<text x="705" y="728" text-anchor="middle">skills, rules, instructions — the explicit,</text>
+<text x="705" y="740" text-anchor="middle">versionable form; mapped to concepts</text>
+<text x="705" y="752" text-anchor="middle">by Knowledge</text>
+<rect x="850" y="692" width="230" height="90" rx="8" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.2"/>
+<text x="965" y="712" fill="#fff" font-weight="600" text-anchor="middle">working memory</text>
+<text x="965" y="728" text-anchor="middle">the agent loop's context window</text>
+<text x="965" y="740" text-anchor="middle">in Chat + Agents; retrieval = deterministic</text>
+<text x="965" y="752" text-anchor="middle">cited capability (chunks + graph)</text>
+<rect x="1110" y="692" width="180" height="90" rx="8" fill="rgba(136,19,55,0.25)" stroke="#fb7185" stroke-width="1.2"/>
+<text x="1200" y="712" fill="#fff" font-weight="600" text-anchor="middle">validation state</text>
+<text x="1200" y="728" text-anchor="middle">every derived artifact:</text>
+<text x="1200" y="740" fill="#fbbf24" text-anchor="middle">generated → verified</text>
+<text x="1200" y="752" text-anchor="middle">(human approval = the review queue)</text>
+</g>
+<line x1="300" y1="737" x2="328" y2="737" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#g)"/>
+<line x1="560" y1="737" x2="588" y2="737" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#g)"/>
+
+<!-- footer note -->
+<text x="675" y="840" fill="#64748b" font-size="9" text-anchor="middle">One teachable rule behind everything:  faithful representation → Document (the data lives there) · interpretation → Knowledge (meaning lives there) · raw content is never copied — only referenced by stable ID</text>
+<text x="675" y="856" fill="#64748b" font-size="9" text-anchor="middle">Ontology → KB → graph are Knowledge layers; the user profile is itself a KB resolved with the same machinery; no memory framework embedded — own thin layer over Document+Knowledge</text>
+</svg>
+</div>
+</div></body></html>

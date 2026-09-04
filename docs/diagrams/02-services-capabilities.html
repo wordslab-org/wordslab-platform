@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wordslab Platform — Services & Capabilities</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'JetBrains Mono','SF Mono',Consolas,monospace; background:#020617; padding:2rem; color:#e2e8f0; }
+  .container { max-width:1400px; margin:0 auto; }
+  h1 { font-size:1.4rem; }
+  .subtitle { color:#94a3b8; font-size:.8rem; margin:.5rem 0 1.5rem; }
+  .diagram { background:rgba(15,23,42,.5); border:1px solid #1e293b; border-radius:1rem; padding:1rem; overflow-x:auto; }
+  svg { width:100%; min-width:1300px; display:block; }
+  .note { color:#64748b; font-size:.7rem; margin-top:1rem; }
+</style>
+</head>
+<body><div class="container">
+<h1>Wordslab Platform — Services &amp; Capabilities</h1>
+<p class="subtitle">11 v1 services + the combined Publishing &amp; Governance service. A capability is an in-process module inside a service (own logic, routes, UI — shared contract, DB, auth). A capability may graduate to its own service (ADR-0002, map ticket #18).</p>
+
+<div class="diagram">
+<svg viewBox="0 0 1360 1120" font-family="'JetBrains Mono',monospace">
+<defs>
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+  <marker id="a" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#64748b"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+
+<!-- helper style: service box = emerald, capability chips = lighter emerald -->
+<!-- ================= GROUP A: Front door to AI ================= -->
+<rect x="30" y="40" width="640" height="330" rx="12" fill="rgba(6,78,59,0.06)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="45" y="62" fill="#34d399" font-size="11" font-weight="600">THE FRONT DOOR TO AI</text>
+
+<rect x="50" y="80" width="290" height="270" rx="8" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.5"/>
+<text x="195" y="100" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Chat + Agents</text>
+<text x="195" y="113" fill="#94a3b8" font-size="8" text-anchor="middle">UI: vendored Open WebUI · MAF default harness · container harness images (Hermes/OpenCode/Pi)</text>
+<g font-size="9" fill="#d1fae5">
+<rect x="65" y="125" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="195" y="139" text-anchor="middle">chat sessions &amp; history</text>
+<rect x="65" y="152" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="195" y="166" text-anchor="middle">agent authoring · runs (accessible tool set)</text>
+<rect x="65" y="179" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="195" y="193" text-anchor="middle">memory (substrate: Document+Knowledge)</text>
+<rect x="65" y="206" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="195" y="220" text-anchor="middle">workspaces &amp; harness images</text>
+</g>
+<text x="195" y="245" fill="#6ee7b7" font-size="8" text-anchor="middle">also hosts the continual learning assistant</text>
+<text x="195" y="257" fill="#6ee7b7" font-size="8" text-anchor="middle">(Hermes Agent — one state per physical user,</text>
+<text x="195" y="268" fill="#6ee7b7" font-size="8" text-anchor="middle">acting identity user/builder/admin per session)</text>
+<text x="195" y="290" fill="#94a3b8" font-size="8" text-anchor="middle">two-tier sessions: MAF structured DB /</text>
+<text x="195" y="301" fill="#94a3b8" font-size="8" text-anchor="middle">opaque harness home for images</text>
+
+<rect x="360" y="80" width="290" height="270" rx="8" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.5"/>
+<text x="505" y="100" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Workflow</text>
+<text x="505" y="113" fill="#94a3b8" font-size="8" text-anchor="middle">a workflow IS a Python program — no DSL, no editable canvas in v1</text>
+<g font-size="9" fill="#d1fae5">
+<rect x="375" y="125" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="505" y="139" text-anchor="middle">primitives: call·model·agent·subworkflow</text>
+<rect x="375" y="152" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="505" y="166" text-anchor="middle">delay · event · user_input</text>
+<rect x="375" y="179" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="505" y="193" text-anchor="middle">runs · schedules · triggers · retries</text>
+<rect x="375" y="206" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="505" y="220" text-anchor="middle">state persistence · read-only visual view</text>
+</g>
+<text x="505" y="250" fill="#6ee7b7" font-size="8" text-anchor="middle">agent → workflow graduation path:</text>
+<text x="505" y="261" fill="#6ee7b7" font-size="8" text-anchor="middle">captured exact procedures land here</text>
+<text x="505" y="285" fill="#94a3b8" font-size="8" text-anchor="middle">branch/loop/transform = plain Python;</text>
+<text x="505" y="296" fill="#94a3b8" font-size="8" text-anchor="middle">invocation follows the caller</text>
+<text x="505" y="307" fill="#94a3b8" font-size="8" text-anchor="middle">(OpenAPI-first, MCP fallback)</text>
+
+<!-- ================= GROUP B: Understanding your material ================= -->
+<rect x="700" y="40" width="630" height="330" rx="12" fill="rgba(167,139,250,0.05)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="715" y="62" fill="#a78bfa" font-size="11" font-weight="600">UNDERSTANDING YOUR MATERIAL (see diagram 03)</text>
+
+<rect x="720" y="80" width="290" height="270" rx="8" fill="rgba(76,29,149,0.35)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="865" y="100" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Document</text>
+<text x="865" y="113" fill="#94a3b8" font-size="8" text-anchor="middle">raw material expert — store/index/retrieve, never interpret · PostgreSQL hybrid index</text>
+<g font-size="9" fill="#ddd6fe">
+<rect x="735" y="125" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="865" y="139" text-anchor="middle">ingest / parse (markdown·JSON·docling)</text>
+<rect x="735" y="152" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="865" y="166" text-anchor="middle">organize (bundle classification/split/merge)</text>
+<rect x="735" y="179" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="865" y="193" text-anchor="middle">index — 9 parts (3 granularities × 3 abstractions)</text>
+<rect x="735" y="206" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="865" y="220" text-anchor="middle">search — hybrid BM25+semantic+facet filters</text>
+<rect x="735" y="233" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="865" y="247" text-anchor="middle">structural operators (DocETL syntax)</text>
+<rect x="735" y="260" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="865" y="274" text-anchor="middle">document search agent · representation caps</text>
+</g>
+<text x="865" y="300" fill="#c4b5fd" font-size="8" text-anchor="middle">unit: the document bundle (multi-modal);</text>
+<text x="865" y="311" fill="#c4b5fd" font-size="8" text-anchor="middle">each document inside = own index entry</text>
+<text x="865" y="330" fill="#94a3b8" font-size="8" text-anchor="middle">data_source kind: `chunks`</text>
+
+<rect x="1030" y="80" width="290" height="270" rx="8" fill="rgba(76,29,149,0.35)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="1175" y="100" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Knowledge</text>
+<text x="1175" y="113" fill="#94a3b8" font-size="8" text-anchor="middle">reasoning expert — derived knowledge, references bundles, never copies · SQLite</text>
+<g font-size="9" fill="#ddd6fe">
+<rect x="1045" y="125" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="1175" y="139" text-anchor="middle">knowledge.ontology (LLM draft → review → version)</text>
+<rect x="1045" y="152" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="1175" y="166" text-anchor="middle">knowledge.entities · resolve (KB-scoped)</text>
+<rect x="1045" y="179" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="1175" y="193" text-anchor="middle">knowledge.graph (facts + provenance)</text>
+<rect x="1045" y="206" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="1175" y="220" text-anchor="middle">DocETL abstract-request engine (host)</text>
+<rect x="1045" y="233" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="1175" y="247" text-anchor="middle">facts extraction · cross-bundle aggregation</text>
+<rect x="1045" y="260" width="260" height="22" rx="4" fill="rgba(76,29,149,0.5)" stroke="#a78bfa" stroke-width="0.8"/><text x="1175" y="274" text-anchor="middle">review queue · generated→verified gate</text>
+</g>
+<text x="1175" y="300" fill="#c4b5fd" font-size="8" text-anchor="middle">semantic authority; delegates index values</text>
+<text x="1175" y="311" fill="#c4b5fd" font-size="8" text-anchor="middle">+ query execution to Document</text>
+<text x="1175" y="330" fill="#94a3b8" font-size="8" text-anchor="middle">data_source kind: `graph`</text>
+<!-- bidirectional index arrows -->
+<line x1="1010" y1="200" x2="1028" y2="200" stroke="#a78bfa" stroke-width="2" marker-end="url(#a)"/>
+<line x1="1028" y1="216" x2="1010" y2="216" stroke="#a78bfa" stroke-width="2" marker-end="url(#a)"/>
+<text x="1019" y="190" fill="#c4b5fd" font-size="7" text-anchor="middle">docs→concepts</text>
+<text x="1019" y="234" fill="#c4b5fd" font-size="7" text-anchor="middle">concepts→docs</text>
+
+<!-- ================= GROUP C: Creating & transforming ================= -->
+<rect x="30" y="400" width="1300" height="300" rx="12" fill="rgba(34,211,238,0.05)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="45" y="422" fill="#22d3ee" font-size="11" font-weight="600">CREATING &amp; TRANSFORMING</text>
+
+<rect x="50" y="440" width="300" height="240" rx="8" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="200" y="460" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Generation</text>
+<text x="200" y="473" fill="#94a3b8" font-size="8" text-anchor="middle">output-side counterpart to Document — creation</text>
+<g font-size="9" fill="#a5f3fc">
+<rect x="65" y="485" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="200" y="499" text-anchor="middle">interactive authoring (docs · reports · websites)</text>
+<rect x="65" y="512" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="200" y="526" text-anchor="middle">workflow-assisted recurrent generation</text>
+<rect x="65" y="539" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="200" y="553" text-anchor="middle">HTML/CSS drafts → docx/xlsx/pptx/pdf export</text>
+</g>
+<text x="200" y="585" fill="#94a3b8" font-size="8" text-anchor="middle">composes: connectors (sources) · agents (drafting) ·</text>
+<text x="200" y="596" fill="#94a3b8" font-size="8" text-anchor="middle">document (dataroom) · inference (models)</text>
+
+<rect x="380" y="440" width="300" height="240" rx="8" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="530" y="460" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Image</text>
+<text x="530" y="473" fill="#94a3b8" font-size="8" text-anchor="middle">diffusion.model impls — ComfyUI behind a thin MIT bridge</text>
+<g font-size="9" fill="#a5f3fc">
+<rect x="395" y="485" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="530" y="499" text-anchor="middle">generate (text→image)</text>
+<rect x="395" y="512" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="530" y="526" text-anchor="middle">edit (image-to-image / inpaint)</text>
+<rect x="395" y="539" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="530" y="553" text-anchor="middle">video (async) · gallery / prompt UI</text>
+</g>
+<text x="530" y="585" fill="#94a3b8" font-size="8" text-anchor="middle">first-class agent tool (MCP) + integrated in chat UI;</text>
+<text x="530" y="596" fill="#94a3b8" font-size="8" text-anchor="middle">commercial-safe defaults, license-gated options</text>
+
+<rect x="710" y="440" width="300" height="240" rx="8" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="860" y="460" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Audio</text>
+<text x="860" y="473" fill="#94a3b8" font-size="8" text-anchor="middle">the voice surface — family 4 Realtime/WebRTC</text>
+<g font-size="9" fill="#a5f3fc">
+<rect x="725" y="485" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="860" y="499" text-anchor="middle">stt (batch) · stt-realtime (streaming)</text>
+<rect x="725" y="512" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="860" y="526" text-anchor="middle">tts (batch) · tts-streaming · vad</text>
+<rect x="725" y="539" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="860" y="553" text-anchor="middle">voice cloning &amp; design</text>
+<rect x="725" y="566" width="270" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="860" y="580" text-anchor="middle">realtime voice chat (agent-driven)</text>
+</g>
+<text x="860" y="615" fill="#94a3b8" font-size="8" text-anchor="middle">dictation = shared UI-kit affordance for every</text>
+<text x="860" y="626" fill="#94a3b8" font-size="8" text-anchor="middle">long-text input in any service</text>
+
+<rect x="1040" y="440" width="290" height="240" rx="8" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="1185" y="460" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Media transformations</text>
+<text x="1185" y="473" fill="#94a3b8" font-size="8" text-anchor="middle">ready-to-use transforms to accelerate home projects</text>
+<g font-size="9" fill="#a5f3fc">
+<rect x="1055" y="485" width="260" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="1185" y="499" text-anchor="middle">translate · summarize · language detect</text>
+<rect x="1055" y="512" width="260" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="1185" y="526" text-anchor="middle">face recognition / redaction · moderation</text>
+<rect x="1055" y="539" width="260" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="1185" y="553" text-anchor="middle">anonymization · entity detection · guardrails</text>
+<rect x="1055" y="566" width="260" height="22" rx="4" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="0.8"/><text x="1185" y="580" text-anchor="middle">datetime normalization · data cleaning</text>
+</g>
+
+<!-- ================= GROUP D: The machine room ================= -->
+<rect x="30" y="730" width="1300" height="360" rx="12" fill="rgba(251,191,36,0.05)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="45" y="752" fill="#fbbf24" font-size="11" font-weight="600">THE MACHINE ROOM &amp; THE OUTSIDE WORLD</text>
+
+<rect x="50" y="770" width="300" height="300" rx="8" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="200" y="790" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Inference</text>
+<text x="200" y="803" fill="#94a3b8" font-size="8" text-anchor="middle">the unique model-serving service — every model-backed service rides it</text>
+<g font-size="9" fill="#fde68a">
+<rect x="65" y="815" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="200" y="829" text-anchor="middle">llm.engine / llm.model — LLMs (Responses API)</text>
+<rect x="65" y="842" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="200" y="856" text-anchor="middle">diffusion.engine / diffusion.model — image·video</text>
+<rect x="65" y="869" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="200" y="883" text-anchor="middle">ml.engine / ml.model — classify·detect·extract·predict</text>
+<rect x="65" y="896" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="200" y="910" text-anchor="middle">/v1/models lifecycle: download·load·unload·prepare</text>
+</g>
+<text x="200" y="940" fill="#94a3b8" font-size="8" text-anchor="middle">local engines (Ollama·vLLM·sglang·ComfyUI) pulled as</text>
+<text x="200" y="951" fill="#94a3b8" font-size="8" text-anchor="middle">model deps — never installed directly; cloud models ride</text>
+<text x="200" y="962" fill="#94a3b8" font-size="8" text-anchor="middle">the cloud-gateway engine (BYOK, provider registry = config)</text>
+
+<rect x="380" y="770" width="300" height="300" rx="8" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="530" y="790" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Training &amp; Evaluation</text>
+<text x="530" y="803" fill="#94a3b8" font-size="8" text-anchor="middle">dev-side counterpart to Inference — notebook-driven, no wizard UI</text>
+<g font-size="9" fill="#fde68a">
+<rect x="395" y="815" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="530" y="829" text-anchor="middle">train.dataset — gather · version · anonymize</text>
+<rect x="395" y="842" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="530" y="856" text-anchor="middle">train.fine-tune — LoRA/diffusion/classic (+license gate)</text>
+<rect x="395" y="869" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="530" y="883" text-anchor="middle">train.publish → new Inference implementation</text>
+<rect x="395" y="896" width="270" height="22" rx="4" fill="rgba(120,53,15,0.4)" stroke="#fbbf24" stroke-width="0.8"/><text x="530" y="910" text-anchor="middle">eval.dataset·simulate·annotate·judge·report</text>
+</g>
+<text x="530" y="940" fill="#94a3b8" font-size="8" text-anchor="middle">Trackio (training metrics) · Arize Phoenix (eval traces),</text>
+<text x="530" y="951" fill="#94a3b8" font-size="8" text-anchor="middle">both vendored+local; LLM-as-judge validated vs human</text>
+<text x="530" y="962" fill="#94a3b8" font-size="8" text-anchor="middle">labels; job-runner deferred to v1.1</text>
+
+<rect x="710" y="770" width="300" height="300" rx="8" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="860" y="790" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Connectors</text>
+<text x="860" y="803" fill="#94a3b8" font-size="8" text-anchor="middle">the single audited door to the digital world</text>
+<g font-size="9" fill="#fecdd3">
+<rect x="725" y="815" width="270" height="22" rx="4" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="0.8"/><text x="860" y="829" text-anchor="middle">web (search+fetch) · youtube · x/twitter</text>
+<rect x="725" y="842" width="270" height="22" rx="4" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="0.8"/><text x="860" y="856" text-anchor="middle">outlook · github · huggingface</text>
+<rect x="725" y="869" width="270" height="22" rx="4" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="0.8"/><text x="860" y="883" text-anchor="middle">security/audit/approval on every outbound call</text>
+<rect x="725" y="896" width="270" height="22" rx="4" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="0.8"/><text x="860" y="910" text-anchor="middle">v1.1: public-internet gateway · network proxy</text>
+</g>
+<text x="860" y="940" fill="#94a3b8" font-size="8" text-anchor="middle">read-only connectors: logged; send/mutate:</text>
+<text x="860" y="951" fill="#94a3b8" font-size="8" text-anchor="middle">caller-identity-scoped human approval</text>
+
+<rect x="1040" y="770" width="290" height="300" rx="8" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.5"/>
+<text x="1185" y="790" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Development</text>
+<text x="1185" y="803" fill="#94a3b8" font-size="8" text-anchor="middle">pro-code + agentic dev environments</text>
+<g font-size="9" fill="#d1fae5">
+<rect x="1055" y="815" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="1185" y="829" text-anchor="middle">code-server (VS Code + Kilo Code)</text>
+<rect x="1055" y="842" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="1185" y="856" text-anchor="middle">JupyterLab (human surface for training/eval)</text>
+<rect x="1055" y="869" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="1185" y="883" text-anchor="middle">agentic-dev-workflow (guided build process)</text>
+<rect x="1055" y="896" width="260" height="22" rx="4" fill="rgba(6,78,59,0.5)" stroke="#34d399" stroke-width="0.8"/><text x="1185" y="910" text-anchor="middle">publish → Publishing &amp; Governance</text>
+</g>
+<text x="1185" y="940" fill="#94a3b8" font-size="8" text-anchor="middle">not model-backed: AI extensions are clients</text>
+<text x="1185" y="951" fill="#94a3b8" font-size="8" text-anchor="middle">of the agent service; shares workspace dirs</text>
+
+<!-- Publishing & Governance band -->
+<rect x="30" y="1040" width="1300" height="70" rx="8" fill="rgba(52,211,153,0.15)" stroke="#34d399" stroke-width="1.5"/>
+<text x="680" y="1062" fill="#fff" font-size="12" font-weight="700" text-anchor="middle">Publishing &amp; Governance (combined 13th service — ADR-0018 + 0019)</text>
+<text x="680" y="1078" fill="#94a3b8" font-size="9" text-anchor="middle">publish: project (platform.toml + publish.toml) → runtime (static site / container) → exposure (LAN · private mesh v1, public gateway v1.1) — regime 1 platform things follow ADR-0016, regime 2 generic apps = deployable-packages catalog</text>
+<text x="680" y="1094" fill="#94a3b8" font-size="9" text-anchor="middle">governance: community catalog · compliance catalog (admin read-only audit) · compliance coupled to the act of publishing · registry entries api/webapp · "runs agent code" trust badge</text>
+</svg>
+</div>
+
+<p class="note">Missing from the map (deliberate): the platform core (see diagram 01) and the dashboard (the core's UI, not a service). Every service also exposes the uniform contract: human UI + agent MCP + deterministic OpenAPI (ADR-0001).</p>
+</div></body></html>
