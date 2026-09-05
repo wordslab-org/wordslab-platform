@@ -2,6 +2,8 @@
 
 **Status:** accepted (resolution of wayfinder ticket "Define the spec anatomy", #12); **feeds the map's destination** — the complete, buildable spec. This ADR is the **master structural decision** that organizes ADR-0001…0012 into the deliverable; it does **not** re-decide any of their content. It also records two **catalog refinements** that #12 surfaces but that land as content in their own open tickets (#15, #16, #21, and a note on #18).
 
+> **Evolution (2026-09, terminology sweep #33):** this ADR's scope statements predate later tickets. The catalog has since settled on **13 services** (the Document/Knowledge split at #26 and the combined Publishing & Governance service included), the ADRs now run **past 0013** (current: 0027, resolved by #32), and the Training & Evaluation chapter is **`24-training-evaluation.md`** — created by #30/ADR-0025; `22` is the Document chapter, not Training.
+
 ## Context
 
 The map's destination is "a complete, buildable spec … written down in this repo's docs such that building becomes mechanical execution." Every ADR from 0007 onward explicitly records "Feeds the spec anatomy (#12)". This ADR decides the **structure and conventions** of the spec document itself — the `docs/` layout, how each service gets a chapter, how the platform core is specified, the level of detail, where ADRs fit, how the spec is maintained as decisions land, and how it tracks the map's decisions. The *content* of the spec is fixed by the closed tickets (ADR-0001…0012); this ADR organizes that content, it does not change it.
@@ -12,7 +14,7 @@ The soul shapes the conventions as much as the content: **no black box, nothing 
 
 ### 1. The spec is a numbered `docs/spec/` tree, not a single file
 
-One file would be too large for a 12-service platform with a deep Knowledge thread, and would be hard to review and maintain as decisions land. A numbered tree mirrors how the map dispatches per-topic: each chapter is a diffable, justifiable file, and the numbering gives stable ordering (foundations → services → lifecycle → dashboard) independent of filesystem sort. `docs/spec/README.md` is the master index: the destination, how to read it (the two-pass reading order), the chapter map, and the conventions.
+One file would be too large for a 13-service platform with a deep Knowledge thread, and would be hard to review and maintain as decisions land. A numbered tree mirrors how the map dispatches per-topic: each chapter is a diffable, justifiable file, and the numbering gives stable ordering (foundations → services → lifecycle → dashboard) independent of filesystem sort. `docs/spec/README.md` is the master index: the destination, how to read it (the two-pass reading order), the chapter map, and the conventions.
 
 ### 2. Layered parts
 
@@ -68,7 +70,7 @@ Spec chapters use **CONTEXT.md terms exclusively** — service, capability, docu
 
 ## Considered options
 
-- **Single file vs tree** — a single `spec.md` is too large for a 12-service platform and hard to diff/maintain; a numbered tree mirrors the map's per-topic dispatch and keeps chapters diffable. Chose the tree.
+- **Single file vs tree** — a single `spec.md` is too large for a 13-service platform and hard to diff/maintain; a numbered tree mirrors the map's per-topic dispatch and keeps chapters diffable. Chose the tree.
 - **Organize by ADR/foundation vs by service vs layered** — by-ADR scatters each service across many chapters (bad for building one service); by-service leaves the platform-wide substrate homeless (repeated 12× or awkwardly stuffed). Chose **layered**: Foundations (platform-wide ADRs) + Services (one chapter each) + lifecycle/dashboard. The deep Knowledge thread (ADR-0009…0012) **folds into its service chapter** rather than getting its own part, because with the two-pass structure its cross-cutting reach is captured through decomposition impacts in each use case.
 - **User-guide vs dry spec** — a dry API inventory inverts the soul; a pure user guide can't be built from. Chose **user-guide-first with a precise build section**: Part 1 is the user guide (and design input), Part 2 is mechanical execution at the "organized reference" level.
 - **Per-service split vs a separate Use-cases part** — use cases are mainly attached to one home service even when their implementation spans others, so they stay in their service's chapter (Part 1), not in a separate part. The two passes become a reading order across chapters.

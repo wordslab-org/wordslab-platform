@@ -68,7 +68,7 @@ At the cap, cloud-routed calls return `429 resource_exhausted` with resource `cl
 
 ### 7. Privacy: three-tier taxonomy, documented + user-chosen
 
-There are **exactly three privacy tiers**, a property of each implementation (model implementation / provider leg), describing where data goes and with what guarantee. The **canonical labels platform-wide** are **`local` / `cloud_no_data` / `cloud`** (ADR-0008; friendlier, still unambiguous — these replace the earlier `own machines / ZDR / other` names, semantics unchanged):
+There are **exactly three privacy tiers**, a property of each implementation (model implementation / provider leg), describing where data goes and with what guarantee. The **canonical labels platform-wide** are **`local` / `cloud_no_data` / `cloud`** (ADR-0008):
 
 1. **`local`** — your own machines: local, *or* a cloud host joined to your **private overlay network** (data never leaves your control; "own machine" = wherever your private network is).
 2. **`cloud_no_data`** — a cloud service with **Zero Data Retention** (ZDR / `data_collection: deny`).
@@ -76,7 +76,7 @@ There are **exactly three privacy tiers**, a property of each implementation (mo
 
 The tier is **documented, prominently and everywhere it matters**: on the **API and MCP documentation** for that implementation (prominent), **discoverable** through the API and MCP **description** (so it is machine-readable — surfaced in the capability registry #20 and tool discovery), and **displayed on the UI** when the user uses that service.
 
-The **user chooses implementations manually and is warned** about the privacy guarantees. The platform does **not** silently auto-route around a tier; its enforcement is **visibility + user decision** — no magic, no black box. *(Replaces ADR-0002's `default`/`no-retention`/`no-training` privacy-tier vocabulary; the earlier *inference policy* for routing (`local-only`/`local-then-cloud`/`cloud-only`) is abolished by ADR-0007 — the *privacy tier* is this three-tier data-class taxonomy on each implementation, and implementation choice is explicit.)*
+The **user chooses implementations manually and is warned** about the privacy guarantees. The platform does **not** silently auto-route around a tier; its enforcement is **visibility + user decision** — no magic, no black box. *(Evolution: the privacy tier is this three-tier data-class taxonomy on each implementation, and implementation choice is explicit; earlier privacy-tier vocabulary and any inference-policy routing are superseded — the inference policy is abolished by ADR-0007, and the tier labels settled on `local` / `cloud_no_data` / `cloud` by ADR-0008.)*
 
 ### 8. Boundary
 

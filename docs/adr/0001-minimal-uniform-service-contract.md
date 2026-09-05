@@ -2,6 +2,8 @@
 
 **Status:** accepted (resolution of wayfinder ticket "Define the minimal uniform service contract"); **amended by ADR-0002** (base item 9 — callable surfaces; family 3 narrowed), **ADR-0004** (family conformance: capability API = union of implementation variants), **ADR-0005** (429 taxonomy: `cloud-spend` resource name) and **ADR-0007** (family 9 authoring shape: agents carry accessible + preloaded tool lists; workflows are Python programs with the composition primitive set)
 
+> **Evolution (2026-09, terminology sweep #33):** family 1 below still carries the service's earlier name, "the unique **LLM inference service**." The service is now the **Inference service** — the unique *model-serving* service, serving the `llm`, `diffusion` and `ml` (classic/pretrained) model classes, not only LLMs (ADR-0027 / #32). The decision text above is left as its historical record.
+
 ## Context
 
 The platform's promise is "all service APIs look alike and share the same concepts" — but every service is fully independent (own DB, business logic, UI, API), model-backed, tool-backed, or both, and runs at home scale on trusted hardware. The enterprise studies (architecture_v2.md S.1–S.33, 486 canonical endpoints) encode the full multi-tenant SaaS answer; this contract is the deliberate inverse: the same concepts, radically lighter execution, cut ruthlessly to what home scale needs. Simplicity is the main feature; the contract is the keystone the service template embodies, the dashboard surfaces, and composition consumes.

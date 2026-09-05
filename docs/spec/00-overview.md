@@ -14,7 +14,7 @@ Everything in this spec traces back to that soul. Three commitments run through 
 
 ## The service architecture
 
-The platform is a set of **fully independent services** (each with its own DB, business logic, UI, and API) plus a **platform core** on each machine, all sharing one minimal uniform service contract and one template. See `10-foundations.md` for the substrate (contract, template, core, topology, resources, providers, composition, registry) and `20-services/` for the service chapters. The service catalog and build order are fixed by the v1 catalog decision (ADR-0002/0018; see `references/v1-service-catalog.md` in the design notes).
+The platform is a set of **fully independent services** (each with its own DB, business logic, UI, and API) plus a **platform core** on each machine, all sharing one minimal uniform service contract and one template. See `10-foundations.md` for the substrate (contract, template, core, topology, resources, providers, composition, registry) and `20-services/` for the service chapters. The service catalog and build order are fixed by the v1 catalog decision (ADR-0002/0018); the settled catalog and build order are listed in the architecture overview (`docs/architecture-overview.md` §8).
 
 ## Cross-cutting principles
 

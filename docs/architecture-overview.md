@@ -108,7 +108,7 @@ Every resource consumer declares requirements in two states: **at install** (dis
 
 **Privacy is a property of the chosen implementation** (ADR-0007 §10). Every implementation carries one of three tiers: **`local`** (your machines, data never leaves your control), **`cloud_no_data`** (Zero Data Retention), **`cloud`**. The platform **abolished the inference policy** — there is no `local-then-cloud` routing, no automatic fallback, anywhere. Choosing the implementation *is* the privacy decision, and the UI warns rather than routes.
 
-⚑ *ADR-0001 still says "the unique **LLM** inference service" and ADR-0006's body still uses pre-0027 capability names (`classic AI`); the renames to "Inference service" and `ml.*` are recorded in CONTEXT.md/ADR-0027 but not visibly amended in those ADR bodies.*
+*ADR-0001's decision text keeps its historical name "the unique LLM inference service" — now annotated by an evolution note (recorded in the #33 sweep); ADR-0006's decision body likewise keeps its pre-0027 capability names (`llm`/`diffusion`/`classic AI`) as historical record. Read ADR-0027 / CONTEXT.md as canonical.*
 
 ---
 
@@ -131,7 +131,7 @@ A **thin discovery index + name authority on the leader core**. Entries are one 
 
 ## 8. The service catalog
 
-The v1 platform is **11 services plus one combined service** (settled by the wayfinder map, ticket #18 ⚑ *ADR-0013 still says "12-service platform"*). Grouped by what they do for the user:
+The v1 platform is **11 services plus one combined service** (settled by the wayfinder map, ticket #18). Grouped by what they do for the user:
 
 **The front door to AI**
 - **Chat + Agents** — chat sessions, agent authoring and runs, memory, workspaces. Human surface = vendored **Open WebUI**. Also hosts the platform's continual learning assistant (Hermes Agent, see §11).
@@ -248,36 +248,26 @@ Both halves of the Training & Evaluation service are **builder-run, notebook-dri
 
 ## 12. Open questions, inconsistencies, and flags ⚑
 
-Everything this review found that still needs a decision, a clarification, or a cleanup — grouped.
+Everything this review found that still needs a decision, a clarification, or a cleanup — grouped. *(Original review items 2–8 — the dangling reference and the superseded-terminology sweep — were resolved by ticket #33 and are removed here.)*
 
 ### Spec-structure gaps (the biggest real gap)
 
-1. **`20-services/` is referenced but absent.** `00-overview.md` points to "`20-services/` for the service chapters", and ADR-0013 mandates that tree plus a `docs/spec/README.md` master index — neither exists; the four service chapters sit flat. **Nine services have no chapter and no dedicated design ADR**: Inference, Chat + Agents, Workflow, Development, Audio, Image, Connectors, Generation, Media transformations. Only 4 of ~13 chapters exist (22, 24, 25, 33). For Inference — the central service — design lives only in CONTEXT.md fragments plus ADR-0006/0027. *This is the main "still open" inventory, and no open tracker ticket covers it (all design tickets #2–#32 are closed).*
-2. **Dangling reference**: `00-overview.md` cites `references/v1-service-catalog.md` "in the design notes" — the file does not exist in the repo.
-
-### Superseded terms still in authoritative text
-
-3. **`classic AI` → `ml.*`** (rename in CONTEXT.md / ADR-0027) still used in `24-training-evaluation.md` (line 27) and loosely in `25-knowledge.md`.
-4. **"LLM inference service" → "Inference service"**: ADR-0001's family 1 still says the old name; no amending ADR recorded the rename in 0001's body.
-5. **`models.toml` → `implementation.toml`** (ADR-0027): claims the sweep happened across 0003/0006/0013/0022/0024/0025 — worth a mechanical grep to verify no stale mentions remain.
-6. **Privacy vocabulary**: three generations existed; only the final (`local` / `cloud_no_data` / `cloud`, per ADR-0008) should be used anywhere; ADR-0006 §7 still narrates the middle generation.
-7. **`catalog.toml` → `platform.toml`** (ADR-0019 renames ADR-0018's file).
-8. **ADR-0013's scope statements are stale**: "12-service platform", "ADRs 0001…0013", and the old `22-training.md` chapter number (now 24; 22 = Document).
+1. **`20-services/` is referenced but absent.** `00-overview.md` points to "`20-services/` for the service chapters", and ADR-0013 mandates that tree plus a `docs/spec/README.md` master index — neither exists; the four service chapters sit flat. **Nine services have no chapter and no dedicated design ADR**: Inference, Chat + Agents, Workflow, Development, Audio, Image, Connectors, Generation, Media transformations. Only 4 of ~13 chapters exist (22, 24, 25, 33). For Inference — the central service — design lives only in CONTEXT.md fragments plus ADR-0006/0027. *This is the main "still open" inventory; it is tracked as ticket #34.*
 
 ### Apparent contradictions that need one clarifying sentence each
 
-9. **"Automatic" wording**: ADR-0014 §6 and `90-lifecycle.md` still call Tier-1 updates "automatic"; ADR-0016's rule is *no automatic anything* (automatic = delivered to the list). Same for backup auto-run vs "no automatic anything" (reconciled as chosen-at-install automation).
-10. **"Summary" faithful vs interpretation** (ADR-0010 vs ADR-0023, see §9.2) — resolvable via the generic-vs-task-chosen line, but must be taught explicitly.
-11. **SQLite-everywhere vs Document = PostgreSQL** — an explicit, justified, scoped exception (ADR-0023); say so everywhere it's mentioned, or it reads as drift.
-12. **ADR-0009 vs ADR-0010** on Document's operators: 0010 refined "limited DocETL operator subset" into "representation capabilities" — cite 0010's wording as current.
-13. **Registry type count**: ADR-0008's options section says "five entries" while the decision lists seven (post-0019) — always state seven.
+2. **"Automatic" wording**: ADR-0014 §6 and `90-lifecycle.md` still call Tier-1 updates "automatic"; ADR-0016's rule is *no automatic anything* (automatic = delivered to the list). Same for backup auto-run vs "no automatic anything" (reconciled as chosen-at-install automation).
+3. **"Summary" faithful vs interpretation** (ADR-0010 vs ADR-0023, see §9.2) — resolvable via the generic-vs-task-chosen line, but must be taught explicitly.
+4. **SQLite-everywhere vs Document = PostgreSQL** — an explicit, justified, scoped exception (ADR-0023); say so everywhere it's mentioned, or it reads as drift.
+5. **ADR-0009 vs ADR-0010** on Document's operators: 0010 refined "limited DocETL operator subset" into "representation capabilities" — cite 0010's wording as current.
+6. **Registry type count**: ADR-0008's options section says "five entries" while the decision lists seven (post-0019) — always state seven.
 
 ### Genuinely open design points (deferred, by decision)
 
-14. **Task-shaped model capabilities** (tts/stt/embeddings) naming — deferred to the Inference service design (ADR-0027 §2), which doesn't exist yet (see gap #1).
-15. **v1.1 deferrals**: public-internet gateway (ADR-0019/0017); full Training job-runner (ADR-0025); serverless runtime (rejected v1); multimodal anonymization (ADR-0026, text-only v1); Kuzu graph DB (ADR-0011); editable workflow canvas (ADR-0007); per-user provider keys (ADR-0006); HA/leader re-election (ADR-0004).
-16. **Soft spots to re-check at build time**: family-contract verification risks (Ollama vision-through-Responses, stateless MCP transport, WebRTC-on-LAN — ADR-0001); rate limiting reserved but out of v1; DocETL intermediate-trace auditability is a goal with known cost, not a guarantee; the "no embedded memory framework" rationale in ADR-0012 depends on ecosystem status (Letta/Mem0/Zep) worth re-verifying; DocETL pipeline outputs split across Document (raw) and Knowledge (derived) may need a clarified residency rule.
-17. **Unclosed handoff**: ADR-0017's "secrets at rest must survive leader rebuild" question was resolved in practice by ADR-0021's admin-sphere backup but never explicitly closed in 0017's text.
+7. **Task-shaped model capabilities** (tts/stt/embeddings) naming — deferred to the Inference service design (ADR-0027 §2), which doesn't exist yet (see gap #1).
+8. **v1.1 deferrals**: public-internet gateway (ADR-0019/0017); full Training job-runner (ADR-0025); serverless runtime (rejected v1); multimodal anonymization (ADR-0026, text-only v1); Kuzu graph DB (ADR-0011); editable workflow canvas (ADR-0007); per-user provider keys (ADR-0006); HA/leader re-election (ADR-0004).
+9. **Soft spots to re-check at build time**: family-contract verification risks (Ollama vision-through-Responses, stateless MCP transport, WebRTC-on-LAN — ADR-0001); rate limiting reserved but out of v1; DocETL intermediate-trace auditability is a goal with known cost, not a guarantee; the "no embedded memory framework" rationale in ADR-0012 depends on ecosystem status (Letta/Mem0/Zep) worth re-verifying; DocETL pipeline outputs split across Document (raw) and Knowledge (derived) may need a clarified residency rule.
+10. **Unclosed handoff**: ADR-0017's "secrets at rest must survive leader rebuild" question was resolved in practice by ADR-0021's admin-sphere backup but never explicitly closed in 0017's text.
 
 ---
 
