@@ -1,6 +1,6 @@
 # ADR-0022 — The platform's component license policy (cross-cutting Foundations principle)
 
-**Status:** accepted (resolution of wayfinder ticket "Define the platform's component license policy", #23); **amends none**; **sharpens ADR-0018** (the quality bar's license check now has a concrete policy) and **ADR-0019** (a published thing's license is a compliance fact with defined handling); **creates** the `00-overview.md` Foundations chapter (with ADR-0017's security principle); **feeds** "Design the Training service" (#30 — training/synthetic-data/fine-tune operations are gated by model-license terms) and the "data consent & handling" model (#31 — model-license compliance facts surface alongside usage consent); **references but does NOT resolve** #28, #29, #30, #31.
+**Status:** accepted (resolution of wayfinder ticket "Define the platform's component license policy", #23); **amends none**; **sharpens ADR-0018** (the quality bar's license check now has a concrete policy) and **ADR-0019** (a published thing's license is a compliance fact with defined handling); **creates** the `00-overview.md` Foundations chapter (with ADR-0017's security principle); **feeds** *(the `00-overview.md` chapter this created was relocated into the architecture doc by ADR-0028: its license principle now lives at `docs/architecture/20-concerns/22-license.md`, security at `21-security.md`, soul/overview at `00-soul.md`.)* "Design the Training service" (#30 — training/synthetic-data/fine-tune operations are gated by model-license terms) and the "data consent & handling" model (#31 — model-license compliance facts surface alongside usage consent); **references but does NOT resolve** #28, #29, #30, #31.
 
 ## Context
 
@@ -84,7 +84,7 @@ The subtle one. The two poles meet here: the **platform's own stack is strictly 
 
 ### 7. Where it lands + how the audit is kept current
 
-- **Spec home:** the license principle lives in **`docs/spec/00-overview.md`** (Foundations, ADR-0013 §2/§6) — created this resolution, carrying both the license principle (this ADR) and the security principle (ADR-0017, previously the sole deferred principle). This is the source of the *principles*; the ADR is the source of *detail* (cite-never-restate, ADR-0013 §7).
+- **Spec home:** the license principle lives in **`docs/spec/00-overview.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)*** (Foundations, ADR-0013 §2/§6) — created this resolution, carrying both the license principle (this ADR) and the security principle (ADR-0017, previously the sole deferred principle). This is the source of the *principles*; the ADR is the source of *detail* (cite-never-restate, ADR-0013 §7).
 - **Audit surface:** the **compliance catalog** (ADR-0018 §10) is the per-machine audit view — each installed/running service, capability, implementation, and published app carries its **license as a compliance fact** (declared SPDX), alongside version/update status, privacy tier, supply-chain scan, resource usage, and computed review status. Surfaced in the dashboard's **Administrator** (read-only audit) and **Builder** (authoring, own developments) views.
 - **Recording:** license is declared as **SPDX** in `service.toml` / `implementation.toml` (ADR-0002/0018) and in the registry's license tag (ADR-0008); the community-catalog listing records carry the license (ADR-0018 §8). **Supply-chain / license scanning** is part of the mechanical quality bar (ADR-0017 §9) with the 1-week freshness gate (ADR-0016/0017) — the audit is kept current by the update/scan machinery, not a one-off review.
 
@@ -109,7 +109,7 @@ The subtle one. The two poles meet here: the **platform's own stack is strictly 
 ## Consequences
 
 - **Creates ADR-0022** — the platform-wide component license policy; a cross-cutting Foundations principle.
-- **Creates `docs/spec/00-overview.md`** — the Foundations chapter, carrying the license principle (this ADR) and the security principle (ADR-0017), ending the deferral.
+- **Creates `docs/spec/00-overview.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)*** — the Foundations chapter, carrying the license principle (this ADR) and the security principle (ADR-0017), ending the deferral.
 - **Sharpens ADR-0018** — the quality bar's license check now has a concrete policy (per-tier rules, SPDX declaration, scanning).
 - **Sharpens ADR-0019** — a published thing's license: builder-chooses (regime 2) or strict OSS (regime 1), SPDX declared, surfaced as a compliance fact, use must comply with underlying terms.
 - **Feeds #30** (Training: train-on-output/fine-tune gating) and **#31** (model-license compliance facts alongside consent). Does NOT resolve them.

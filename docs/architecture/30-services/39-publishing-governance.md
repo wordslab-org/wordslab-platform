@@ -1,4 +1,4 @@
-# 33 — Publishing & Governance
+# 39 — Publishing & Governance
 
 > **Status:** drafted at the resolution of wayfinder tickets "Design community governance of the service catalog" (#15) and "Define how agents publish generated web apps & services" (#21). **Source of truth:** ADR-0018 (governance half) + ADR-0019 (publishing half). This chapter is the **organized build-view** — it cites, never restates. The governance half (community catalog, review levels, compliance catalog) is ADR-0018's; the publishing half (published things, runtimes, two regimes, project, inbound exposure, agent-code security) is ADR-0019's.
 

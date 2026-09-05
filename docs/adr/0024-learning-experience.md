@@ -1,6 +1,6 @@
 # ADR-0024 — The learning experience: per-service learning bar, continual personal assistant, guided AI build process
 
-**Status:** accepted (resolution of wayfinder ticket "Design the learning experience", #29 — the per-service learning/operability bar, the continual learning assistant, and the guided AI build process, plus the folded-in onboarding experience from #22); **amends ADR-0002** (the service template gains a required learning/operability bar declaration); **creates the `10-foundations.md` spec chapter** (hosting the learning-experience cross-cutting thread, resolving the deferral recorded by #28); **amends `91-dashboard.md`** (the learning assistant's surface + the onboarding/first-run experience); **feeds** "data consent & handling" (#31 — role-scoped tool access for the assistant, recorded in #31's body) and the "Training service" (#30 — the guided build process steers learners to the eval capability, recorded in #30's body); **references** the implementation-declaration reconciliation (its per-implementation half is now concrete: #32, resolved by ADR-0027 — the bar is declared per implementation in `implementation.toml`).
+**Status:** accepted (resolution of wayfinder ticket "Design the learning experience", #29 — the per-service learning/operability bar, the continual learning assistant, and the guided AI build process, plus the folded-in onboarding experience from #22); **amends ADR-0002** (the service template gains a required learning/operability bar declaration); **creates the `10-foundations.md` spec chapter** (hosting the learning-experience cross-cutting thread, resolving the deferral recorded by #28); *(relocated into the architecture doc by ADR-0028: the learning/operability content now lives at `docs/architecture/20-concerns/23-learning-and-operability.md`, the substrate at `docs/architecture/10-concepts/*`.)* **amends `20-concerns/26-dashboard.md`** (the learning assistant's surface + the onboarding/first-run experience); **feeds** "data consent & handling" (#31 — role-scoped tool access for the assistant, recorded in #31's body) and the "Training service" (#30 — the guided build process steers learners to the eval capability, recorded in #30's body); **references** the implementation-declaration reconciliation (its per-implementation half is now concrete: #32, resolved by ADR-0027 — the bar is declared per implementation in `implementation.toml`).
 
 ## Context
 
@@ -51,14 +51,14 @@ A **guided AI-build process**, designed so a non-technical learner can build rea
 
 ### 4. The onboarding experience (folded in from #22)
 
-The **first-run/initial journey** is part of the learning/guidance experience. A new user is taken through getting started on the platform, and — specifically for backup — **enters their backup passphrase**, told explicitly that they must remember it because it will encrypt their backups so that only they can decrypt them. (Passphrase hashed; the hash stored and used as the key to encrypt the user's per-service backup zips. On restoring to a new platform the user re-enters the same passphrase, points at their chosen backup target, and restores from the other install — ADR-0021.) The onboarding story lands in the dashboard first-run surface (`91-dashboard.md`) and the Foundations chapter.
+The **first-run/initial journey** is part of the learning/guidance experience. A new user is taken through getting started on the platform, and — specifically for backup — **enters their backup passphrase**, told explicitly that they must remember it because it will encrypt their backups so that only they can decrypt them. (Passphrase hashed; the hash stored and used as the key to encrypt the user's per-service backup zips. On restoring to a new platform the user re-enters the same passphrase, points at their chosen backup target, and restores from the other install — ADR-0021.) The onboarding story lands in the dashboard first-run surface (`20-concerns/26-dashboard.md`) and the Foundations chapter.
 
 ### 5. Where it lands
 
 - **ADR-0024** (this decision) is the source of truth.
 - **Amends ADR-0002** — the service template gains the required learning/operability bar declaration (per-service/capability now; per-implementation in `implementation.toml`, ADR-0027/#32).
-- **Creates `docs/spec/10-foundations.md`** — hosting the learning-experience cross-cutting thread as part of the platform-wide substrate, resolving the deferral #28 recorded (this ticket is one of the cross-cutting tickets #28 was waiting on).
-- **Amends `docs/spec/91-dashboard.md`** — the learning assistant's surface (the preloaded/embedded assistant, launch-by-view → acting identity) and the onboarding/first-run experience.
+- **Creates `docs/spec/10-foundations.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)*** — hosting the learning-experience cross-cutting thread as part of the platform-wide substrate, resolving the deferral #28 recorded (this ticket is one of the cross-cutting tickets #28 was waiting on).
+- **Amends `docs/architecture/20-concerns/26-dashboard.md`** — the learning assistant's surface (the preloaded/embedded assistant, launch-by-view → acting identity) and the onboarding/first-run experience.
 
 ## Considered options
 
@@ -72,8 +72,8 @@ The **first-run/initial journey** is part of the learning/guidance experience. A
 ## Consequences
 
 - **Amends ADR-0002** — the service template gains the learning/operability bar declaration (docs, skills+MCP, diagnostics, graded by depth); mandatory for bundled/listed, tracked-gaps for third-party.
-- **Creates `docs/spec/10-foundations.md`** (this resolution) — the platform-wide substrate + the learning-experience cross-cutting thread; resolves the #28 deferral for this content.
-- **Amends `docs/spec/91-dashboard.md`** — learning-assistant surface + onboarding/first-run (incl. the backup-passphrase step).
+- **Creates `docs/spec/10-foundations.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)*** (this resolution) — the platform-wide substrate + the learning-experience cross-cutting thread; resolves the #28 deferral for this content.
+- **Amends `docs/architecture/20-concerns/26-dashboard.md`** — learning-assistant surface + onboarding/first-run (incl. the backup-passphrase step).
 - **Feeds #31 (data consent)** — the assistant's role-scoped tool access (user-own-data / builder-anonymized / admin-platform-ops) is recorded in #31's body as consent content; #31 designs the action-context enforcement.
 - **Feeds #30 (Training)** — the guided build process steers learners to the eval capability; recorded in #30's body.
 - **Resolves #32** — the bar's per-implementation half is now concrete (ADR-0027: the bar is declared per implementation in `implementation.toml`).

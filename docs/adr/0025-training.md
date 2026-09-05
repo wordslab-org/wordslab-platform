@@ -1,6 +1,6 @@
 # ADR-0025 — Training half of the Training and Evaluation service
 
-**Status:** accepted (resolution of wayfinder ticket "Sharpen the Training service design", #30); **creates** the Training and Evaluation spec chapter `docs/spec/24-training-evaluation.md`; **resolves** the chapter deferred by ADR-0020 §"Deferred chapter"; **amends** the chapter-number reference recorded in ADR-0013/0020 (`22-training.md` → `24-training-evaluation.md`, `22` being taken by Document at #28); **consumes** the data-consent-and-handling model (its own graduated ticket, #31 — **now resolved by ADR-0026**) and the model compliance profile (ADR-0022); **references** #32 (implementation-declaration reconciliation — **now resolved by ADR-0027**: a trained artifact declares as a model implementation in `implementation.toml`); **feeds** the map's destination.
+**Status:** accepted (resolution of wayfinder ticket "Sharpen the Training service design", #30); **creates** the Training and Evaluation spec chapter `docs/architecture/30-services/36-training-evaluation.md`; **resolves** the chapter deferred by ADR-0020 §"Deferred chapter"; **amends** the chapter-number reference recorded in ADR-0013/0020 (`30-services/36-training-and-evaluation` (renamed) → `24-training-evaluation.md`, `22` being taken by Document at #28); **consumes** the data-consent-and-handling model (its own graduated ticket, #31 — **now resolved by ADR-0026**) and the model compliance profile (ADR-0022); **references** #32 (implementation-declaration reconciliation — **now resolved by ADR-0027**: a trained artifact declares as a model implementation in `implementation.toml`); **feeds** the map's destination.
 
 ## Context
 
@@ -94,11 +94,11 @@ The two halves share the service's contract surfaces and database. Training comp
 
 ## Deferred chapter
 
-Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consuming spec chapter **`docs/spec/24-training-evaluation.md`** (the Training and Evaluation chapter) in the same commit, resolving the deferral recorded by ADR-0020 §"Deferred chapter". The chapter covers the **whole** Training and Evaluation service — Training half (this ADR) + Evaluation half (ADR-0020) — as the organized build-view.
+Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consuming spec chapter **`docs/architecture/30-services/36-training-evaluation.md`** (the Training and Evaluation chapter) in the same commit, resolving the deferral recorded by ADR-0020 §"Deferred chapter". The chapter covers the **whole** Training and Evaluation service — Training half (this ADR) + Evaluation half (ADR-0020) — as the organized build-view.
 
-**Chapter-number amendment.** ADR-0013 §6 and ADR-0020 §"Deferred chapter" named the chapter `docs/spec/22-training.md`. `22` was subsequently taken by **`22-document.md`** at #28 (Document/Knowledge sharpening). The Training and Evaluation chapter therefore lands at **`24-training-evaluation.md`**, a free number in the service range, consistent with the existing non-contiguous numbering (22-document, 25-knowledge, 33-publishing-governance). This ADR records the renumbering; references to `22-training.md` as the Training and Evaluation chapter are superseded by `24-training-evaluation.md`.
+**Chapter-number amendment.** ADR-0013 §6 and ADR-0020 §"Deferred chapter" named the chapter `22-training.md`. `22` was subsequently taken by **`22-document.md`** at #28 (Document/Knowledge sharpening). The Training and Evaluation chapter therefore landed at **`24-training-evaluation.md`**, a free number in the service range, consistent with the existing non-contiguous numbering (22-document, 25-knowledge, 33-publishing-governance). *(ADR-0028 later relocated this chapter into the architecture tree as `docs/architecture/30-services/36-training-evaluation.md`, in the sequential renumbering.)*
 
-**Feeds spec chapter `docs/spec/24-training-evaluation.md` (Training and Evaluation) — filled at this ticket's resolution.**
+**Feeds spec chapter `docs/architecture/30-services/36-training-evaluation.md` (Training and Evaluation) — filled at this ticket's resolution.**
 
 ## Graduated tickets (consumed, not resolved)
 
@@ -121,8 +121,8 @@ Per ADR-0013 §6/§7 (the maintenance loop), this resolution creates the consumi
 ## Consequences
 
 - **Creates ADR-0025** — the training half of the Training and Evaluation service.
-- **Creates** the spec chapter `docs/spec/24-training-evaluation.md` — the whole Training and Evaluation chapter (training + evaluation), resolving ADR-0020's deferred chapter.
-- **Amends** the chapter-number reference (ADR-0013 §6, ADR-0020 §"Deferred chapter": `22-training.md` → `24-training-evaluation.md`) — `22` being Document.
+- **Creates** the spec chapter `docs/architecture/30-services/36-training-evaluation.md` — the whole Training and Evaluation chapter (training + evaluation), resolving ADR-0020's deferred chapter.
+- **Amends** the chapter-number reference (ADR-0013 §6, ADR-0020 §"Deferred chapter": `22-training.md` → `24-training-evaluation.md`) — `22` being Document. *(Renumbered again by ADR-0028 → `30-services/36-training-evaluation.md`.)*
 - **Consumes** (not resolves) the data-consent model (#31) and the implementation-declaration reconciliation (#32 — now resolved by ADR-0027).
 - **Glossary (CONTEXT.md):** add training, fine-tune, dataset prep, Trackio; update the Training and Evaluation gloss to the settled shape; mark #30 resolved.
 - **Feeds** the dashboard (Builder-view training surface via notebooks), Development (notebook-driven JupyterLab), Inference (#32 — a trained model publishes as a model implementation), and the new chapter.

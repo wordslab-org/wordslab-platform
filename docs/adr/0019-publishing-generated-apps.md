@@ -1,6 +1,6 @@
 # ADR-0019 — Publishing generated apps & services (the publishing half of the combined Publishing & Governance service)
 
-**Status:** accepted (resolution of wayfinder ticket "Define how agents publish generated web apps & services", #21); **amends none**; **sharpens ADR-0008** (adds the `api` and `webapp` registry entry types) and **ADR-0018** (`catalog.toml` renamed `platform.toml` everywhere); **creates** the combined `docs/spec/33-publishing-governance.md` chapter (with ADR-0018); **feeds** the dashboard (`91-dashboard.md` Builder/Administrator publishing surfaces, ADR-0015 §3) and the Connectors service (the v1.1 inbound gateway); **references but does NOT resolve** license policy (#23), evaluation (#16), and backup (#22).
+**Status:** accepted (resolution of wayfinder ticket "Define how agents publish generated web apps & services", #21); **amends none**; **sharpens ADR-0008** (adds the `api` and `webapp` registry entry types) and **ADR-0018** (`catalog.toml` renamed `platform.toml` everywhere); **creates** the combined `docs/architecture/30-services/39-publishing-governance.md` chapter (with ADR-0018); **feeds** the dashboard (`20-concerns/26-dashboard.md` Builder/Administrator publishing surfaces, ADR-0015 §3) and the Connectors service (the v1.1 inbound gateway); **references but does NOT resolve** license policy (#23), evaluation (#16), and backup (#22).
 
 ## Context
 
@@ -149,9 +149,9 @@ All lifecycle actions are explicit user actions (the "no automatic anything" sou
 
 ## Consequences
 
-- **Creates ADR-0019** — the publishing half of the combined Publishing & Governance service. Together with ADR-0018 (#15) it **creates `docs/spec/33-publishing-governance.md`** (the combined chapter, ADR-0013 §6/§7) in the same commit.
+- **Creates ADR-0019** — the publishing half of the combined Publishing & Governance service. Together with ADR-0018 (#15) it **creates `docs/architecture/30-services/39-publishing-governance.md`** (the combined chapter, ADR-0013 §6/§7) in the same commit.
 - **Sharpens ADR-0008** — registry entry types become `tool | api | agent | workflow | skill | data_source | webapp`; `api` = OpenAPI surface, `webapp` = UI (static site = simpler impl); one entry per surface; `tool` = LLM-optimized MCP subset; `data_source` unchanged.
 - **Sharpens ADR-0018** — `catalog.toml` renamed `platform.toml` everywhere (community catalog listing file).
 - **Glossary (CONTEXT.md):** add "published thing", "project", "platform.toml", "publish.toml", "deployable-packages catalog", "api entry", "webapp entry", "webMCP", "compliance checklist"; update "catalog.toml"→"platform.toml", the "capability registry" entry types, the "Development service" publishing note, the "Generation service" publishing note, the "Connectors service" gateway timing, and the "compliance catalog" to add the regulatory-posture dimension.
-- **Feeds** the dashboard (`91-dashboard.md` Builder/Administrator publishing + compliance surfaces, ADR-0015 §3), the Connectors v1.1 gateway, and the spec's `33-publishing-governance.md` chapter.
+- **Feeds** the dashboard (`20-concerns/26-dashboard.md` Builder/Administrator publishing + compliance surfaces, ADR-0015 §3), the Connectors v1.1 gateway, and the spec's `33-publishing-governance.md` chapter.
 - **Does NOT resolve** #16 (evaluation), #22 (backup), #23 (license) — referenced only as handoffs. One ticket per session.

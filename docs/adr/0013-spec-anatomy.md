@@ -2,7 +2,9 @@
 
 **Status:** accepted (resolution of wayfinder ticket "Define the spec anatomy", #12); **feeds the map's destination** — the complete, buildable spec. This ADR is the **master structural decision** that organizes ADR-0001…0012 into the deliverable; it does **not** re-decide any of their content. It also records two **catalog refinements** that #12 surfaces but that land as content in their own open tickets (#15, #16, #21, and a note on #18).
 
-> **Evolution (2026-09, terminology sweep #33):** this ADR's scope statements predate later tickets. The catalog has since settled on **13 services** (the Document/Knowledge split at #26 and the combined Publishing & Governance service included), the ADRs now run **past 0013** (current: 0027, resolved by #32), and the Training & Evaluation chapter is **`24-training-evaluation.md`** — created by #30/ADR-0025; `22` is the Document chapter, not Training.
+> **Evolution (2026-09, terminology sweep #33):** this ADR's scope statements predate later tickets. The catalog has since settled on **13 services** (the Document/Knowledge split at #26 and the combined Publishing & Governance service included), the ADRs now run **past 0013** (current: 0028, resolved by #34), and the Training & Evaluation chapter is **`24-training-evaluation.md`** — created by #30/ADR-0025; `22` is the Document chapter, not Training.
+>
+> **Evolution (2026-09, #34/ADR-0028):** this ADR's **tree mechanics (§1–§2, §5) are superseded** by ADR-0028. The deliverable changed from a numbered per-service **spec** tree (two-pass use-cases/build-spec) to a detailed **architecture document** at `docs/architecture/` — emphasis on concepts and cross-cutting concerns, light on service internals. ADR-0013's *content* conventions that survive (organized cite-never-restate, master index with a conventions note, no placeholder chapters) are re-stated in ADR-0028 §4 and the new `docs/architecture/README.md`. The old `docs/spec/` tree and `docs/architecture-overview.md` were folded into `docs/architecture/`; see ADR-0028 §6 for the full relocation mapping.
 
 ## Context
 
@@ -21,8 +23,8 @@ One file would be too large for a 13-service platform with a deep Knowledge thre
 - **`00-overview.md`** — the soul, the service architecture, and the cross-cutting principles. **Security and license are cross-cutting principles that live here — not separate chapters.**
 - **`10-foundations.md`** — the platform-wide substrate (ADR-0001…0008): service contract + 9 families, service template & contribution, platform core + bootstrap, topology, resource management, inference providers + privacy, composition, capability registry. **Also holds the platform-lifecycle use cases** (first-run/onboarding, joining a machine, backup) — platform-level journeys that don't start in any one numbered service.
 - **`20-services/`** — one chapter per service (see §5; up to 13).
-- **`90-lifecycle.md`** — **installer + updates + backup in one chapter** (they all describe how to install/update/backup the platform on user machines).
-- **`91-dashboard.md`** — its own chapter (the container for the services'/use cases' UIs).
+- **`20-concerns/25-lifecycle-and-updates.md`** — **installer + updates + backup in one chapter** (they all describe how to install/update/backup the platform on user machines).
+- **`20-concerns/26-dashboard.md`** — its own chapter (the container for the services'/use cases' UIs).
 
 ### 3. User-guide-first
 
@@ -62,7 +64,7 @@ On each map-ticket resolution: its **ADR is written/updated** → **and, in the 
 
 ### 9. Placeholder chapters are NOT used for the open tickets
 
-The open cross-cutting tickets do not get placeholder chapters. Instead they map onto real chapters or principles (per §2/§6): installer+updates+backup → `90-lifecycle.md`; dashboard → `91-dashboard.md`; security + license → Foundations principles; evaluation → the Training and Evaluation chapter; publishing+governance → the combined service chapter. When each resolves, its content fills the already-reserved place.
+The open cross-cutting tickets do not get placeholder chapters. Instead they map onto real chapters or principles (per §2/§6): installer+updates+backup → `20-concerns/25-lifecycle-and-updates.md`; dashboard → `20-concerns/26-dashboard.md`; security + license → Foundations principles; evaluation → the Training and Evaluation chapter; publishing+governance → the combined service chapter. When each resolves, its content fills the already-reserved place.
 
 ### 10. Vocabulary & conventions
 

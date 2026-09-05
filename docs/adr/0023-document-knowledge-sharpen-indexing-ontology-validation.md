@@ -85,8 +85,8 @@ The two axes are **orthogonal and both real**: attribution spheres (#31) answer 
 
 ### 8. Where it lands
 
-- **Creates `docs/spec/22-document.md` and `docs/spec/25-knowledge.md`** (ADR-0013 level C, "organized reference + citations"), grounded in ADR-0009/0010/0011/0012 **plus** this ticket's new content (9-part model, bidirectional index, LLM-generated ontology, facets, generated/verified loop). Created in the same commit (ADR-0013 §8 maintenance loop).
-- **`docs/spec/10-foundations.md` is deferred** — it is the platform-wide substrate for all 12 services and is better filled by a dedicated pass once the remaining cross-cutting tickets (#29, #31) settle. Noted as deferred, not stubbed.
+- **Creates `docs/architecture/30-services/34-document.md` and `docs/architecture/30-services/35-knowledge.md`** (ADR-0013 level C, "organized reference + citations"), grounded in ADR-0009/0010/0011/0012 **plus** this ticket's new content (9-part model, bidirectional index, LLM-generated ontology, facets, generated/verified loop). Created in the same commit (ADR-0013 §8 maintenance loop).
+- **`docs/spec/10-foundations.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)* is deferred** — it is the platform-wide substrate for all 12 services and is better filled by a dedicated pass once the remaining cross-cutting tickets (#29, #31) settle. Noted as deferred, not stubbed.
 
 ## Considered options
 
@@ -105,7 +105,7 @@ The two axes are **orthogonal and both real**: attribution spheres (#31) answer 
 - **Amends ADR-0010** — the 9-part model as Document's faithful-representation foundation; "faithful" re-defined as generic/mechanical/task-independent; motivation recorded as a context-length optimization with triples as the efficient extraction source.
 - **Amends ADR-0011** — LLM-generated ontology reconciles with auto-extract-from-dataset; ontology-to-ontology relations as a light extension; the `generated`/`verified` validation-state qualifier; facets grounded in Knowledge but applied as filters over Document's chunks.
 - **Amends ADR-0012** — the generated-knowledge loop is the one shared review queue; "reintegrated into the document collection" is one reviewer-chosen destination; the `generated`/`verified` qualifier generalizes to all derived artifacts (skills, memories, workflows).
-- **Creates ADR-0023** (this decision). **Creates** `docs/spec/22-document.md` + `docs/spec/25-knowledge.md`. **Defers** `docs/spec/10-foundations.md`.
+- **Creates ADR-0023** (this decision). **Creates** `docs/architecture/30-services/34-document.md` + `docs/architecture/30-services/35-knowledge.md`. **Defers** `docs/spec/10-foundations.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)*.
 - **Data-residency note:** the platform's "no shared/networked storage in v1" and "no content copies" rules (ADR-0003/0004/0009) are preserved; the bidirectional index stores *derived values* (IDs, links), never raw content, and every derived value carries provenance to `document.<bundle>`.
 - **CONTEXT.md glossary** — sharpens: Document service (9-part model, hybrid PostgreSQL index, storage-delegation), Knowledge service (LLM-generated ontology, ontology-to-ontology relations, generated/verified qualifier); adds: "9-part indexing", "bidirectional index", "structured facets", "generated/verified validation state", "ontology-to-ontology relation".
 - **Feeds** the spec anatomy (#12 — these chapters), the capability registry (#20 — facets as a `chunks`-side filter surface; bridge tools), the dashboard (#8 — the review queue surface, the two-level navigation UI), #29 (how the 9-part model and ontology/facets are *taught*), #30 (dataset-prep over the generated/verified corpus), #31 (attribution spheres untouched; the generated/verified qualifier is orthogonal).

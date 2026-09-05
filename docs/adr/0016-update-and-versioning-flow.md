@@ -1,6 +1,6 @@
 # ADR-0016 — The update & versioning flow (versioning scheme, catalog of versions, update & rollback mechanics)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the update & versioning flow", #10); **amends none**; **shapes the `90-lifecycle.md` spec chapter** (updates section; ADR-0013 §2); **realizes** the update lanes of ADR-0003/0014 and the two-layer granularity of ADR-0004, and **sharpens** ADR-0008's version float-or-pin in the update context.
+**Status:** accepted (resolution of wayfinder ticket "Design the update & versioning flow", #10); **amends none**; **shapes the `90-lifecycle.md` spec chapter (now `20-concerns/25-lifecycle-and-updates.md` in the architecture doc)** (updates section; ADR-0013 §2); **realizes** the update lanes of ADR-0003/0014 and the two-layer granularity of ADR-0004, and **sharpens** ADR-0008's version float-or-pin in the update context.
 
 ## Context
 
@@ -118,9 +118,9 @@ The core's **`catalog` capability** (ADR-0003) is **leader-only** for versioning
 
 ## Consequences
 
-- **Shapes the `90-lifecycle.md` spec chapter** (updates section) — deferred this session per Laurent (the chapter is tri-section: installer + updates + backup; #22 backup is open; create once more of its content exists). ADR-0013 maintenance loop: the updates section is filled when the chapter is created.
+- **Shapes the `90-lifecycle.md` spec chapter (now `20-concerns/25-lifecycle-and-updates.md`)** (updates section) — deferred this session per Laurent (the chapter is tri-section: installer + updates + backup; #22 backup is open; create once more of its content exists). ADR-0013 maintenance loop: the updates section is filled when the chapter is created.
 - **Realizes** the update lanes of ADR-0003 (three lanes, core self-update, bootstrap recovery) and the two-layer granularity of ADR-0004 (implementations per machine, leader-full/workers-lean) in the update context.
 - **Sharpens ADR-0008** in the update context: implementation/service versions interact with the registry's float-or-pin (versioned entries, best-effort retention) — an update that changes a target version is what a pinned reference would need to re-pin against.
 - **Glossary (CONTEXT.md):** "version", "platform bundle", "capability API version", "update lane", "centralized updates list" (and sharpening existing "update"/"two-layer installation" context).
-- **Feeds** "Define the security model for the trusted home environment" (#14 — the supply-chain gate's 1-week wait is a standing requirement this flow *uses* at inclusion, not re-decided here; the metadata/check step is where vulnerability scanning slots in), "Design the backup & recovery story" (#22 — the `90-lifecycle.md` chapter), "Design the integrated UI (dashboard)" (#8 — the Install & Updates surface renders this flow; already settled).
+- **Feeds** "Define the security model for the trusted home environment" (#14 — the supply-chain gate's 1-week wait is a standing requirement this flow *uses* at inclusion, not re-decided here; the metadata/check step is where vulnerability scanning slots in), "Design the backup & recovery story" (#22 — the `20-concerns/25-lifecycle-and-updates.md` chapter (was `90-lifecycle.md`)), "Design the integrated UI (dashboard)" (#8 — the Install & Updates surface renders this flow; already settled).
 - **Does NOT resolve** #22 (backup), #14 (security/supply-chain mechanics), #15/#16/#21 (later tickets). One ticket per session.

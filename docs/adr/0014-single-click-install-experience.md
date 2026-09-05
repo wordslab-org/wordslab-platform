@@ -1,6 +1,6 @@
 # ADR-0014 — The single-click install experience (installer, resident launcher, machine roles)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the single-click installer", #7); **amends none**; **shapes the `90-lifecycle.md` spec chapter** (installer section; ADR-0013 §2); **expands ticket "Design the update & versioning flow" (#10)** with the frequency-driven version taxonomy.
+**Status:** accepted (resolution of wayfinder ticket "Design the single-click installer", #7); **amends none**; **shapes the `90-lifecycle.md` spec chapter (now `20-concerns/25-lifecycle-and-updates.md` in the architecture doc)** (installer section; ADR-0013 §2); **expands ticket "Design the update & versioning flow" (#10)** with the frequency-driven version taxonomy.
 
 ## Context
 
@@ -78,7 +78,7 @@ The rented-VM journey is driven from the Windows client (works for a cloud leade
 
 ## Consequences
 
-- **Shapes the `90-lifecycle.md` spec chapter** (installer section) — to be filled when the spec chapter is created (ADR-0013 maintenance loop; deferred this session per Laurent).
+- **Shapes the `90-lifecycle.md` spec chapter (now `20-concerns/25-lifecycle-and-updates.md`)** (installer section) — to be filled when the spec chapter is created (ADR-0013 maintenance loop; deferred this session per Laurent).
 - **Expands "Design the update & versioning flow" (#10)** — the frequency-driven version taxonomy (three tiers: implementations / services / core+bootstrap; two behaviors: frequent-automatic vs infrequent-user-chosen-consistent-bundle; no-accumulation + backward-compat) is recorded in #10's body.
 - **Feeds** "Design the integrated UI (dashboard)" (#8 — the web install UI, the dashboard as the rest-of-install surface, storage view), "Define the security model for the trusted home environment" (#14 — client-machine firewall/WSL-bridging mechanics, provider credential storage on the client, local CA on clients), "Design the backup & recovery story" (#22 — launcher backup trigger, backup isolation of `workspace/`), the update flow (#10 — the two-lane presentation), "Design the inference provider model" (#19 — provider APIs for cloud VM automation + credentials).
 - **Reference prototype:** `docs/prototypes/installer-flow.md` (markdown screen-by-screen outline; the artifact this resolution reacts to).

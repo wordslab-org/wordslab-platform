@@ -1,4 +1,4 @@
-# 22 — Document
+# 34 — Document
 
 > **Status:** created at the resolution of wayfinder ticket "Sharpen the Document & Knowledge services" (#28 / ADR-0023), building on the Document/Knowledge split (#26 / ADR-0009), the DocETL engine (#24 / ADR-0010), the grounding capability (#25 / ADR-0011), and the memory/capture loop (#27 / ADR-0012). **Source of truth:** ADR-0009 (Document/Knowledge split), ADR-0010 (DocETL engine / faithful representations), ADR-0011 (grounding; the `Document → Knowledge` ontology-fetch edge), ADR-0012 (memory substrate), ADR-0023 (9-part indexing, hybrid index, bidirectional index). This chapter is the **organized build-view** — it cites, never restates.
 

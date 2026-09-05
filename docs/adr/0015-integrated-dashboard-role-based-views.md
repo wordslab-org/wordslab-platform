@@ -1,6 +1,6 @@
 # ADR-0015 — The integrated dashboard (role-based views, layout, educational layer)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the integrated UI (dashboard)", #8); **amends none**; **shapes the `91-dashboard.md` spec chapter** (ADR-0013 §2); **feeds** "Define the security model for the trusted home environment" (#14 — per-agent scoping presented in the Builder view), "Design the backup & recovery story" (#22 — backup surface presented in the Administrator view), publishing (#21 / ADR-0019 — the Builder view's publishing + compliance-authoring surface, the Administrator view's read-only compliance audit).
+**Status:** accepted (resolution of wayfinder ticket "Design the integrated UI (dashboard)", #8); **amends none**; **shapes the `91-dashboard.md` spec chapter (now `20-concerns/26-dashboard.md` in the architecture doc)** (ADR-0013 §2); **feeds** "Define the security model for the trusted home environment" (#14 — per-agent scoping presented in the Builder view), "Design the backup & recovery story" (#22 — backup surface presented in the Administrator view), publishing (#21 / ADR-0019 — the Builder view's publishing + compliance-authoring surface, the Administrator view's read-only compliance audit).
 
 ## Context
 

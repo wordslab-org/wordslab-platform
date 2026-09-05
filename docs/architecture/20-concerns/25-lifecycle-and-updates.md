@@ -1,4 +1,4 @@
-# 90 — Lifecycle: installer, updates, backup
+# Lifecycle: installer, updates, backup
 
 > **Status:** drafted at the resolution of wayfinder ticket "Design the backup & recovery story" (#22) — the third and final tri-section piece (installer + updates + backup). Prior sessions deferred the chapter until all three sections had content; with installer (ADR-0014), updates (ADR-0016) and backup (ADR-0021) all settled, the chapter is created now. **Source of truth:** ADR-0014 (installer), ADR-0016 (updates), ADR-0021 (backup), plus the ADRs they realize (0003 core/install, 0004 topology/data locations, 0005 resources/quotas, 0017 security/update-authenticity). This chapter is the **organized build-view** — it cites, never restates.
 >
@@ -6,7 +6,7 @@
 
 ## Identity
 
-`90-lifecycle.md` is the platform-lifecycle chapter: how a machine is **installed**, how it is **kept up to date**, and how its data is **backed up and restored**. These three describe the ongoing operation of the platform on user machines and share the same maintenance loop (ADR-0013 §2). The chapter's three sections correspond to the three settled tickets: installer (#7 / ADR-0014), updates (#10 / ADR-0016), backup (#22 / ADR-0021).
+`docs/architecture/20-concerns/25-lifecycle-and-updates.md` (formerly `90-lifecycle.md`) is the platform-lifecycle concern: how a machine is **installed**, how it is **kept up to date**, and how its data is **backed up and restored**. These three describe the ongoing operation of the platform on user machines and share the same maintenance loop (ADR-0013 §2). The concern's three sections correspond to the three settled tickets: installer (#7 / ADR-0014), updates (#10 / ADR-0016), backup (#22 / ADR-0021).
 
 ---
 

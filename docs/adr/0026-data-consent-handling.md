@@ -1,6 +1,6 @@
 # ADR-0026 — The data consent & handling model (GDPR-aware usage-data model, platform core + all services)
 
-**Status:** accepted (resolution of wayfinder ticket "Design the data consent & handling / GDPR-aware usage-data model (platform core + all services)", #31); **creates** the cross-cutting consent section §2.10 of `docs/spec/10-foundations.md`; **sharpens** ADR-0002 (service template gains a per-user dataset-extraction surface + a declared trace data-shape) and ADR-0003 (core `datasets` capability: anonymizes before storing, centralizes the platform's non-user-related logs); **consumed by** ADR-0020 §5 (evaluation), ADR-0021 (backup, spheres), ADR-0024 §2 (assistant role-scoping), ADR-0025 §5 (training); **feeds** the map's destination. **Does NOT resolve** #32 (implementation-declaration reconciliation, unrelated).
+**Status:** accepted (resolution of wayfinder ticket "Design the data consent & handling / GDPR-aware usage-data model (platform core + all services)", #31); **creates** the cross-cutting consent section §2.10 of `docs/spec/10-foundations.md` *(relocated by ADR-0028 into the `docs/architecture/` tree: now `docs/architecture/20-concerns/24-data-consent.md`)*; **sharpens** ADR-0002 (service template gains a per-user dataset-extraction surface + a declared trace data-shape) and ADR-0003 (core `datasets` capability: anonymizes before storing, centralizes the platform's non-user-related logs); **consumed by** ADR-0020 §5 (evaluation), ADR-0021 (backup, spheres), ADR-0024 §2 (assistant role-scoping), ADR-0025 §5 (training); **feeds** the map's destination. **Does NOT resolve** #32 (implementation-declaration reconciliation, unrelated).
 
 ## Context
 
@@ -80,7 +80,7 @@ This is consistent with ADR-0017 (harness = execution authority, platform = back
 ## Consequences
 
 - **Creates ADR-0026** — the authoritative design of the data consent & handling model (platform core + all services).
-- **Creates** §2.10 of `docs/spec/10-foundations.md` — the consent-and-handling cross-cutting section (cites, never restates, this ADR).
+- **Creates** §2.10 of `docs/spec/10-foundations.md` *(relocated by ADR-0028 into the `docs/architecture/` tree)* — the consent-and-handling cross-cutting section (cites, never restates, this ADR).
 - **Sharpens ADR-0002** — the service template gains: (a) a **per-user dataset-extraction surface** (UI/API) producing a **standardized dataset file** (HF-datasets-like format) that is already filtered of private/secret interactions, plus (b) a **declared trace data-shape** (the schema/PII fields) so the core's anonymizer can target them.
 - **Sharpens ADR-0003** — the core `datasets` capability: applies **anonymization before storing** the dataset, records **dataset provenance** (service, date, builder), **centralizes the platform's non-user-related logs** (raw per-user logs stay per-service — NOT centralized), and serves anonymized datasets to consuming services (eval/training) or synchronizes them to HuggingFace after anonymization.
 - **Consumed by** ADR-0020 §5 (evaluation), ADR-0021 (backup, spheres), ADR-0024 §2 (assistant role-scoping), ADR-0025 §5 (training). None are re-opened.

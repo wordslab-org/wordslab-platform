@@ -1,4 +1,4 @@
-# 24 — Training and Evaluation
+# 36 — Training and Evaluation
 
 > **Status:** created at the resolution of wayfinder tickets "Define what evaluation means in the platform" (#16 / ADR-0020) and "Sharpen the Training service design" (#30 / ADR-0025). **Source of truth:** ADR-0020 (evaluation half) + ADR-0025 (training half). This chapter is the **organized build-view** — it cites, never restates. The evaluation half (eval.dataset/simulate/annotate/judge/report, Arize Phoenix) is ADR-0020's; the training half (train.dataset/fine-tune/publish, Trackio, license gates, publish→Inference) is ADR-0025's. *(Chapter numbered 24: ADR-0013/0020 first reserved `22-training.md`, but `22` became Document at #28.)*
 

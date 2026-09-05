@@ -1,4 +1,4 @@
-# 91 — Dashboard
+# Dashboard
 
 > **Status:** drafted at the resolution of wayfinder ticket "Design the integrated UI (dashboard)" (#8) — the first spec chapter to be created (per Laurent, other chapters kept deferred). **Amended at the resolution of "Design the learning experience" (#29, ADR-0024)** — the learning assistant's surface and the onboarding/first-run experience. **Source of truth:** ADR-0015 (dashboard UX) plus the ADRs whose surfaces it renders (0003 core, 0004 topology, 0005 resources, 0006 providers, 0008 registry, 0014 install, 0024 learning experience). This chapter is the **organized build-view** — it cites, never restates.
 
