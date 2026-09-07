@@ -29,6 +29,7 @@ The chapters walk the platform in dependency order — from the concept of a ser
 | `24-data-consent.md` | GDPR-aware data handling (ADR-0026) |
 | `25-lifecycle-and-updates.md` | Install · update · backup (ADR-0014/0016/0021) |
 | `26-dashboard.md` | The integrated dashboard (ADR-0015) |
+| `27-v1-scope-and-deferrals.md` | What's in v1 vs deferred/rejected (the deferral ledger, #37) |
 | `30-services/` | The service catalog — one chapter per service |
 
 Readers who want the service catalog first can go straight to `30-services/`; readers who want to understand the architecture should read `00-soul.md` then `10-concepts/` in order.
