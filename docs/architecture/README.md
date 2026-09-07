@@ -41,7 +41,7 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 
 | # | Service | Status |
 |---|---|---|
-| 31 | Inference | pending — written by ticket #35 |
+| 31 | [Inference](30-services/31-inference.md) | written (ticket #35) |
 | 32 | Chat + Agents | pending — grilling ticket |
 | 33 | Workflow | pending — grilling ticket |
 | 34 | [Document](30-services/34-document.md) | written (relocated) |
@@ -70,4 +70,4 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 
 ## The ADRs (source of truth)
 
-Every decision lives in `../adr/` — numbered ADR-0001…0028 (0001 minimal uniform service contract, 0002 service template, 0003 platform core, 0004 topology, 0005 resources, 0006 inference providers, 0007 composition, 0008 capability registry, 0009 Document/Knowledge split, 0010 DocETL engine, 0011 grounding, 0012 memory/capture, 0013 spec anatomy — *tree superseded by ADR-0028*, 0014 installer, 0015 dashboard, 0016 update/versioning, 0017 security, 0018 governance, 0019 publishing, 0020 evaluation, 0021 backup, 0022 license, 0023 Document/Knowledge sharpening, 0024 learning experience, 0025 training, 0026 data consent, 0027 implementation-declaration, 0028 architecture document). ADR-0028 supersedes ADR-0013's *tree mechanics* (this architecture document replaces the old numbered spec tree); ADR-0013's surviving content conventions carry into this README.
+Every decision lives in `../adr/` — numbered ADR-0001…0029 (0001 minimal uniform service contract, 0002 service template, 0003 platform core, 0004 topology, 0005 resources, 0006 inference providers, 0007 composition, 0008 capability registry, 0009 Document/Knowledge split, 0010 DocETL engine, 0011 grounding, 0012 memory/capture, 0013 spec anatomy — *tree superseded by ADR-0028*, 0014 installer, 0015 dashboard, 0016 update/versioning, 0017 security, 0018 governance, 0019 publishing, 0020 evaluation, 0021 backup, 0022 license, 0023 Document/Knowledge sharpening, 0024 learning experience, 0025 training, 0026 data consent, 0027 implementation-declaration, 0028 architecture document, **0029 Inference capability surface**). ADR-0028 supersedes ADR-0013's *tree mechanics* (this architecture document replaces the old numbered spec tree); ADR-0013's surviving content conventions carry into this README.
