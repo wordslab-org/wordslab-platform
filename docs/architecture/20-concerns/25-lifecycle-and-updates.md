@@ -2,7 +2,7 @@
 
 > **Status:** drafted at the resolution of wayfinder ticket "Design the backup & recovery story" (#22) — the third and final tri-section piece (installer + updates + backup). Prior sessions deferred the chapter until all three sections had content; with installer (ADR-0014), updates (ADR-0016) and backup (ADR-0021) all settled, the chapter is created now. **Source of truth:** ADR-0014 (installer), ADR-0016 (updates), ADR-0021 (backup), plus the ADRs they realize (0003 core/install, 0004 topology/data locations, 0005 resources/quotas, 0017 security/update-authenticity). This chapter is the **organized build-view** — it cites, never restates.
 >
-> **Conventions:** Part 1 is the user guide (use cases); Part 2 is the organized build reference (citations). Terms are CONTEXT.md's (data location, data sphere, backup policy, resident launcher, update lane, version).
+> **Conventions:** the chapter is organized as a **user guide** (what the user sees and does, use cases) then a **reference** (organized citations to the governing ADRs). It cites, never restates. Terms are CONTEXT.md's (data location, data sphere, backup policy, resident launcher, update lane, version).
 
 ## Identity
 
@@ -10,7 +10,7 @@
 
 ---
 
-# Part 1 — Use cases (user guide)
+# User guide
 
 ## Section A — Installing the platform (from ADR-0014)
 
@@ -34,7 +34,7 @@
 ### What the user sees and does
 
 - **Two update lanes**, presented at first-run and in the dashboard's **Install & Updates** surface (leader-only):
-  - **Tier 1 — frequent & automatic:** implementations (new models, harness images) — additive, side-effect-free. (Automatic here means *delivered to the list*, not auto-applied.)
+  - **Tier 1 — frequent & delivered to the updates list:** implementations (new models, harness images) — additive, side-effect-free. They are *enumerated*, not auto-applied — the user applies each one-click.
   - **Tier 2 + 3 — infrequent & user-chosen:** services + core + bootstrap, updated as one consistent **platform bundle**.
 - **No automatic update in any tier.** Both behaviors are **user-triggered and one-click** — they differ in cadence and coordination, not autonomy (the "no automatic anything" rule, ADR-0016 §0).
 - A **centralized updates list** (leader-stored, persistent) shows installed-vs-available with a **dependency-satisfaction verdict**; an item is removed when acted on or superseded. Updates are applied **individually, at the user's own pace**.
@@ -65,7 +65,7 @@
 
 ---
 
-# Part 2 — Build spec (organized reference + citations)
+# Reference
 
 ## Section A — Installer (ADR-0014)
 

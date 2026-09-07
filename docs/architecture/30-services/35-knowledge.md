@@ -6,7 +6,7 @@
 
 The **Knowledge service** is expert in *reasoning over* document bundles to produce **derived knowledge** — ontologies, entity resolution/grounding, the knowledge graph, cross-bundle aggregation, facts extraction, and the transversal semantic view. It answers *"what did we learn across them, and how is it linked to the rest of our records."* Knowledge is the **semantic authority**: it computes the ontology, grounds mentions to canonical entities, and delegates the computed index values + query execution to the Document service's hybrid index. Its authoritative store is small and **independently navigable** (SQLite); it references bundles by stable ID (`document.<bundle>`), never copies content (ADR-0009 §3).
 
-## Part 1 — Use cases (user guide)
+## User guide
 
 ### What the user sees and does
 
@@ -23,7 +23,7 @@ The **Knowledge service** is expert in *reasoning over* document bundles to prod
 3. **"Find all documents about this entity"** (User) — from an entity in the graph, follow the **concepts → documents** index back to the chunks that mention it (ADR-0023 §2). Supporting: Knowledge (provenance), Document bidirectional index.
 4. **"Validate what the agent figured out"** (User) — an agent combined Document + Knowledge tools and derived generated knowledge with a thin provenance trace; the user reviews it in the shared queue and it is promoted to a **verified** fact (ADR-0012 routing, ADR-0023 §6/§7). Supporting: shared review queue, `knowledge.graph`, Document (indexed enrichment).
 
-## Part 2 — Build spec (organized reference + citations)
+## Reference
 
 ### The layered model (ADR-0011 §1)
 

@@ -2,6 +2,8 @@
 
 **Status:** accepted (resolution of wayfinder ticket "Design the single-click installer", #7); **amends none**; **shapes the `90-lifecycle.md` spec chapter (now `20-concerns/25-lifecycle-and-updates.md` in the architecture doc)** (installer section; ADR-0013 §2); **expands ticket "Design the update & versioning flow" (#10)** with the frequency-driven version taxonomy.
 
+> **Evolution note:** §6/§7 and the "frequent-automatic" wording inherited from an earlier draft called the Tier-1 update lane *automatic*. ADR-0016 (resolved by #10) ruled **no automatic anything in any tier** — every update, including Tier-1's frequent ones, is *delivered to the updates list* and applied by the user's one click. Treat "frequent & automatic" in this ADR's decision text as the superseded phrasing; the current rule is ADR-0016 §0/§4. The install *presents* the lanes; their autonomy is ADR-0016's.
+
 ## Context
 
 The map's soul demands the product's first experience be **familiar, guided, transparent and fully-decisioned** — no command line, no black box, every change explained and reversible. ADRs 0003/0004/0005 settled the two-layer mechanics the install *presents* (bootstrap + core `install` capability, two-layer installation, data locations, front door, join flow, resource fit-gating). This ADR decides the **user-facing install experience** on top of them — the entry points, the phased wizard, the machine roles, the two Windows executables, and the resident launcher that becomes the user's command center. It deliberately does **not** re-decide the layers, topology, or resource model.

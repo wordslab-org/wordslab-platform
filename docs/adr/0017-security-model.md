@@ -2,6 +2,8 @@
 
 **Status:** accepted (resolution of wayfinder ticket "Define the security model for the trusted home environment", #14); **amends none**; **shapes the `00-overview.md` Foundations chapter** (security = a cross-cutting principle, ADR-0013 §2 — chapter still deferred, this ADR is the source of truth until it is created); **feeds** "Design the backup & recovery story" (#22 — the at-rest key must survive leader rebuild), "Define how agents publish generated web apps & services" (#21 — the Connectors v1.1 gateway's TLS / edge-auth policy takes this ticket's stance).
 
+> **Evolution note (secrets-at-rest leader-rebuild handoff closed):** this ADR's at-rest decision (§4) deferred how secrets survive a leader rebuild to the backup ticket (#22). That handoff is **closed** by ADR-0021: the **admin-sphere backup** — config + change history + metrics, and when it holds the API keys / secrets master it is encrypted with a strong admin passphrase (ADR-0021 §6) — is what makes a rebuilt leader return as the *same* platform in minutes (ADR-0021 §7, ADR-0004 §1). The §4 decision text is unchanged; the recovery mechanism lives in ADR-0021.
+
 ## Context
 
 The soul demands a **trusted environment, very small scale — but not naive**: cloud fallback means some outbound traffic, and services hold real data. The right answer is deliberately **lighter than the enterprise stack** (Keycloak, Vault, mTLS mesh, HSMs) while covering the real risks — and it must be **transparent, visible, no black box** (the user can always see and adjust what is guarded).
@@ -51,7 +53,7 @@ Strong at-rest encryption is largely **theater**: harnesses and tools store thei
 
 - **Light obfuscation, not strong encryption:** what the platform itself stores is encrypted with a **static key in the platform source code**, so a random user browsing the disk does not read API keys in plaintext. No passphrase, no unlock ceremony, nothing that can break a rebuild.
 - **The real defense is the credential's lifetime, not the disk:** prefer **short-lived credentials (ideally ~1 month validity) whenever the provider allows, rotated often** — the existing #19 rotation machinery (push + pull-on-start, eventual consistency, stale-until-next-boot) is the actual control. A stolen credential is useless within its short validity window, regardless of disk readability.
-- Applies to the **master copy (leader)** and the **distributed copies (workers)** alike. At-rest must **survive leader rebuild** (interacts with #22 backup — not resolved here).
+- Applies to the **master copy (leader)** and the **distributed copies (workers)** alike. At-rest must **survive leader rebuild** — resolved by ADR-0021's admin-sphere backup (see the evolution note in this ADR's status).
 
 ### 5. Container network policy — the backstop for harness tool calls
 
@@ -102,7 +104,7 @@ Two different code paths with **different trust models**, never conflated:
 
 - **Credential storage/distribution/rotation** → #19 (ADR-0006 §5); this ADR only protects the copies at rest (§4).
 - **Mount mechanics / cert distribution / firewall ports / WSL→Windows bridging** → #7 (ADR-0014); this ADR sets the default-deny host-access stance and the browser-HTTPS stance.
-- **Backup / leader-rebuild key recovery** → #22 (not resolved here); at-rest must survive rebuild.
+- **Backup / leader-rebuild key recovery** → resolved by ADR-0021 (admin-sphere backup; see the evolution note in this ADR's status); at-rest must survive rebuild.
 - **Inbound gateway TLS / edge-auth policy** → #21 (the Connectors v1.1 gateway); this ADR's stance feeds it.
 - **Spec home:** `00-overview.md` Foundations (security = a cross-cutting principle, ADR-0013 §2) — chapter still deferred; this ADR is the source of truth until it is created.
 

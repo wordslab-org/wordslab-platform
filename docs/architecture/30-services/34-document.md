@@ -6,7 +6,7 @@
 
 The **Document service** is expert in the **raw material** — document bundles and the faithful representations built from them, across every modality (text, image, audio). It answers *"what's in my documents, where, and how do I find it"* — the counterpart to the Knowledge service's *"what did we learn across them"* (ADR-0009 §1). Document **stores and indexes the raw content and its representations**; it **executes storage and retrieval only, never interpretation**. Knowledge is the semantic authority on meaning; Document is the physical executor where the data lives.
 
-## Part 1 — Use cases (user guide)
+## User guide
 
 ### What the user sees and does
 
@@ -23,7 +23,7 @@ The **Document service** is expert in the **raw material** — document bundles 
 3. **"Navigate from a concept to its sources"** (User) — from a fact/entity in the Knowledge graph, follow the **concepts → documents** index back to the exact chunks and spans that ground it. Supporting: Knowledge (provenance `document.<bundle>`+span), Document bidirectional index (ADR-0023 §2).
 4. **"Jump from a document to the concepts it instantiates"** (User) — from a chunk, read the entity/concept IDs indexed onto it (**documents → concepts**) and open them in the Knowledge browser. Supporting: Document bidirectional index, Knowledge (ADR-0023 §2).
 
-## Part 2 — Build spec (organized reference + citations)
+## Reference
 
 ### The 9-part indexing model (ADR-0023 §1)
 
@@ -41,7 +41,7 @@ Every document is stored and indexed at **3 granularities (chunk / document / do
 - **organize** — bundle-level classification/sorting/splitting/merging; the bundle is the unit of organization.
 - **index** — the 9-part model, multilingual, late-interaction, multimodal, aligned embeddings in one vector space (ADR-0010).
 - **search / retrieval** — collection + single long document; reranker; hybrid lexical/semantic; structured-property + **facet filters** (facets grounded in Knowledge, ADR-0023 §5).
-- **bundle-level structural operators** — merge/check/format/order, expressed in the same DocETL syntax (faithful-representation dispatch → Document, ADR-0010).
+- **bundle-level structural operators** — merge/check/format/order, expressed in the same DocETL syntax — these are Document's **generic, purely structural** capabilities on raw data in place, not Document implementing DocETL operators; the reasoning/interpretation operators all live in Knowledge, which queries Document's indexed representations (ADR-0010 §3, ADR-0023 §3).
 - **representation capabilities** — the generic 9-part production surface; batch-capable for GPU saturation (ADR-0010 §7).
 - **document search agent** — configurable, partnership with the agent service.
 - **tools & skills at both levels + bridge tools** (ADR-0023 §2) — Document-side navigation of the 9 parts; bridge tools that jump to the Knowledge level through the bidirectional index.

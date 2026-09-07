@@ -11,7 +11,7 @@ The combined **Publishing & Governance** service (candidate 13th, ADR-0013 §2/�
 
 The two are one service because publishing is the *act* that triggers governance: **compliance is coupled to publishing** — it is only mandatory at the act of publishing, not during development (ADR-0019 §8).
 
-## Part 1 — Use cases (user guide)
+## User guide
 
 ### What the user sees and does
 
@@ -30,7 +30,7 @@ The two are one service because publishing is the *act* that triggers governance
 5. **"Audit what's running on my platform"** (Administrator, read-only) — every service/capability/implementation/published app with its compliance facts. Supporting: ADR-0018.
 6. **"Expose a stable API I build on in my own projects"** (Builder) — publish an API (OpenAPI) as a `api` registry entry, invocable by workflows (`call("…")`) and agents. Supporting: registry (ADR-0008), published-thing surfaces (ADR-0019).
 
-## Part 2 — Build spec (organized reference + citations)
+## Reference
 
 ### The combined service's surface (ADR-0019 §1–§6)
 

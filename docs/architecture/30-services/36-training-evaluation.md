@@ -11,7 +11,7 @@ The **Training and Evaluation service** is the dev-side counterpart to the **Inf
 
 The two are one service because they share the *same raw material* — **datasets** — and the same model-backed substrate: both are **notebook-driven**, both consume the **same dataset-prep / consent boundary**, both ride the **same Inference implementation catalog** for model-backed steps. Training produces/improves; evaluation measures. Neither is centralized (ADR-0003) — both run on the builder machine.
 
-## Part 1 — Use cases (user guide)
+## User guide
 
 ### What the user sees and does
 
@@ -28,7 +28,7 @@ The two are one service because they share the *same raw material* — **dataset
 4. **"Build an eval dataset and check my published tool is good"** (Builder) — reuse `train.dataset`'s gather/version/anonymize for an `eval.dataset`, then run simulate → annotate → judge → report on a published artifact (ADR-0020). Supporting: eval capabilities, Publishing (versioned artifact + temporary annotation UI).
 5. **"Check my fine-tune is legal to use"** (Builder) — the fine-tune surface surfaces the base model's compliance profile as a fact; the platform refuses (with a reason) a no-fine-tune base model, and never allows training on a no-train-on-output model's output. Supporting: ADR-0022 profile, `train.fine-tune` gate.
 
-## Part 2 — Build spec (organized reference + citations)
+## Reference
 
 ### The capability surface
 

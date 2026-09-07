@@ -19,7 +19,7 @@ Every document is stored at **3 granularities** (chunk / document / bundle) × *
 
 Knowledge computes the semantics and **delegates the computed index values + query execution to Document** (storage delegation). The index is **bidirectional**: chunks are indexed by their grounded concept IDs (*documents → concepts*); concepts are indexed by their source documents (*concepts → documents*).
 
-⚑ *The "summary" boundary is subtle: ADR-0010 lists "summarizing" as interpretation, while ADR-0023 makes generic, uniformly-produced summaries a faithful Document representation. The line is "generic and mechanical vs task-chosen" — the architecture document must teach it explicitly or readers will see a contradiction.*
+The "summary" boundary is subtle but teachable: a summary is a **faithful Document representation** when it is **generic** — mechanical, deterministic, applied uniformly to every element (the 9-part model's summary part, ADR-0023 §1) — whereas a **task-chosen** summary (sized/aimed at a specific question, or reflecting a purpose) is **interpretation → Knowledge** (ADR-0010 dispatch). The line is *generic and mechanical vs task-chosen*, not "summary vs no summary".
 
 ## Grounding: ontologies, entities, the graph (ADR-0011)
 

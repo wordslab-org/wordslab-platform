@@ -6,7 +6,7 @@
 
 The **dashboard** is the platform core's human surface and the **platform's single human front door** — a role-aware shell that groups the platform's four feature sets under three views, hosts the UI of every service capability, keeps an always-on metrics rail, and hosts the initial install phase + first-run welcome. Not a separate service: it is the core's UI (ADR-0003), reached through the front door.
 
-## Part 1 — Use cases (user guide)
+## User guide
 
 ### What the user sees and does
 
@@ -26,7 +26,7 @@ The **dashboard** is the platform core's human surface and the **platform's sing
 6. **"Keep an eye on the platform"** (everyone) — the always-on right rail (GPU/VRAM + CPU/RAM primary, cloud % spent when in use), hover for a machine's full stats, click for the full-metrics screen. Supporting: resources gauges (0005), providers spend (0006).
 7. **"Respond when the leader fails"** (Administrator) — the leader-failure banner shows authority surfaces down while services keep working. Supporting: ADR-0004 §1, recovery (#22).
 
-## Part 2 — Build spec (organized reference + citations)
+## Reference
 
 ### The dashboard's structure (ADR-0015 §1–§5)
 
