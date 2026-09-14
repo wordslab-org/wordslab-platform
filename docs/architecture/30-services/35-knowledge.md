@@ -37,6 +37,7 @@ The **Knowledge service** is expert in *reasoning over* document bundles to prod
 - **Storage delegation:** Knowledge computes the semantics (ontology, grounding, facets, entity links) and delegates the **computed index values + hybrid query execution to Document** (ADR-0023 §2/§3). Facets are grounded here, applied as filters over Document's `chunks` at retrieval time.
 - **Bidirectional index:** Knowledge's concepts are indexed by their source documents (**concepts → documents**), and Document's chunks are indexed by the grounded concept IDs (**documents → concepts**) — ADR-0023 §2.
 - **tools & skills:** ontology/entity/graph browsing and reasoning tools (Knowledge side) + **bridge tools** that jump to the Document level through the bidirectional index (ADR-0023 §2).
+- **output materialization (opt-in, per artifact):** a pipeline/capability output that is *knowledge* — a claim/entity/edge — commits to the semantic store by stable ID (never copied); a *material dataset* output lands in Document. The run's **trace stays user-sphere, per-service** — **never** a Document. Opt-in (default: not persisted — Level 0) — ADR-0010 §2.
 
 ### Storage (ADR-0011 §7, unchanged)
 
@@ -56,4 +57,4 @@ Any LLM/classic-AI step (ontology generation, extraction, judgment, generated kn
 
 ### ADR cross-references
 
-ADR-0011 (ontology/entities/graph, resolution, review, validation, storage) · ADR-0010 (DocETL engine, resolve-then-ground seam) · ADR-0012 (memory substrate, capture, shared review queue) · ADR-0009 (split, residency, data_source `graph` kind, bridge to IS) · ADR-0023 (LLM-generated ontology, ontology relations, facets, bidirectional index, generated/verified loop). Contract/template per ADR-0001/0002; registry `graph` kind per ADR-0008; bridge outbound via Connectors per ADR-0009 §7.
+ADR-0011 (ontology/entities/graph, resolution, review, validation, storage) · ADR-0010 (DocETL engine, resolve-then-ground seam) · ADR-0012 (memory substrate, capture, shared review queue) · ADR-0009 (split, residency, data_source `graph` kind, bridge to IS) · ADR-0023 (LLM-generated ontology, ontology relations, facets, bidirectional index, generated/verified loop). Contract/template per ADR-0001/0002; registry `graph` kind per ADR-0008; bridge outbound via Connectors per ADR-0009 §7; output residency + user-sphere traces per ADR-0010 §2 (as amended by #39) / ADR-0026.

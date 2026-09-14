@@ -43,6 +43,7 @@ Every document is stored and indexed at **3 granularities (chunk / document / do
 - **search / retrieval** — collection + single long document; reranker; hybrid lexical/semantic; structured-property + **facet filters** (facets grounded in Knowledge, ADR-0023 §5).
 - **bundle-level structural operators** — merge/check/format/order, expressed in the same DocETL syntax — these are Document's **generic, purely structural** capabilities on raw data in place, not Document implementing DocETL operators; the reasoning/interpretation operators all live in Knowledge, which queries Document's indexed representations (ADR-0010 §3, ADR-0023 §3).
 - **representation capabilities** — the generic 9-part production surface; batch-capable for GPU saturation (ADR-0010 §7).
+- **output materialization (opt-in)** — any capability or pipeline output may optionally persist as a Document bundle + `chunks` `data_source` in the user sphere (default: not persisted — Level 0); a run's *trace* stays in the user sphere's per-service log store, **never** a Document (ADR-0010 §2, ADR-0026).
 - **document search agent** — configurable, partnership with the agent service.
 - **tools & skills at both levels + bridge tools** (ADR-0023 §2) — Document-side navigation of the 9 parts; bridge tools that jump to the Knowledge level through the bidirectional index.
 
@@ -53,4 +54,4 @@ Every document is stored and indexed at **3 granularities (chunk / document / do
 
 ### ADR cross-references
 
-ADR-0009 (split, residency, data_source `chunks` kind) · ADR-0010 (representation capabilities, dispatch, embeddings) · ADR-0011 (Document → Knowledge ontology-fetch edge) · ADR-0012 (raw episodic memory as bundles) · ADR-0023 (9-part model, hybrid index, bidirectional index, facets). Contract/template/provider/privacy per ADR-0001/0002/0006; data residency per ADR-0003/0004.
+ADR-0009 (split, residency, data_source `chunks` kind) · ADR-0010 (representation capabilities, dispatch, embeddings) · ADR-0011 (Document → Knowledge ontology-fetch edge) · ADR-0012 (raw episodic memory as bundles) · ADR-0023 (9-part model, hybrid index, bidirectional index, facets). Contract/template/provider/privacy per ADR-0001/0002/0006; data residency per ADR-0003/0004; output residency + user-sphere traces per ADR-0010 §2 (as amended by #39) / ADR-0026.
