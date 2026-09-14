@@ -57,4 +57,5 @@ Rate limiting & `x-ratelimit-*` headers, beta headers & deprecation calendars, b
 - Unblocks "Define the service template & contribution surface" (#11), which embodies the contract.
 - Shapes the dashboard (#8: health/status colors, resource graphs, model management), composition (#13: Responses surface + MCP tools + registry), provider model (#19: config inside services, not wire auth), spec anatomy (#12).
 - Spawned tickets: "Design the capability registry & search/load service" (#20), "Define how agents publish generated web apps & services" (#21).
-- Open risks for the service template: Ollama vision-through-Responses lag (adapter), MCP stateless transport freshness (pin + verify), WebRTC machinery on LAN.
+- Open risks for the service template: Ollama vision-through-Responses lag (adapter), MCP stateless transport freshness (pin + verify), WebRTC machinery on LAN. **Posture per risk settled by #40** in `docs/architecture/20-concerns/28-family-contract-verification` — see that chapter.
+> **Evolution (#40):** the "verify" phrasing above is superseded by per-risk postures recorded in `20-concerns/28-family-contract-verification`.

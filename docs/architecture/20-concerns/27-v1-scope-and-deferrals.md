@@ -43,6 +43,6 @@ A few items are not "is it in v1?" questions but **known-soft areas to re-check 
 
 | Soft spot | Posture to re-check (back-pointer) |
 |---|---|
-| Family-contract verification risks | The risk of a service drifting from its family contracts is real and should be verified at build — a dedicated posture ticket is **open** (`#40`, "family-contract verification-risk posture"); this ledger does not fold its answer in. |
+| Family-contract verification risks | **Settled** by #40 — three per-risk postures in `20-concerns/28-family-contract-verification` (family 1 Ollama vision + family 4 WebRTC = accept-and-learn; families 3/9 stateless MCP = documented fallback to traditional stateful MCP, verify at build). Back-pointer: that chapter. |
 | Rate limiting | Resolved for v1 as **out of scope** (ADR-0001 — see the deferral table above); re-check the posture if rate limiting is ever revisited. |
 | DocETL intermediate-trace auditability | **Settled** by #39 — the readable run record (the trace/log) is guaranteed in the **user-sphere, per-service** store; full intermediate materialization is the **opt-in, known-cost knob** (Levels 1–2). Re-check at build only the **cost** (retention/disk), not the rule (back-pointer: ADR-0010 §2, as amended by #39). |
