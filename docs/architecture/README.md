@@ -44,7 +44,7 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 | # | Service | Status |
 |---|---|---|
 | 31 | [Inference](30-services/31-inference.md) | written (ticket #35) |
-| 32 | Chat + Agents | pending — grilling ticket |
+| 32 | [Chat + Agents](30-services/32-chat-and-agents.md) | written (ticket #42) |
 | 33 | Workflow | pending — grilling ticket |
 | 34 | [Document](30-services/34-document.md) | written (relocated) |
 | 35 | [Knowledge](30-services/35-knowledge.md) | written (relocated) |
