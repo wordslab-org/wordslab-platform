@@ -50,7 +50,7 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 | 35 | [Knowledge](30-services/35-knowledge.md) | written (relocated) |
 | 36 | [Training and Evaluation](30-services/36-training-and-evaluation.md) | written (relocated) |
 | 37 | Development | pending — grilling ticket |
-| 38 | Connectors | pending — grilling ticket (foundational) |
+| 38 | [Connectors](30-services/38-connectors.md) | written (ticket #41) |
 | 39 | [Publishing & Governance](30-services/39-publishing-and-governance.md) | written (relocated) |
 
 **Light chapters** — identity + a few capabilities + pointer to design ADRs (content/consumer services):
@@ -72,4 +72,4 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 
 ## The ADRs (source of truth)
 
-Every decision lives in `../adr/` — numbered ADR-0001…0029 (0001 minimal uniform service contract, 0002 service template, 0003 platform core, 0004 topology, 0005 resources, 0006 inference providers, 0007 composition, 0008 capability registry, 0009 Document/Knowledge split, 0010 DocETL engine, 0011 grounding, 0012 memory/capture, 0013 spec anatomy — *tree superseded by ADR-0028*, 0014 installer, 0015 dashboard, 0016 update/versioning, 0017 security, 0018 governance, 0019 publishing, 0020 evaluation, 0021 backup, 0022 license, 0023 Document/Knowledge sharpening, 0024 learning experience, 0025 training, 0026 data consent, 0027 implementation-declaration, 0028 architecture document, **0029 Inference capability surface**). ADR-0028 supersedes ADR-0013's *tree mechanics* (this architecture document replaces the old numbered spec tree); ADR-0013's surviving content conventions carry into this README.
+Every decision lives in `../adr/` — numbered ADR-0001…0030 (0001 minimal uniform service contract, 0002 service template, 0003 platform core, 0004 topology, 0005 resources, 0006 inference providers, 0007 composition, 0008 capability registry, 0009 Document/Knowledge split, 0010 DocETL engine, 0011 grounding, 0012 memory/capture, 0013 spec anatomy — *tree superseded by ADR-0028*, 0014 installer, 0015 dashboard, 0016 update/versioning, 0017 security, 0018 governance, 0019 publishing, 0020 evaluation, 0021 backup, 0022 license, 0023 Document/Knowledge sharpening, 0024 learning experience, 0025 training, 0026 data consent, 0027 implementation-declaration, 0028 architecture document, **0029 Inference capability surface**, **0030 Connectors capability surface**). ADR-0028 supersedes ADR-0013's *tree mechanics* (this architecture document replaces the old numbered spec tree); ADR-0013's surviving content conventions carry into this README.
