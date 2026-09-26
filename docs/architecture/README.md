@@ -51,7 +51,7 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 | 36 | [Training and Evaluation](30-services/36-training-and-evaluation.md) | written (relocated) |
 | 37 | [Development](30-services/37-development.md) | written (ticket #44) |
 | 38 | [Connectors](30-services/38-connectors.md) | written (ticket #41) |
-| 39 | [Publishing & Governance](30-services/39-publishing-and-governance.md) | written (relocated) |
+| 39 | [Publishing & Governance](30-services/39-publishing-governance.md) | written (relocated) |
 
 **Light chapters** — identity + a few capabilities + pointer to design ADRs (content/consumer services):
 
