@@ -57,10 +57,10 @@ The v1 platform is **13 services**, grouped by what they do for the user. Every 
 
 | # | Service | Status |
 |---|---|---|
-| 40 | Generation | pending — light entry (batch task) |
-| 41 | Image | pending — light entry (batch task) |
-| 42 | Audio | pending — light entry (batch task) |
-| 43 | Media transformations | pending — light entry (batch task) |
+| 40 | [Generation](30-services/40-generation.md) | written (ticket #45) |
+| 41 | [Image](30-services/41-image.md) | written (ticket #45) |
+| 42 | [Audio](30-services/42-audio.md) | written (ticket #45) |
+| 43 | [Media transformations](30-services/43-media-transformations.md) | written (ticket #45) |
 
 ## Conventions
 
