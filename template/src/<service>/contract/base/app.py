@@ -69,15 +69,15 @@ def create_service_app(
         return JSONResponse(exc.body(request.state.request_id), status_code=exc.status)
 
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        # Starlette's own 404/405s must carry the contract error body too
-        # (base item 4: one JSON shape, fixed taxonomy). Codes outside the
-        # taxonomy fall back to their status's closest taxonomy entry —
-        # 405 `method_not_allowed` is not a v1 code, so it maps to
-        # `invalid_request` (a wrongly-shaped request).
+        # Starlette's own 404s carry the contract `not_found` body (base item
+        # 4: one JSON shape, fixed taxonomy). Any other Starlette-raised code
+        # (405 method-not-allowed, …) is not a v1 code, so it comes back as
+        # 400 `invalid_request` — every response's (status, type) pair must
+        # be inside the fixed 11-code taxonomy.
         from .errors import invalid_request, not_found
 
         error = not_found() if exc.status_code == 404 else invalid_request(str(exc.detail))
-        return JSONResponse(error.body(request.state.request_id), status_code=exc.status_code)
+        return JSONResponse(error.body(request.state.request_id), status_code=error.status)
 
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
         from .errors import internal_error

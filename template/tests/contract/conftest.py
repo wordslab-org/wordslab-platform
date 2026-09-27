@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 # The template's placeholder package directory is `<service>` — not importable
 # by name. The copy-to-start ritual renames it (template/CONTRIBUTING.md);
 # for the template's own tests, put its parent on sys.path so `contract` is a
@@ -19,7 +18,7 @@ import pytest
 TEMPLATE_SRC = Path(__file__).resolve().parents[2] / "src" / "<service>"
 sys.path.insert(0, str(TEMPLATE_SRC))
 
-from tests.support.test_server import InProcessService, stub_api_key  # noqa: E402
+from tests.support.test_server import InProcessService  # noqa: F401
 
 
 @pytest.fixture()

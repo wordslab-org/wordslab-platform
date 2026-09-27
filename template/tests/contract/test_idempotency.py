@@ -4,6 +4,7 @@ Optional `Idempotency-Key` header on mutating endpoints; the service dedupes
 retries and returns the original result.
 """
 
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from tests.support.test_server import InProcessService
@@ -13,9 +14,7 @@ CALLS = {"count": 0}
 
 async def create_thing(request):
     CALLS["count"] += 1
-    return __import__("starlette.responses", fromlist=["JSONResponse"]).JSONResponse(
-        {"id": 1, "name": "thing"}, status_code=201
-    )
+    return JSONResponse({"id": 1, "name": "thing"}, status_code=201)
 
 
 def make_service():
