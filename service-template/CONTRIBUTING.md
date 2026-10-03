@@ -32,8 +32,8 @@ by **copying `implementation-template/`** — the second template
    at request time.
 
    TOML ordering rule: top-level keys (`name`, `description`, `version`,
-   `source`, `license`, `privacy-tier`) must precede any `[table]` header —
-   in TOML everything after a table header belongs to that table.
+   `capabilities`) must precede any `[table]` header — in TOML everything
+   after a table header belongs to that table.
 
 4. **Declare capability implementations** — copy
    `implementation-template/` per implementation (a service has NO

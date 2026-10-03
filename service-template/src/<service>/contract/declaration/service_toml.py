@@ -100,11 +100,15 @@ def _check_capability_name(name: str) -> None:
         )
 
 
+SERVICE_TOP_LEVEL_KEYS = {"name", "description", "version", "capabilities", "requirements"}
+
+
 def load_service_toml(path: str | Path) -> Service:
     """Load and validate a `service.toml` (ADR-0031 §2's shape).
 
     Validation is structural — the copy-to-start ritual's editing errors are
-    caught here, not at request time.
+    caught here, not at request time. Unknown top-level keys (typos, retired
+    keys like `families`) fail loudly: a declaration is a closed shape.
     """
     path = Path(path)
     if not path.is_file():
@@ -113,15 +117,22 @@ def load_service_toml(path: str | Path) -> Service:
     with open(path, "rb") as fh:
         raw = tomllib.load(fh)
 
+    unknown = set(raw) - SERVICE_TOP_LEVEL_KEYS
+    if unknown:
+        known = ", ".join(sorted(SERVICE_TOP_LEVEL_KEYS))
+        if "families" in unknown:
+            raise ServiceDeclarationError(
+                "`families` is not declared anymore (ADR-0031 §2) — family"
+                " contracts are API-documentation facts; remove the key"
+            )
+        raise ServiceDeclarationError(
+            f"unknown top-level key(s) {sorted(unknown)} — service.toml"
+            f" declares only: {known} (typos fail loudly, ADR-0031 §2)"
+        )
+
     name = _require_str(raw, "name", "service")
     description = _require_str(raw, "description", "service")
     version = _require_str(raw, "version", "service")
-
-    if "families" in raw:
-        raise ServiceDeclarationError(
-            "`families` is not declared anymore (ADR-0031 §2) — family"
-            " contracts are API-documentation facts; remove the key"
-        )
 
     requirements_raw = raw.get("requirements", {})
     if not isinstance(requirements_raw, dict):

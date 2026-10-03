@@ -135,6 +135,28 @@ def test_service_toml_rejects_the_retired_families_key(tmp_path):
         load_service_toml(path)
 
 
+def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
+    """A declaration is a closed shape — a typo (`desciption`) must fail at
+    load, not silently load empty (the template's own contract: a malformed
+    declaration fails at startup)."""
+    path = write(
+        tmp_path,
+        "service.toml",
+        """\
+        name = "svc"
+        desciption = "typo"
+        version = "1.0.0"
+        capabilities = []
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.1
+        """,
+    )
+    with pytest.raises(ServiceDeclarationError, match="unknown top-level key"):
+        load_service_toml(path)
+
+
 @pytest.mark.parametrize(
     "body,match",
     [
@@ -518,6 +540,16 @@ def test_an_implementation_may_bundle_several_content_parts(tmp_path):
             "kind.*superseded",
         ),
         (lambda s: s + "\n[ranks]\naccuracy = 1\n", "ranks.*removed"),
+        # unknown top-level key (typo) fails loudly — closed shape
+        (
+            lambda s: s.replace('license = "Apache-2.0"', 'licens = "Apache-2.0"'),
+            "unknown top-level key",
+        ),
+        # capability reference must follow the declared grammar
+        (
+            lambda s: s.replace('capability = "llm.model"', 'capability = "LLM.Model"'),
+            "lowercase dotted",
+        ),
         (
             lambda s: s.replace(
                 """\

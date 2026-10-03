@@ -54,6 +54,27 @@ MODEL_OBJECTIVE_FACTS = (
     "quantization",
 )
 
+IMPLEMENTATION_TOP_LEVEL_KEYS = {
+    "capability",
+    "source",
+    "license",
+    "privacy-tier",
+    "identity",
+    "links",
+    "contents",
+    "requirements",
+    "dependencies",
+}
+
+
+def _is_capability_name(name: str) -> bool:
+    """Capability names are lowercase dotted identifiers (`audio.stt`) —
+    CONTEXT.md *Implementation* / ADR-0029's `<task>.model` grammar. The same
+    grammar `service_toml` enforces on declared capabilities."""
+    return bool(name) and all(
+        part.isidentifier() and part.islower() for part in name.split(".")
+    )
+
 
 class ImplementationDeclarationError(ValueError):
     """An `implementation.toml` that violates its declared shape."""
@@ -130,6 +151,29 @@ def load_implementation_toml(path: str | Path) -> Implementation:
     capability = raw.get("capability")
     if not isinstance(capability, str) or not capability:
         raise _err("`capability` must be a non-empty string (the capability implemented)")
+    if not _is_capability_name(capability):
+        raise _err(
+            f"`capability` {capability!r} must be a lowercase dotted identifier"
+            " (`audio.stt`) — the grammar of the capability it references"
+        )
+
+    unknown = set(raw) - IMPLEMENTATION_TOP_LEVEL_KEYS
+    if unknown:
+        known = ", ".join(sorted(IMPLEMENTATION_TOP_LEVEL_KEYS))
+        for retired, hint in (
+            ("kind", "`kind` is superseded by `[contents]` (ADR-0031 §3)"),
+            ("ranks", "`[ranks]` is removed (ADR-0031 §5) — dynamic metrics at selection time"),
+            (
+                "engine-dependency",
+                "`[engine-dependency]` is superseded by generic `[dependencies]` (ADR-0031 §4)",
+            ),
+        ):
+            if retired in unknown:
+                raise _err(f"{hint} — remove the key")
+        raise _err(
+            f"unknown top-level key(s) {sorted(unknown)} — implementation.toml"
+            f" declares only: {known} (typos fail loudly, ADR-0031 §3/§4)"
+        )
 
     identity = raw.get("identity")
     if not isinstance(identity, dict):
@@ -168,21 +212,6 @@ def load_implementation_toml(path: str | Path) -> Implementation:
         isinstance(k, str) and isinstance(v, str) for k, v in links.items()
     ):
         raise _err("`[links]` must be a table of strings (release/repo/license/evaluations)")
-
-    if "kind" in raw:
-        raise _err("`kind` is superseded by `[contents]` (ADR-0031 §3) — remove the key")
-    if "ranks" in raw:
-        raise _err(
-            "`[ranks]` is removed (ADR-0031 §5) — model quality/speed/cost"
-            " comparisons are dynamic (artificialanalysis at selection time);"
-            " declarations carry objective facts only"
-        )
-    if "engine-dependency" in raw:
-        raise _err(
-            "`[engine-dependency]` is superseded by generic `[dependencies]`"
-            " (ADR-0031 §4) — depend on the capability or a specific"
-            " implementation instead"
-        )
 
     contents = _validate_contents(raw.get("contents"))
     requirements = _validate_requirements(raw.get("requirements"))
