@@ -17,7 +17,7 @@ The v1 declaration model (ADR-0002 §5 sharpened by ADR-0018/0027, embodied in t
 
 - A **service** is a set of **capabilities**. The service's code is a set of APIs — the capabilities' APIs — and a UI based on these APIs.
 - A service has **no implementation** in the capability sense. Any business logic is isolated in a capability and its implementations (ADR-0002's "capabilities own routes/UI" unchanged; ADR-0029 §3's `models` management capability is the canonical example).
-- **`service.toml` describes the service; `implementation.toml` describes one capability implementation.** The template ships the service declaration plus a capability-implementation declaration template (`implementation.template.toml`) — no service-kind `implementation.toml`.
+- **`service.toml` describes the service; `implementation.toml` describes one capability implementation.** The repo ships **two templates** (per the maintainer's ruling): **`service-template/`** (the service ritual: contract machinery, `service.toml`, tests) and **`implementation-template/`** (the capability-implementation ritual: a skeleton `implementation.toml`, `install/` recipe home, `README.md`). No service-kind `implementation.toml`.
 
 ### 2. `service.toml` v2
 
@@ -29,7 +29,7 @@ The v1 declaration model (ADR-0002 §5 sharpened by ADR-0018/0027, embodied in t
 
 ### 3. `implementation.toml` v2 — contents
 
-- `capability` — the capability implemented; several implementations of the same capability are swappable at runtime (ADR-0002 §2 unchanged).
+- `capability` — the capability implemented; several implementations of the same capability are swappable at runtime (ADR-0002 §2 unchanged). An implementation lives **in a subdirectory of its service**, keyed `service-name/capability-name/implementation-name` (e.g. `services/inference/llm.model/qwen3-4b/`) — copied from `implementation-template/`.
 - `[identity]` (name/version/description), `license` (SPDX), `privacy-tier` (`local`/`cloud_no_data`/`cloud`), `source` (`local-weights` | `cloud:<provider>/<model>` — ADR-0027 §4 unchanged), `[links]` — as before.
 - **`[contents]` replaces `kind`** — a dictionary of **named content parts**, each with a `type`: `inference-engine` · `model` · `database` · `storage-space` · `open-source-product`. An implementation may bundle several parts.
   - `inference-engine` / `database` / `open-source-product` parts require a **`github` URL**.

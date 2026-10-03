@@ -1,0 +1,68 @@
+# The capability-implementation declaration (ADR-0031 §3/§4; the loader is
+# the service template's vendored `contract/declaration/load_implementation_toml`).
+#
+# Copy this folder per implementation to
+# services/<service>/implementations/<capability>/<implementation>/
+# — implementations live in a subdirectory of the service, keyed
+# service-name/capability-name/implementation-name. One declaration per
+# implementation; several implementations of the same capability are
+# swappable at runtime.
+#
+# Top-level keys must precede any `[table]` header — in TOML everything
+# after a table header belongs to that table. No [ranks], no
+# [engine-dependency], no stored supported/recommended (ADR-0031 §5).
+capability = "llm.model"
+source = "local-weights"          # or "cloud:<provider>/<model>" (ADR-0027 §4)
+license = "Apache-2.0"            # SPDX; model weights carry their ADR-0022
+                                 # five-question compliance profile as
+                                 # license/links facts (the dedicated field
+                                 # is a later concern-ticket)
+privacy-tier = "local"           # local | cloud_no_data | cloud (ADR-0006/0008)
+
+[identity]
+name = "qwen3-4b"
+version = "2026-05"
+description = "A 4B LLM."
+
+[links]
+release = "https://huggingface.co/Qwen/Qwen3-4B"
+repo = "https://github.com/QwenLM/Qwen3"
+
+# [contents] — named content parts, each typed inference-engine | model |
+# database | storage-space | open-source-product. Per-type facts: a model
+# part carries the huggingface weights URL + the artificial-analysis slug
+# (the join key for the dynamic metrics at selection time, ADR-0031 §5)
+# and OBJECTIVE facts only — no quality claims.
+[contents.model]
+type = "model"
+huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
+artificial-analysis = "qwen-3-4b"
+
+[contents.model.facts]
+disk-gb = 2.5
+parameters-active = 4.0          # billions
+parameters-total = 4.0           # billions
+vram-at-load-gb = 3.2
+kv-cache-per-token = 0.00012     # GB
+quantization = "Q4_K_M"
+
+# The minimum to install AND run the implementation (ADR-0031 §3).
+[requirements]
+disk-gb = 2.7
+ram-gb = 0.5
+vram-gb = 3.2
+
+[requirements.cpu]
+AVX2 = true
+
+[requirements.gpu]
+tensor-core = false
+
+# Generic dependencies (ADR-0031 §4): on a capability (any implementation
+# of it satisfies) or on a specific implementation (that one is required),
+# each with optional min-version/features (ADR-0016 §3's satisfy relation).
+# Model→engine is an instance of this rule — no special syntax.
+[[dependencies]]
+capability = "llm.engine"
+min-version = "0.5.0"
+features = ["vision"]

@@ -6,7 +6,7 @@ The implementation order for the `ready-for-agent` spec issues. It is **dependen
 
 | Stage | Issue(s) | What exists / what's testable now |
 |---|---|---|
-| **0** | **#68 test harness** + **#46 foundation** | A copy of `template/` boots, the canary capability passes the vendored suite, the sweeper reports green. **First feedback loop.** The consent-flag + never-bypassable private/secret exclusion are template contracts from here on (ADR-0026). |
+| **0** | **#68 test harness** + **#46 foundation** | A copy of `service-template/` boots, the canary capability passes the vendored suite, the sweeper reports green. **First feedback loop.** The consent-flag + never-bypassable private/secret exclusion are template contracts from here on (ADR-0026). |
 | **1** | **#63 Installer/bootstrap** | WSL/distro/uv/Python, data volumes, first core, front door — the guided journey runs on a real machine (the installer's runbook). |
 | **2** | **#62 Platform core** + **#64 dashboard** (thin: first-run + `/health` rail) | Leader up; dashboard shows `/health` + metrics; the standing sweeper (#68) can poll the fleet. The **#65 update/backup machinery** builds into the core here (its `install`/`catalog`/`backup` capabilities). |
 | **3** | **#47 Inference** | The first real capability on the contract-tested base; its suite exercises #46; cloud egress will go through #50. |

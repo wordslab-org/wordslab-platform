@@ -1,0 +1,45 @@
+# The service declaration (ADR-0002 §5, shape v2 per ADR-0031 §2).
+# The copy-to-start ritual edits this file (service-template/CONTRIBUTING.md
+# step 3).
+#
+# A service is a set of capabilities. This file is DATA read at
+# startup/install/catalog-build (ticket #74's `load_service_toml`):
+# identity, ONE service-level requirements figure for the service's own
+# API + UI code execution, and the capability list. API families are NOT
+# declared here — the capabilities' APIs implement ADR-0001's family
+# contracts; their documentation is enough. No capability-level
+# dependencies — implementations declare their dependencies.
+#
+# Top-level keys must precede any `[table]` header — in TOML everything
+# after a table header belongs to that table.
+name = "template-service"
+description = "The service template — copy-to-start skeleton."
+version = "0.1.0"
+
+# The capability list (the stable shell's face, ADR-0029 §4). The template
+# ships none yet: the canary capability arrives with ticket #71. Each
+# capability declares: name, description, version, `api` (the capability's
+# API path prefix inside the service's single OpenAPI doc), `required`
+# (an implementation MUST be provided) or optional, and `[capabilities.ui]`
+# menu elements + entry points for the platform UI.
+# Example (when #71 lands):
+#
+# [[capabilities]]
+# name = "canary.echo"
+# description = "The template's proof capability."
+# version = "0.1.0"
+# api = "/v1/echo"
+# required = false
+#
+# [capabilities.ui]
+# menu = [
+#   { label = "Echo", entry = "/echo" },
+# ]
+capabilities = []
+
+[requirements]
+# The service's own API + UI code execution only — each capability
+# implementation selected at install time adds its own requirements
+# (the implementation template's [requirements]).
+disk-gb = 0.01
+ram-gb = 0.05
