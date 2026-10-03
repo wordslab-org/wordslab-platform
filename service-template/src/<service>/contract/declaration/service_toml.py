@@ -103,6 +103,9 @@ def _check_capability_name(name: str) -> None:
 SERVICE_TOP_LEVEL_KEYS = {"name", "description", "version", "capabilities", "requirements"}
 
 
+CAPABILITY_KEYS = {"name", "description", "version", "api", "required", "ui"}
+
+
 def load_service_toml(path: str | Path) -> Service:
     """Load and validate a `service.toml` (ADR-0031 §2's shape).
 
@@ -157,6 +160,19 @@ def load_service_toml(path: str | Path) -> Service:
         where = f"[[capabilities]][{i}]"
         if not isinstance(entry, dict):
             raise ServiceDeclarationError(f"{where} is not a table")
+        unknown = set(entry) - CAPABILITY_KEYS
+        if unknown:
+            if "dependencies" in unknown:
+                raise ServiceDeclarationError(
+                    f"{where} declares `dependencies` — capability-level"
+                    " dependencies are not declared in service.toml;"
+                    " implementations declare their dependencies"
+                    " (ADR-0031 §2/§4)"
+                )
+            raise ServiceDeclarationError(
+                f"{where} has unknown key(s) {sorted(unknown)} — a capability"
+                f" declares only: {', '.join(sorted(CAPABILITY_KEYS))}"
+            )
         cap_name = _require_str(entry, "name", where)
         _check_capability_name(cap_name)
         if cap_name in seen:

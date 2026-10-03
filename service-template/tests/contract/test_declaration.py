@@ -290,6 +290,46 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             """,
             "required",
         ),
+        # capability-level dependencies: loud, not silently dropped
+        (
+            """
+            name = "svc"
+            description = "d"
+            version = "1.0.0"
+
+            [requirements]
+            disk-gb = 0.1
+            ram-gb = 0.1
+
+            [[capabilities]]
+            name = "a.b"
+            description = "d"
+            version = "0.1.0"
+            api = "/v1/b"
+            dependencies = [{ capability = "c.d" }]
+            """,
+            "implementations declare their dependencies",
+        ),
+        # unknown key in a capability entry
+        (
+            """
+            name = "svc"
+            description = "d"
+            version = "1.0.0"
+
+            [requirements]
+            disk-gb = 0.1
+            ram-gb = 0.1
+
+            [[capabilities]]
+            name = "a.b"
+            description = "d"
+            version = "0.1.0"
+            api = "/v1/b"
+            rank = 1
+            """,
+            "unknown key",
+        ),
         # ui menu entry missing
         (
             """
@@ -545,10 +585,29 @@ def test_an_implementation_may_bundle_several_content_parts(tmp_path):
             lambda s: s.replace('license = "Apache-2.0"', 'licens = "Apache-2.0"'),
             "unknown top-level key",
         ),
+        # stored supported/recommended are loud errors (ticket #74: "all
+        # loud load errors")
+        (
+            lambda s: s.replace('license = "Apache-2.0"', 'license = "Apache-2.0"\nsupported = true'),
+            "supported.*never stored",
+        ),
+        (
+            lambda s: s.replace('license = "Apache-2.0"', 'license = "Apache-2.0"\nrecommended = true'),
+            "recommended.*never stored",
+        ),
         # capability reference must follow the declared grammar
         (
             lambda s: s.replace('capability = "llm.model"', 'capability = "LLM.Model"'),
             "lowercase dotted",
+        ),
+        # a cloud ref needs both provider and model
+        (
+            lambda s: s.replace('source = "local-weights"', 'source = "cloud:"'),
+            "both parts required",
+        ),
+        (
+            lambda s: s.replace('source = "local-weights"', 'source = "cloud:nous/"'),
+            "both parts required",
         ),
         (
             lambda s: s.replace(
@@ -646,6 +705,8 @@ def make_impl(
     *,
     source: str = "local-weights",
     disk: float = 2.0,
+    ram: float = 0.5,
+    vram: float = 0.0,
     slug: str | None = None,
     cpu_tech: tuple[str, ...] = (),
     gpu_tech: tuple[str, ...] = (),
@@ -670,7 +731,8 @@ def make_impl(
         ),
         requirements=Requirements(
             disk_gb=disk,
-            ram_gb=0.5,
+            ram_gb=ram,
+            vram_gb=vram,
             cpu_technologies=cpu_tech,
             gpu_technologies=gpu_tech,
         ),
@@ -680,6 +742,8 @@ def make_impl(
 
 HARDWARE = {
     "disk_free_gb": 10.0,
+    "ram_free_gb": 8.0,
+    "vram_free_gb": 8.0,
     "technologies": {"AVX2": True, "AVX512": False},
 }
 
@@ -699,6 +763,17 @@ def test_gpu_technologies_are_hard_gates_too():
         make_impl("no-gpu-needed"),
     ]
     assert [i.name for i in compute_supported(impls, HARDWARE)] == ["no-gpu-needed"]
+
+
+def test_ram_and_vram_fit_are_hard_gates_too():
+    """ADR-0005 §4: memory fit when running alone at minimum parameters —
+    the declared ram-gb/vram-gb actually gate (not dead weight)."""
+    impls = [
+        make_impl("fits", disk=1.0),
+        make_impl("ram-heavy", disk=1.0, ram=9.0),    # 9.0 > 8.0 free
+        make_impl("vram-heavy", disk=1.0, vram=16.0),  # 16.0 > 8.0 free
+    ]
+    assert [i.name for i in compute_supported(impls, HARDWARE)] == ["fits"]
 
 
 def test_unknown_hardware_fails_the_hard_gate_never_silently_passes():

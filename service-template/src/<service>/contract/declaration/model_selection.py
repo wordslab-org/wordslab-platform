@@ -41,18 +41,31 @@ def compute_supported(
     hardware: dict,
 ) -> list[Implementation]:
     """Which declarations this machine can run, hardware facts in (ADR-0005
-    §2: `{"disk_free_gb": float, "technologies": {feature: bool}}`).
+    §2: `{"disk_free_gb": float, "ram_free_gb": float, "vram_free_gb":
+    float, "technologies": {feature: bool}}`).
 
     A `local-weights` implementation is supported when its required CPU/GPU
-    technologies are all present and its install-and-run disk fits the free
-    disk. BOTH are hard gates — a missing/unknown hardware quantity never
-    silently passes (quantity fit is the hard gate, ADR-0005 §4). A `cloud:*`
-    implementation does not consume this machine — always supported (the
-    cloud-subscription check is the caller's, with its subscription list).
-    Declaration order preserved.
+    technologies are all present and its install-and-run quantities fit the
+    machine: disk, RAM, and VRAM (ADR-0005 §4's memory fit when running
+    alone at minimum parameters; VRAM gates only implementations that
+    declare a non-zero `vram-gb`). ALL are hard gates — a missing/unknown
+    hardware quantity never silently passes (quantity fit is the hard gate,
+    ADR-0005 §4). A `cloud:*` implementation does not consume this machine
+    — always supported (the cloud-subscription check is the caller's, with
+    its subscription list). Declaration order preserved.
     """
     disk_free = hardware.get("disk_free_gb")
+    ram_free = hardware.get("ram_free_gb")
+    vram_free = hardware.get("vram_free_gb")
     technologies = hardware.get("technologies") or {}
+
+    def _fits(needed: float, free: object) -> bool:
+        return (
+            isinstance(free, (int, float))
+            and not isinstance(free, bool)
+            and needed <= free
+        )
+
     supported: list[Implementation] = []
     for impl in implementations:
         if impl.source.startswith("cloud:"):
@@ -63,14 +76,12 @@ def compute_supported(
             technologies.get(t, False)
             for t in req.cpu_technologies + req.gpu_technologies
         )
-        # Hard gate: an unknown disk_free (None, or a non-number) fails the
-        # quantity fit — never a silent pass.
-        disk_ok = (
-            isinstance(disk_free, (int, float))
-            and not isinstance(disk_free, bool)
-            and req.disk_gb <= disk_free
-        )
-        if tech_ok and disk_ok:
+        # Hard gates: an unknown quantity (None, or a non-number) fails the
+        # fit — never a silent pass.
+        disk_ok = _fits(req.disk_gb, disk_free)
+        ram_ok = _fits(req.ram_gb, ram_free)
+        vram_ok = req.vram_gb == 0.0 or _fits(req.vram_gb, vram_free)
+        if tech_ok and disk_ok and ram_ok and vram_ok:
             supported.append(impl)
     return supported
 
@@ -102,6 +113,9 @@ def order_supported(
         return list(supported)
 
     def _metric(impl: Implementation, key: str) -> float | None:
+        # Ordering keys off the FIRST content part carrying an AA slug —
+        # a bundled implementation is one model + satellites in practice;
+        # the alternative (rejecting multi-slug parts) waits for a real need.
         slug = next(
             (p.artificial_analysis for p in impl.contents if p.artificial_analysis),
             None,

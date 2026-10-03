@@ -29,7 +29,7 @@ The v1 declaration model (ADR-0002 §5 sharpened by ADR-0018/0027, embodied in t
 
 ### 3. `implementation.toml` v2 — contents
 
-- `capability` — the capability implemented; several implementations of the same capability are swappable at runtime (ADR-0002 §2 unchanged). An implementation lives **in a subdirectory of its service**, keyed `service-name/capability-name/implementation-name` (e.g. `services/inference/llm.model/qwen3-4b/`) — copied from `implementation-template/`.
+- `capability` — the capability implemented; several implementations of the same capability are swappable at runtime (ADR-0002 §2 unchanged). An implementation lives **in a subdirectory of its service**, keyed `service-name/capability-name/implementation-name` (e.g. `services/inference/implementations/llm.model/qwen3-4b/`) — copied from `implementation-template/`.
 - `[identity]` (name/version/description), `license` (SPDX), `privacy-tier` (`local`/`cloud_no_data`/`cloud`), `source` (`local-weights` | `cloud:<provider>/<model>` — ADR-0027 §4 unchanged), `[links]` — as before.
 - **`[contents]` replaces `kind`** — a dictionary of **named content parts**, each with a `type`: `inference-engine` · `model` · `database` · `storage-space` · `open-source-product`. An implementation may bundle several parts.
   - `inference-engine` / `database` / `open-source-product` parts require a **`github` URL**.

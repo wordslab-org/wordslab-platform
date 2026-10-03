@@ -167,6 +167,14 @@ def load_implementation_toml(path: str | Path) -> Implementation:
                 "engine-dependency",
                 "`[engine-dependency]` is superseded by generic `[dependencies]` (ADR-0031 §4)",
             ),
+            (
+                "supported",
+                "`supported` is computed from hardware facts at read time — never stored (ADR-0031 §5)",
+            ),
+            (
+                "recommended",
+                "`recommended` is computed from the model-selection goal at read time — never stored (ADR-0031 §5)",
+            ),
         ):
             if retired in unknown:
                 raise _err(f"{hint} — remove the key")
@@ -198,6 +206,14 @@ def load_implementation_toml(path: str | Path) -> Implementation:
             " (ADR-0027 §1: local weights → a local engine; a cloud ref →"
             " the cloud-gateway engine)"
         )
+    if source.startswith("cloud:"):
+        ref = source[len("cloud:"):]
+        provider, _, model = ref.partition("/")
+        if not provider.strip() or not model.strip():
+            raise _err(
+                '`source` cloud refs are "cloud:<provider>/<model>" — both'
+                f" parts required (got {source!r})"
+            )
 
     license_id = raw.get("license")
     if not isinstance(license_id, str) or not license_id.strip():
