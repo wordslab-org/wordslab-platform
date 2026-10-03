@@ -1,5 +1,7 @@
 # ADR-0020 — Evaluation capability of the Training and Evaluation service
 
+> **Evolution (ADR-0031 — declaration model v2):** §7 below is superseded — `[ranks]` no longer exists in `implementation.toml`, so the evaluation/ranks boundary dissolves. Model implementations declare objective facts only; quality, speed and cost comparisons are fetched from artificialanalysis.ai at model-selection time (ADR-0031 §5). Evaluation remains the builder's own on-demand quality check producing eval reports in the project repo, with no in-platform link into declarations — trivially, since declarations now carry no quality claims at all.
+
 **Status:** accepted (resolution of wayfinder ticket "Define what evaluation means in the platform", #16); **amends none**; **sharpens none**; **consumes** the platform's data-consent-and-handling model (its own graduated ticket, #31 — see below); **references** ADR-0013 (Training → Training and Evaluation; the chapter fills on resolution) and ADR-0019 (publishing); **feeds** the `24-training-evaluation.md` (Training and Evaluation) spec chapter — now `docs/architecture/30-services/36-training-evaluation.md`, filled by ADR-0025 (#30); see §"Deferred chapter".**
 
 ## Context
