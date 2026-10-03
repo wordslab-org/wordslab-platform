@@ -1,0 +1,50 @@
+# The template implementation's own declaration (ticket #74).
+#
+# Every implementation — service, capability, model, engine — is declared in
+# its own `implementation.toml`, symmetric with `service.toml` (ADR-0027 §1;
+# the formal shape ADR-0018 §8). The template ships the SERVICE-kind
+# declaration (the template's implementation of itself); when a copy-to-start
+# service grows model-backed capabilities, each implementation gets its own
+# `implementation.toml` with the same field set — the model-shaped example
+# lives in the loader's docstring (implementation_toml.py) and its tests.
+#
+# `supported`/`recommended` are COMPUTED, NEVER STORED (ADR-0002 §5,
+# ADR-0005): they are derived at read time from the machine's hardware +
+# the model-selection goal (model_selection.py) and appear in no file.
+#
+# Top-level keys precede any `[table]` header — in TOML everything after a
+# table header belongs to that table. This file is validated by
+# declaration.load_implementation_toml (see tests/contract/test_declaration.py).
+kind = "service"
+capability = "template"
+source = "local-weights"
+license = "Apache-2.0"
+privacy-tier = "local"
+
+[identity]
+name = "wordslab-template-service"
+version = "0.1.0"
+description = "The service template's own implementation — the copy-to-start starting point."
+
+[links]
+repo = "https://github.com/wordslab-org/wordslab-platform"
+
+[sizes]
+download_gb = 0.01
+disk_gb = 0.01
+
+[resource-profile]
+# A pure-Python service: no technologies required, a trivial running
+# formula (the fields are the ADR-0005 §1 declaration shape, shown for
+# copies to fill in).
+disk_gb = 0.01
+
+[resource-profile.variables]
+# none — the skeleton capability has no configurable compute knobs
+
+[resource-profile.formula]
+ram_gb = "0.05"
+
+[modalities]
+input = ["text"]
+output = ["json"]

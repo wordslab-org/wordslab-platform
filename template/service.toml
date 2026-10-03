@@ -1,15 +1,24 @@
-# The service's self-declaration (ADR-0002 §5). The copy-to-start ritual
-# edits this file (template/CONTRIBUTING.md step 3).
+# The service's self-declaration (ADR-0002 §5, formalized by ADR-0018 §8).
+# The copy-to-start ritual edits this file (template/CONTRIBUTING.md step 3).
+#
+# This file is DATA read at startup/install/catalog-build (ticket #74's
+# `load_service_toml`): identity, the families declared (ADR-0001's nine —
+# a plain CRUD service keeps base alone), the capabilities implemented, and
+# the UI nav. Everything not declared here is code+data behind the shell.
 name = "template-service"
 version = "0.1.0"
 description = "The service template — copy-to-start skeleton."
 
-# ADR-0001's nine family contracts; a service implements base + only the
-# families its function needs. The template ships none yet (families arrive
-# with stage-0 ticket #74); declare what you implement after copying.
+# ADR-0001's nine family contracts; declare the families you implement
+# (the vendored suite runs family tests per this declaration — ADR-0002 §1).
+# The template ships none yet: family modules arrive with tickets #76–#84.
 families = []
 
+# Capabilities this service implements (lowercase dotted identifiers, the
+# `audio.stt` grammar). The canary capability arrives with ticket #71.
 capabilities = []
 
 [ui]
+# The human surface's nav (labels + page targets); rendered by the shared
+# UI-kit nav shell once the human surface lands (ADR-0002 §4).
 nav = []

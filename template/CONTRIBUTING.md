@@ -17,14 +17,33 @@ CLI, no shared SDK — the contract machinery is vendored into each service
 
 3. **Edit `service.toml`** — declare identity (name/version/description),
    the **families** you implement (ADR-0001's nine; a plain CRUD service
-   keeps base alone), your capabilities, and your UI nav.
+   keeps base alone), your capabilities, and your UI nav. Both declaration
+   files are validated at load (`contract/declaration/`); a `service.toml`
+   naming an unknown family fails at startup, not at request time.
 
-4. **Delete undeclared families** — remove every
+   TOML ordering rule: top-level keys (`name`, `version`, `source`,
+   `license`, `privacy-tier`) must precede any `[table]` header — in TOML
+   everything after a table header belongs to that table.
+
+4. **Declare implementations** — ship one `implementation.toml` per
+   implementation (ADR-0002 §5, ADR-0027 §1): identity, `source`
+   (`local-weights` or `cloud:<provider>/<model>`), SPDX license (model
+   weights carry their ADR-0022 five-question compliance profile as
+   license/links facts — the dedicated profile field is a later
+   concern-ticket), links, sizes, `[resource-profile]` (ADR-0005 §1's
+   install + running-formula shape), `[max-capacity]`, `[ranks]`,
+   `[modalities]`, `privacy-tier` (`local`/`cloud_no_data`/`cloud`), and —
+   model implementations only — `[engine-dependency]`.
+   `template/implementation.toml` is the service-kind example.
+   **`supported`/`recommended` are computed, never stored** (ADR-0005):
+   never put those keys in a declaration.
+
+5. **Delete undeclared families** — remove every
    `src/<your-service>/contract/families/<family>` module your
    `service.toml` does not declare. Deleting an undeclared family must not
    break anything; the vendored suite runs families per declaration.
 
-5. **Implement capabilities** — add your `capabilities/` modules (business
+6. **Implement capabilities** — add your `capabilities/` modules (business
    logic, routes, UI pages) and register their routes via
    `create_service_app(extra_routes=...)`. Routes are declared with their
    full `/v1/...` path (base item 3). Never edit `contract/base/` — it is
@@ -45,4 +64,5 @@ CLI, no shared SDK — the contract machinery is vendored into each service
 
 The vendored conformance suite (#70), the canary capability (#71), the
 consent-flag template contract (#72), the stub patterns (#73), and the nine
-family modules (#74) arrive as their own stage-0 tickets on top of this base.
+family modules (#76–#84) arrive as their own stage-0 tickets on top of this
+base.
