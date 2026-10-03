@@ -2,26 +2,9 @@
 
 Every implementation — **service, capability, model, engine** — is declared
 in its own `implementation.toml`, symmetric with `service.toml` (ADR-0027 §1;
-`models.toml` is retired). Field-for-field, what a declaration carries
-(ADR-0027 §1's mapping table, ADR-0002 §5 sharpened):
-
-| group | fields |
-|---|---|
-| identity | `identity.name` / `identity.version` / `identity.description` |
-| source | `source` — `local-weights` (→ a local engine) or `cloud:<provider>/<model>` (→ the cloud-gateway engine) |
-| license | `license` — SPDX; model weights carry the ADR-0022 five-question compliance profile |
-| links | `[links]` — release / repo / license / evaluations |
-| sizes | `sizes.download_gb` / `sizes.disk_gb` (disk at install — ADR-0005 §1) |
-| resource profile | `[resource-profile]` — install requirements + the **running formula** (ADR-0005 §1/§2) |
-| max capacity | `[max-capacity]` — context length, batch, document size (capped by hardware at load, lowerable by config) |
-| ranks | `[ranks]` — accuracy/speed within the capability's list |
-| modalities | `modalities` — input/output |
-| privacy tier | `privacy-tier` — `local` / `cloud_no_data` / `cloud` (ADR-0006/0008) |
-| engine dependency | `[engine-dependency]` — engine capability + min version + required optional features (ADR-0016 declared-dependency machinery) |
-
-`supported`/`recommended` are **computed, never stored** (ADR-0002 §5,
-ADR-0005): they never appear in this file — `model_selection.py` derives
-them from the machine's hardware + the model-selection goal at read time.
+`models.toml` is retired). The full field map is ADR-0027 §1's mapping table
+— cite it, don't restate it; the loader validates exactly that shape and its
+tests (`tests/contract/test_declaration.py`) document each group.
 """
 
 from __future__ import annotations
@@ -32,9 +15,19 @@ from pathlib import Path
 import tomllib
 
 PRIVACY_TIERS = ("local", "cloud_no_data", "cloud")
-SOURCES = ("local-weights", "cloud")
 
 KINDS = ("service", "capability", "model", "engine")
+
+
+def _nonneg_number(table: dict, key: str, where: str) -> float:
+    value = table.get(key)
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or value < 0
+    ):
+        raise _err(f"`{where}.{key}` must be a non-negative number")
+    return float(value)
 
 
 class ImplementationDeclarationError(ValueError):
@@ -185,9 +178,7 @@ def _validate_sizes(sizes: object) -> dict[str, float]:
     if not isinstance(sizes, dict):
         raise _err("`[sizes]` table is required (download_gb / disk_gb)")
     for key in ("download_gb", "disk_gb"):
-        value = sizes.get(key)
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
-            raise _err(f"`[sizes].{key}` must be a non-negative number (GB, ADR-0005 §1)")
+        _nonneg_number(sizes, key, "[sizes]")
     return {k: float(v) for k, v in sizes.items() if k in ("download_gb", "disk_gb")}
 
 
@@ -195,9 +186,7 @@ def _validate_resource_profile(profile: object, sizes: dict[str, float]) -> Reso
     if not isinstance(profile, dict):
         raise _err("`[resource-profile]` table is required (ADR-0005 §1/§2)")
 
-    disk_gb = profile.get("disk_gb", sizes["disk_gb"])
-    if not isinstance(disk_gb, (int, float)) or isinstance(disk_gb, bool) or disk_gb < 0:
-        raise _err("`[resource-profile].disk_gb` must be a non-negative number (GB)")
+    disk_gb = _nonneg_number(profile, "disk_gb", "[resource-profile]") if "disk_gb" in profile else sizes["disk_gb"]
 
     technologies = profile.get("technologies", {})
     if not isinstance(technologies, dict) or not all(
@@ -248,13 +237,8 @@ def _validate_max_capacity(max_capacity: object) -> None:
         return
     if not isinstance(max_capacity, dict):
         raise _err("`[max-capacity]` must be a table (context / batch / document size)")
-    for key, value in max_capacity.items():
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
-            raise _err(
-                f"`[max-capacity].{key}` must be a non-negative number — max"
-                " capacity is capped by hardware at load and lowerable by config"
-                " (ADR-0004/0005)"
-            )
+    for key in max_capacity:
+        _nonneg_number(max_capacity, key, "[max-capacity]")
 
 
 def _validate_ranks(ranks: object) -> dict[str, int]:

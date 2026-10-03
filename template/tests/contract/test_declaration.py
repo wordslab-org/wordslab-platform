@@ -16,6 +16,7 @@ from contract.declaration import (
     DECLARED_FAMILIES,
     Implementation,
     ImplementationDeclarationError,
+    ResourceProfile,
     Service,
     ServiceDeclarationError,
     compute_recommended,
@@ -392,55 +393,90 @@ def test_implementation_toml_missing_file_raises(tmp_path):
 # ------------------------------------------------- read-time computation (ADR-0005)
 
 
+def make_impl(
+    name: str,
+    *,
+    source: str = "local-weights",
+    disk: float = 2.0,
+    ranks: dict | None = None,
+    tech: dict | None = None,
+) -> Implementation:
+    """A parsed `Implementation` (what `load_implementation_toml` returns)."""
+    return Implementation(
+        kind="model" if not source.startswith("cloud:") else "model",
+        capability="llm.model",
+        name=name,
+        version="1",
+        description=name,
+        source=source,
+        license="Apache-2.0",
+        links={},
+        sizes={"download_gb": disk, "disk_gb": disk},
+        resource_profile=ResourceProfile(disk_gb=disk, technologies=tech or {}),
+        max_capacity={},
+        ranks=ranks or {},
+        modalities={},
+        privacy_tier="local",
+        engine_dependency=None,
+    )
+
+
 HARDWARE = {
     "disk_free_gb": 10.0,
     "technologies": {"AVX2": True, "AVX512": False},
 }
 
 
-def _impl(name: str, source="local-weights", disk=2.0, ranks=None, tech=None):
-    return {
-        "name": name,
-        "source": source,
-        "sizes": {"disk_gb": disk},
-        "ranks": ranks or {},
-        "resource_profile": {"technologies": tech or {}, "disk_gb": disk},
-    }
-
-
 def test_supported_gates_on_technologies_and_disk_fit():
     impls = [
-        _impl("fitting", tech={"AVX2": True}, disk=2.0),
-        _impl("missing-tech", tech={"AVX512": True}, disk=1.0),
-        _impl("too-big", disk=10.5),
+        make_impl("fitting", tech={"AVX2": True}, disk=2.0),
+        make_impl("missing-tech", tech={"AVX512": True}, disk=1.0),
+        make_impl("too-big", disk=10.5),
     ]
-    assert compute_supported(impls, HARDWARE) == ["fitting"]
+    assert [i.name for i in compute_supported(impls, HARDWARE)] == ["fitting"]
+
+
+def test_unknown_hardware_fails_the_hard_gate_never_silently_passes():
+    """ADR-0005 §4: quantity fit is the hard gate — a machine with unknown
+    quantities supports only cloud implementations."""
+    impls = [make_impl("local m"), make_impl("c", source="cloud:nous/glm")]
+    assert compute_supported(impls, {}) == [impls[1]]
+    assert compute_supported(impls, {"disk_free_gb": None, "technologies": {}}) == [impls[1]]
+    assert compute_supported(impls, {"disk_free_gb": "10", "technologies": {}}) == [impls[1]]
 
 
 def test_cloud_implementations_do_not_consume_this_machine():
-    impls = [_impl("cloud one", source="cloud:nous/glm", disk=999.0)]
+    impls = [make_impl("cloud one", source="cloud:nous/glm", disk=999.0)]
     # disk_free 10 GB — a cloud ref never consumes this machine's disk
-    assert compute_supported(impls, HARDWARE) == ["cloud one"]
+    assert [i.name for i in compute_supported(impls, HARDWARE)] == ["cloud one"]
+
+
+def test_supported_and_recommended_chain_off_the_parsed_declaration():
+    """The read-time path is loader → compute (no dict bridge): parsed
+    declarations feed the hardware gate directly."""
+    impls = [make_impl("m1", disk=2.0), make_impl("m2", disk=9.0)]
+    supported = compute_supported(impls, HARDWARE)
+    rec = compute_recommended(supported, "size")
+    assert rec is not None and rec.name == "m1"
 
 
 def test_recommended_is_computed_per_goal_at_read_time():
     impls = [
-        _impl("large-accurate", ranks={"accuracy": 1, "speed": 4}, disk=9.0),
-        _impl("small-fast", ranks={"accuracy": 4, "speed": 1}, disk=2.0),
-        _impl("middle", ranks={"accuracy": 2, "speed": 2}, disk=4.0),
+        make_impl("large-accurate", ranks={"accuracy": 1, "speed": 4}, disk=9.0),
+        make_impl("small-fast", ranks={"accuracy": 4, "speed": 1}, disk=2.0),
+        make_impl("middle", ranks={"accuracy": 2, "speed": 2}, disk=4.0),
     ]
-    supported = [impl for impl in impls if impl["name"] in
-                 set(compute_supported(impls, HARDWARE))]
-    assert compute_recommended(supported, "accuracy") == "large-accurate"
-    assert compute_recommended(supported, "speed") == "small-fast"
-    assert compute_recommended(supported, "size") == "small-fast"
+    supported = compute_supported(impls, HARDWARE)
+    assert compute_recommended(supported, "accuracy").name == "large-accurate"
+    assert compute_recommended(supported, "speed").name == "small-fast"
+    assert compute_recommended(supported, "size").name == "small-fast"
     # balanced: mean of the ranks → `middle` (2.0) beats large-accurate (2.5)
     # and small-fast (2.5); disk is only the tie-breaker.
-    assert compute_recommended(supported, "balanced") == "middle"
+    assert compute_recommended(supported, "balanced").name == "middle"
 
 
 def test_no_goal_no_recommendation():
-    assert compute_recommended([_impl("m")], None) is None
+    assert compute_recommended([make_impl("m")], None) is None
 
 
 def test_unknown_goal_is_rejected():
@@ -449,7 +485,10 @@ def test_unknown_goal_is_rejected():
 
 
 def test_recommendation_never_reads_stored_flags():
-    """The computation inputs are the declared facts (ranks/sizes), not a
-    stored flag — a `recommended` key in the dict would be ignored."""
-    impls = [_impl("flagged"), dict(_impl("declared"), recommended="flagged")]
-    assert compute_recommended(impls, "balanced") in ("flagged", "declared")
+    """The computation inputs are the declared facts (ranks/disk) — there are
+    no stored flags on the dataclass at all (a `recommended` field would not
+    even exist to read)."""
+    rec = compute_recommended([make_impl("m", ranks={"accuracy": 1})], "accuracy")
+    assert rec is not None and rec.name == "m"
+    assert not hasattr(rec, "recommended")
+    assert not hasattr(rec, "supported")

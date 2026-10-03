@@ -8,8 +8,9 @@ stage-0 family-module tickets (#76–#84); capabilities arrive with #71's
 canary capability — the template ships `[]` so the copy-to-start ritual
 replaces the placeholders.
 
-`served`/`recommended` do not appear here — that is the implementations'
-computed vocabulary (ADR-0005, never stored, `model_selection.py`).
+`supported` (with `recommended`) do not appear here — that is the
+implementations' computed vocabulary (ADR-0005, never stored,
+`model_selection.py`).
 """
 
 from __future__ import annotations
@@ -31,9 +32,6 @@ DECLARED_FAMILIES = (
     "webhooks",             # family 8
     "authoring-management", # family 9
 )
-
-CAPABILITY_NAME = "lowercase-dotted-identifier"
-_NAV_TARGET = "lowercase-hyphen-or-dotted-path"
 
 
 class Service:

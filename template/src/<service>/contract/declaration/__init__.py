@@ -8,22 +8,31 @@ service must not restate it in code.
 
 from __future__ import annotations
 
-from .implementation_toml import Implementation, ImplementationDeclarationError, load_implementation_toml
+from .implementation_toml import (
+    Implementation,
+    ImplementationDeclarationError,
+    ResourceProfile,
+    load_implementation_toml,
+)
 from .model_selection import (
     GOALS,
-    ModelSelectionGoal,
     compute_recommended,
     compute_supported,
     validate_goal,
 )
-from .service_toml import DECLARED_FAMILIES, Service, ServiceDeclarationError, load_service_toml
+from .service_toml import (
+    DECLARED_FAMILIES,
+    Service,
+    ServiceDeclarationError,
+    load_service_toml,
+)
 
 __all__ = [
     "DECLARED_FAMILIES",
     "GOALS",
     "Implementation",
     "ImplementationDeclarationError",
-    "ModelSelectionGoal",
+    "ResourceProfile",
     "Service",
     "ServiceDeclarationError",
     "compute_recommended",

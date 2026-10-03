@@ -27,14 +27,16 @@ CLI, no shared SDK — the contract machinery is vendored into each service
 
 4. **Declare implementations** — ship one `implementation.toml` per
    implementation (ADR-0002 §5, ADR-0027 §1): identity, `source`
-   (`local-weights` or `cloud:<provider>/<model>`), SPDX license
-   (models carry the ADR-0022 five-question compliance profile), links,
-   sizes, `[resource-profile]` (ADR-0005 §1's install + running-formula
-   shape), `[max-capacity]`, `[ranks]`, `[modalities]`, `privacy-tier`
-   (`local`/`cloud_no_data`/`cloud`), and — model implementations only —
-   `[engine-dependency]`. `template/implementation.toml` is the service-kind
-   example. **`supported`/`recommended` are computed, never stored**
-   (ADR-0005): never put those keys in a declaration.
+   (`local-weights` or `cloud:<provider>/<model>`), SPDX license (model
+   weights carry their ADR-0022 five-question compliance profile as
+   license/links facts — the dedicated profile field is a later
+   concern-ticket), links, sizes, `[resource-profile]` (ADR-0005 §1's
+   install + running-formula shape), `[max-capacity]`, `[ranks]`,
+   `[modalities]`, `privacy-tier` (`local`/`cloud_no_data`/`cloud`), and —
+   model implementations only — `[engine-dependency]`.
+   `template/implementation.toml` is the service-kind example.
+   **`supported`/`recommended` are computed, never stored** (ADR-0005):
+   never put those keys in a declaration.
 
 5. **Delete undeclared families** — remove every
    `src/<your-service>/contract/families/<family>` module your

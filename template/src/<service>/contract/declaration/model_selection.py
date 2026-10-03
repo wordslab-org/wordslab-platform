@@ -1,25 +1,32 @@
-"""`recommended` — computed, never stored (ticket #74; ADR-0002 §5, ADR-0005).
+"""`supported`/`recommended` — computed, never stored (ticket #74; ADR-0002
+§5, ADR-0005).
 
-Which of the supported implementations a service marks **recommended** is a
-pure function of the **model-selection goal** (the per-service install-level
-setting, `accuracy`/`size`/`speed`/`balanced`, CONTEXT.md — changeable from
-the dashboard) applied to the candidate implementations' declared metadata
-(their `[ranks]` and `[sizes]`). No goal → no recommendation: every flag that
-could go stale is absent.
+Which implementations this machine can run (`supported`) and which of those
+a service marks `recommended` are pure functions applied at **read time** —
+to the parsed `Implementation` declarations (`implementation_toml.py`) and
+the machine's **hardware facts** (ADR-0005 §2) + the **model-selection goal**
+(the per-service install-level setting, `accuracy`/`size`/`speed`/`balanced`,
+CONTEXT.md — changeable from the dashboard). No goal → no recommendation;
+every flag that could go stale is absent.
 
-This module computes; it never writes. The `implementation.toml` files carry
-only the factual inputs (ranks, sizes) — check ticket #74's resolution
-comment before adding a `recommended` key anywhere.
+Scope fence: this module is the *declaration-side* gate (required
+technologies + install-disk fit). The full ADR-0005 §4 fit test — evaluating
+the running formula for memory fit at minimum parameters against the
+reservation ledger — is the installer/topology machinery's (ADR-0004/0005),
+not the template's: formulas are declared strings here, evaluated where the
+ledger lives.
+
+This module computes; it never writes. Declarations carry only factual
+inputs (ranks, sizes) — check ticket #74's resolution comment before adding
+a `recommended` key anywhere.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from .implementation_toml import Implementation
 
 # The model-selection goals, verbatim from CONTEXT.md (*Model selection goal*).
 GOALS = ("accuracy", "size", "speed", "balanced")
-
-ModelSelectionGoal = str  # one of GOALS; validated by validate_goal
 
 
 def validate_goal(goal: str | None) -> str | None:
@@ -32,106 +39,84 @@ def validate_goal(goal: str | None) -> str | None:
 
 
 def compute_supported(
-    implementations: list[dict[str, Any]],
-    hardware: dict[str, Any],
-) -> list[str]:
-    """Which implementations this machine can run (ADR-0002 §5).
+    implementations: list[Implementation],
+    hardware: dict,
+) -> list[Implementation]:
+    """Which declarations this machine can run, hardware facts in (ADR-0005
+    §2: `{"disk_free_gb": float, "technologies": {feature: bool}}`).
 
-    The fit test's quantity gates (ADR-0005 §4): a `local-weights`
-    implementation is supported when its required technologies are all
-    present on the machine's hardware (`hardware.technologies`, the
-    yes/no per-feature capacities — ADR-0005 §2) and its install disk
-    fits the hardware's free disk (`hardware.disk_free_gb`). A `cloud:*`
-    implementation does not consume this machine — always supported.
+    A `local-weights` implementation is supported when its required
+    technologies are all present and its install disk fits the free disk.
+    BOTH are hard gates — a missing/unknown hardware quantity never
+    silently passes (quantity fit is the hard gate, ADR-0005 §4). A
+    `cloud:*` implementation does not consume this machine — always
+    supported. Declaration order preserved.
     """
     disk_free = hardware.get("disk_free_gb")
-    technologies = hardware.get("technologies", {}) or {}
-    supported: list[str] = []
+    technologies = hardware.get("technologies") or {}
+    supported: list[Implementation] = []
     for impl in implementations:
-        if not isinstance(impl, dict):
+        if impl.source.startswith("cloud:"):
+            supported.append(impl)
             continue
-        source = impl.get("source", "")
-        if not isinstance(source, str):
-            continue
-        if source.startswith("cloud:"):
-            supported.append(impl["name"])
-            continue
-        if not isinstance(impl.get("name"), str):
-            continue
-        required = impl.get("resource_profile", {}).get("technologies", {}) or {}
+        required = impl.resource_profile.technologies
         tech_ok = all(technologies.get(t, False) for t, needed in required.items() if needed)
-        profile_disk = impl.get("resource_profile", {}).get("disk_gb")
-        sizes_disk = impl.get("sizes", {}).get("disk_gb")
-        disk_needed = profile_disk if profile_disk is not None else sizes_disk
-        disk_ok = disk_free is None or (
-            isinstance(disk_needed, (int, float))
-            and not isinstance(disk_needed, bool)
-            and disk_needed <= disk_free
+        # Hard gate: an unknown disk_free (None, or a non-number) fails the
+        # quantity fit — never a silent pass.
+        disk_ok = (
+            isinstance(disk_free, (int, float))
+            and not isinstance(disk_free, bool)
+            and impl.resource_profile.disk_gb <= disk_free
         )
         if tech_ok and disk_ok:
-            supported.append(impl["name"])
+            supported.append(impl)
     return supported
 
 
 def compute_recommended(
-    supported: list[dict[str, Any]],
+    supported: list[Implementation],
     goal: str | None,
-) -> str | None:
-    """Which **supported** implementation to mark `recommended` — or None
-    when there is no goal (`no goal → no recommendation`): every flag that
-    could go stale is absent (ADR-0002 §5's computed-never-stored rule).
+) -> Implementation | None:
+    """Which **supported** implementation to mark `recommended` — None when
+    there is no goal (no goal → no recommendation). Selection per goal, from
+    the candidates' *declared* facts only:
 
-    Selection per goal, from the candidates' *declared* facts only:
     - `accuracy` — the best `[ranks].accuracy` (lowest rank number).
-    - `size` — the smallest `sizes.disk_gb`.
     - `speed` — the best `[ranks].speed` rank.
+    - `size` — the smallest install disk (`[resource-profile].disk_gb`).
     - `balanced` — the mean of the two ranks, then smaller disk as the
-      deterministic tie-breaker. *This weighting is template-owned, the
-      one choice ADR-0002 left open; recorded here and on the ticket.*
+      deterministic tie-breaker. *This weighting is template-owned, the one
+      choice ADR-0002 left open; recorded here and on ticket #74.*
 
-    `supported` is the same implementation dicts `compute_supported` filtered
-    and re-read from — ranks/disk come from the declaration, never from
-    stored flags.
+    A candidate with no declared rank ranks equally last (order-preserving);
+    name is the final deterministic tie-breaker.
     """
     validate_goal(goal)
-    if not goal:
+    if not goal or not supported:
         return None
-    candidates = [impl for impl in supported if isinstance(impl, dict) and isinstance(impl.get("name"), str)]
-    if not candidates:
-        return None
+    unranked = float(len(supported) + 1)  # worse than any real rank
 
-    def _num(impl: dict, *keys: str) -> float | None:
-        node: Any = impl
-        for key in keys:
-            if not isinstance(node, dict):
-                return None
-            node = node.get(key)
-        return float(node) if isinstance(node, (int, float)) and not isinstance(node, bool) else None
-
-    def _rank(impl: dict, which: str) -> float:
-        # No declared rank on any candidate → rank equally (order-preserving).
-        value = _num(impl, "ranks", which)
-        return value if value is not None else float(len(candidates) + 1)
+    def _rank(impl: Implementation, which: str) -> float:
+        value = impl.ranks.get(which)
+        return float(value) if value is not None else unranked
 
     if goal == "size":
-        def size_key(impl: dict) -> tuple[float, str]:
-            disk = _num(impl, "sizes", "disk_gb")
-            return (float("inf") if disk is None else disk, impl["name"])
-        sort_key = size_key
+        def size_key(impl: Implementation) -> tuple[float, str]:
+            return (impl.resource_profile.disk_gb, impl.name)
+        key = size_key
     elif goal == "balanced":
-        def balanced_key(impl: dict) -> tuple[float, float, str]:
-            disk = _num(impl, "sizes", "disk_gb")
+        def balanced_key(impl: Implementation) -> tuple[float, float, str]:
             return (
                 (_rank(impl, "accuracy") + _rank(impl, "speed")) / 2,
-                float("inf") if disk is None else disk,
-                impl["name"],
+                impl.resource_profile.disk_gb,
+                impl.name,
             )
-        sort_key = balanced_key
+        key = balanced_key
     else:
         which = "accuracy" if goal == "accuracy" else "speed"
 
-        def rank_key(impl: dict) -> tuple[float, str]:
-            return (_rank(impl, which), impl["name"])
-        sort_key = rank_key
+        def rank_key(impl: Implementation) -> tuple[float, str]:
+            return (_rank(impl, which), impl.name)
+        key = rank_key
 
-    return min(candidates, key=sort_key)["name"]
+    return min(supported, key=key)
