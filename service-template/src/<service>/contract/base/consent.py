@@ -13,6 +13,8 @@ no parameter that could admit a private/secret or unset interaction
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 # The two ADR-0026 §1 consent states, machine forms of the ADR's wording:
 # "may use for improvement" and "private/secret — do not use".
 MAY_USE = "may_use"
@@ -46,7 +48,7 @@ def resolve_consent(value: object) -> str:
     )
 
 
-def input_consent(parsed: dict) -> str:
+def input_consent(parsed: Mapping[str, object]) -> str:
     """Resolve a user-input mapping's consent state (ADR-0026 §1 — the
     default rule lives ONCE, next to the states): an ABSENT flag takes the
     `may_use` default; a DECLARED mark — a state, an unknown value, or an

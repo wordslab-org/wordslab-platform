@@ -74,9 +74,11 @@ def paginate(request: Request, items: list, key_fn, extra: dict | None = None) -
     ride the envelope on every page (an extraction surface's exclusion
     report, ticket #72 — they describe the whole collection, not the page);
     a key colliding with `items`/`next_cursor` is a template bug and fails
-    loudly (the 500 `internal_error` handler picks it up, item 4).
+    loudly (the 500 `internal_error` handler picks it up, item 4). The
+    absent-handling rule is stated ONCE here.
     """
-    if extra is not None:
+    extra = extra if extra is not None else {}
+    if extra:
         clash = set(extra) & {"items", "next_cursor"}
         if clash:
             raise ValueError(
@@ -97,5 +99,5 @@ def paginate(request: Request, items: list, key_fn, extra: dict | None = None) -
     has_more = start + limit < len(items)
     next_cursor = encode_cursor(str(key_fn(page[-1]))) if has_more else ""
     return JSONResponse(
-        {**(extra if extra is not None else {}), "items": page, "next_cursor": next_cursor}
+        {**extra, "items": page, "next_cursor": next_cursor}
     )

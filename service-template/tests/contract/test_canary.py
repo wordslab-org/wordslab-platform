@@ -13,6 +13,7 @@ Slices, one per red→green cycle:
   3. /echo — the human surface.
 """
 
+import re
 from pathlib import Path
 
 from tests.support.test_server import InProcessService
@@ -195,12 +196,13 @@ def test_the_echo_page_carries_the_visible_private_secret_toggle_defaulting_to_m
     assert "private: false" in html  # the toggle STARTS in the may-use state
     assert "may_use" in html and "private_secret" in html  # it sends the real states
     assert ".consent-toggle" in css and ".consent-hint" in css  # styled, not bare
-    # The visibility bar, asserted block-scoped (round-1 + round-3 review):
-    # the .consent-toggle rule itself emphasizes the toggle — without some
-    # emphasis in its own block the toggle is a bare checkbox, not "very
-    # visible" (ADR-0026 §1).
-    toggle_block = css.split(".consent-toggle {", 1)[1].split("}", 1)[0]
-    assert "font-weight" in toggle_block
+    # The visibility bar, asserted block-scoped and format-tolerant
+    # (round-1 + round-4 review): the .consent-toggle rule itself emphasizes
+    # the toggle (bold weight) — without it the toggle is a bare checkbox,
+    # not "very visible" (ADR-0026 §1).
+    toggle_block = re.search(r"\.consent-toggle\s*\{([^}]*)\}", css)
+    assert toggle_block is not None
+    assert re.search(r"font-weight:\s*(?:bold|[6-9]00)", toggle_block.group(1))
 
 
 def test_vendored_static_assets_are_served():
