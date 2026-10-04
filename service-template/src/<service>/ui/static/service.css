@@ -39,3 +39,34 @@ main.container {
   color: var(--pico-danger, #b91c1c);
   font-family: var(--wl-mono);
 }
+
+/* The consent toggle rides every user input (ADR-0026 §1 — a VERY visible
+   "private/secret — do not use" toggle, ticket #72): bordered + emphasized,
+   never a footnote; the hint stays legible below it. */
+.consent {
+  margin-top: 0.75rem;
+}
+
+.consent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--pico-primary, #635bff);
+  border-radius: 0.4rem;
+  background: var(--pico-card-background-color, #f8f9fa);
+}
+
+.consent-toggle input[type="checkbox"] {
+  margin: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.consent-hint {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  max-width: 40rem;
+}

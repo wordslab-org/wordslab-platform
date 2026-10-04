@@ -59,6 +59,10 @@ def create_app(
         fragments=[canary.openapi_fragment],
     )
 
+    # The canary's per-app interaction record — the consent contract's
+    # storage side (ticket #72): echo records, /v1/echo/extract gates.
+    interactions = canary.InteractionStore()
+
     return create_service_app(
         service_name=name,
         version=version_,
@@ -66,7 +70,7 @@ def create_app(
         resources=resources,
         models=models,
         health_status=health_status,
-        extra_routes=[*canary.routes, *(extra_routes or [])],
+        extra_routes=[*canary.routes(interactions), *(extra_routes or [])],
         ui_routes=canary.ui_routes(name, version_),
         openapi_doc=openapi_doc,
         mcp=True,

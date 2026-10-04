@@ -44,6 +44,29 @@ openapi_fragment = {
                         "application/json": {
                             "schema": {
                                 "type": "object",
+                                # The interaction's content is the `text`
+                                # string; the consent flag rides every user
+                                # input (ADR-0026 §1, ticket #72): two
+                                # states, the `may_use` default. The MCP
+                                # surface inherits this schema — zero drift
+                                # by construction.
+                                "required": ["text"],
+                                "properties": {
+                                    "text": {
+                                        "type": "string",
+                                        "description": "The interaction's content.",
+                                    },
+                                    "consent": {
+                                        "type": "string",
+                                        "enum": ["may_use", "private_secret"],
+                                        "default": "may_use",
+                                        "description": (
+                                            "The interaction's consent state (ADR-0026 §1): "
+                                            "'may_use' (the default — eligible for improvement "
+                                            "extraction) or 'private_secret' — do not use."
+                                        ),
+                                    },
+                                },
                                 "additionalProperties": True,
                             }
                         }
@@ -71,6 +94,80 @@ openapi_fragment = {
                     },
                     "413": {
                         "description": "Body over the canary's echo limit.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                },
+            }
+        },
+        "/v1/echo/extract": {
+            "get": {
+                "operationId": "echo.extract",
+                "summary": "Extract the canary's interactions through the consent gate.",
+                "description": (
+                    "The canary's extraction surface (ticket #72, ADR-0026 §2 pass 1): "
+                    "only 'may_use' interactions are eligible to pass; private/secret "
+                    "and unset interactions are excluded and reported, never bypassed. "
+                    "The gate is eligibility over the whole record; the item-5 "
+                    "pagination (?limit/?cursor) slices the eligible list, and the "
+                    "exclusion report rides every page."
+                ),
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200},
+                        "description": "Page size (base contract item 5).",
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {"type": "string"},
+                        "description": "The opaque cursor from the previous page.",
+                    },
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The eligible interactions (item-5 envelope) and the exclusion report.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["items", "next_cursor", "excluded"],
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["seq", "text", "consent"],
+                                                "properties": {
+                                                    "seq": {"type": "integer"},
+                                                    "text": {"type": "string"},
+                                                    "consent": {
+                                                        "type": "string",
+                                                        "enum": ["may_use"],
+                                                    },
+                                                },
+                                            },
+                                        },
+                                        "next_cursor": {
+                                            "type": "string",
+                                            "description": "The opaque next-page cursor; empty on the last page.",
+                                        },
+                                        "excluded": {
+                                            "type": "object",
+                                            "description": (
+                                                "Excluded-interaction counts by consent "
+                                                "state ('private_secret' / 'unset')."
+                                            ),
+                                            "additionalProperties": {"type": "integer"},
+                                        },
+                                    },
+                                }
+                            }
+                        },
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer key.",
                         "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
                     },
                 },

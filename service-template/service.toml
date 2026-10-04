@@ -24,16 +24,16 @@ ram-gb = 0.05
 # The per-capability documentation sections. The canary is the template's
 # proof capability (ticket #71) — a real service replaces it with its own.
 [template-service.canary]
-description = "The template's proof capability — echo, wired to all three callable surfaces."
-version = "0.1.0"
+description = "The template's proof capability — echo, wired to all three callable surfaces, carrying the consent-flag contract (ticket #72)."
+version = "0.2.0"
 api = "/v1/echo"
-api-functions = "POST /v1/echo — returns the request body; GET /v1/echo/ping — returns pong."
-versions-history = "0.1.0 — initial canary (ticket #71)."
+api-functions = "POST /v1/echo — returns the request body; the body carries the consent flag (ADR-0026 §1: 'may_use' default / 'private_secret'); GET /v1/echo/extract — the recorded interactions through the consent gate (the private/secret exclusion is never bypassable), item-5 paginated with the exclusion report riding every page; GET /v1/echo/ping — returns pong."
+versions-history = "0.1.0 — initial canary (ticket #71). 0.2.0 — consent flag + never-bypassable extraction gate (ticket #72)."
 required = false
 
 [template-service.canary.ui]
-description = "A single Echo page echoing text input (FastHTML + Alpine, vendored assets)."
-versions-history = "0.1.0 — initial Echo page."
+description = "A single Echo page echoing text input, with the visible 'private/secret — do not use' consent toggle (FastHTML + Alpine, vendored assets)."
+versions-history = "0.1.0 — initial Echo page. 0.2.0 — the consent toggle on the input form (ticket #72)."
 menu = [
   { label = "Echo", entry = "/echo" },
 ]

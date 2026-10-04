@@ -31,6 +31,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from contract.base.consent import MAY_USE, PRIVATE_SECRET
 from contract.base.health import CANNOT_SERVE_STATUSES, HEALTH_STATUSES
 from contract.base.health import resources as build_resources
 from tests.contract.runner import failures
@@ -41,6 +42,8 @@ __all__ = [
     "stub_health_payload",
     "stub_health_violations",
     "stub_401_violations",
+    "stub_consent_interaction",
+    "stub_consent_gate_violations",
 ]
 
 
@@ -168,4 +171,63 @@ class StubCollaborator:
             }
         )
         return JSONResponse(self.body, status_code=self.status)
+
+
+# --- consent-flagged stub interaction + the exclusion-assertion helper
+# --- (spec #68 story 9, ticket #72: the ADR-0026 gate as a base-contract-
+# --- level assertion, testable at every service's seam from the first
+# --- service).
+
+def stub_consent_interaction(
+    *,
+    text: Any = "hello",
+    consent: str = MAY_USE,
+    **fields: Any,
+) -> dict:
+    """A consent-flagged stub interaction in the template's recorded shape
+    (`{text, consent}` — the canary's record; `**fields` extends it with a
+    service's own keys). The consent flag defaults to the ADR-0026 §1
+    default ("may use for improvement"); pass `consent=PRIVATE_SECRET` for
+    the "private/secret — do not use" state."""
+    if consent not in (MAY_USE, PRIVATE_SECRET):
+        raise ValueError(
+            f"unknown consent state {consent!r}: expected 'may_use' or "
+            "'private_secret' (ADR-0026 §1)"
+        )
+    interaction: dict[str, Any] = {"text": text, "consent": consent}
+    interaction.update(fields)
+    return interaction
+
+
+def stub_consent_gate_violations(extracted: list, recorded: list) -> list[str]:
+    """Violations of an extraction surface against the never-bypassable
+    private/secret exclusion (ADR-0026 §2 pass 1, filter = the consent
+    gate): given the RECORDED interactions (pre-extraction) and the
+    EXTRACTION's output (the list of interactions it returned), report
+
+    - a private/secret (or state-less) recorded interaction appearing
+      VERBATIM in the output — the exclusion bypassed;
+    - an output item whose consent state is not `may_use` — an eligible
+      interaction must carry the flag, fail-closed.
+
+    Content-level leak detection (a re-marked copy of a private interaction)
+    needs interaction identity — the consent lanes' substrate (ticket #286)
+    owns it; at the template level this is the canary-proven assertion
+    shape."""
+    problems: list[str] = []
+    private_records = [i for i in recorded if i.get("consent") != MAY_USE]
+    for item in extracted:
+        if any(item == record for record in private_records):
+            problems.append(
+                "a private/secret interaction leaked through the extraction "
+                "verbatim (ADR-0026 §2: the exclusion is never bypassable)"
+            )
+        state = item.get("consent")
+        if state != MAY_USE:
+            problems.append(
+                f"an extracted interaction carries consent state {state!r}, "
+                f"not 'may_use' (ADR-0026 §2: only may-use interactions are "
+                "eligible to pass)"
+            )
+    return problems
 
