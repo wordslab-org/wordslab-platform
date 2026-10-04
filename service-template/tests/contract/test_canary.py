@@ -67,10 +67,10 @@ def test_openapi_doc_requires_the_bearer_key():
 JSON_HEADERS = {"Accept": "application/json", "Content-Type": "application/json"}
 
 
-def rpc(c, method, *, id=None, params=None):
+def rpc(c, method, *, req_id=None, params=None):
     payload: dict = {"jsonrpc": "2.0", "method": method}
-    if id is not None:
-        payload["id"] = id
+    if req_id is not None:
+        payload["id"] = req_id
     if params is not None:
         payload["params"] = params
     return c.post("/mcp", json=payload, headers=JSON_HEADERS)
@@ -79,7 +79,7 @@ def rpc(c, method, *, id=None, params=None):
 def test_mcp_requires_the_bearer_key():
     svc = make_service()
     with svc.client as c:
-        r = rpc(c, "initialize", id=1, params={"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "probe", "version": "0"}})
+        r = rpc(c, "initialize", req_id=1, params={"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "probe", "version": "0"}})
     assert r.status_code == 401
     assert r.json()["error"]["type"] == "authentication_failed"
 
@@ -87,7 +87,7 @@ def test_mcp_requires_the_bearer_key():
 def test_mcp_initialize_returns_the_service_identity():
     svc = make_service()
     with svc.authorized() as c:
-        r = rpc(c, "initialize", id=1, params={"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "probe", "version": "0"}})
+        r = rpc(c, "initialize", req_id=1, params={"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "probe", "version": "0"}})
     assert r.status_code == 200
     result = r.json()["result"]
     assert result["protocolVersion"].startswith("2025-")
@@ -105,7 +105,7 @@ def test_mcp_tools_match_the_openapi_operations_zero_drift():
     svc = make_service()
     with svc.authorized() as c:
         doc = c.get("/openapi.json").json()
-        tools = rpc(c, "tools/list", id=2).json()["result"]["tools"]
+        tools = rpc(c, "tools/list", req_id=2).json()["result"]["tools"]
     expected = {
         op["operationId"]
         for item in doc["paths"].values()
@@ -121,7 +121,7 @@ def test_mcp_tools_match_the_openapi_operations_zero_drift():
 def test_mcp_tools_call_echo_returns_the_body():
     svc = make_service()
     with svc.authorized() as c:
-        r = rpc(c, "tools/call", id=3, params={"name": "echo", "arguments": {"text": "hi"}})
+        r = rpc(c, "tools/call", req_id=3, params={"name": "echo", "arguments": {"text": "hi"}})
     assert r.status_code == 200
     result = r.json()["result"]
     assert result["isError"] is False
@@ -131,7 +131,7 @@ def test_mcp_tools_call_echo_returns_the_body():
 def test_mcp_tools_call_ping_returns_pong():
     svc = make_service()
     with svc.authorized() as c:
-        r = rpc(c, "tools/call", id=4, params={"name": "echo.ping", "arguments": {}})
+        r = rpc(c, "tools/call", req_id=4, params={"name": "echo.ping", "arguments": {}})
     assert r.status_code == 200
     assert r.json()["result"]["structuredContent"] == {"pong": True}
 
@@ -139,7 +139,7 @@ def test_mcp_tools_call_ping_returns_pong():
 def test_mcp_tools_call_unknown_tool_is_an_error_result_not_a_crash():
     svc = make_service()
     with svc.authorized() as c:
-        r = rpc(c, "tools/call", id=5, params={"name": "nope", "arguments": {}})
+        r = rpc(c, "tools/call", req_id=5, params={"name": "nope", "arguments": {}})
     assert r.status_code == 200
     result = r.json()["result"]
     assert result["isError"] is True
@@ -188,3 +188,34 @@ def test_vendored_static_assets_are_served():
     assert "alpine" in alpine.text[:2000].lower() or alpine.text.startswith("((")
     assert pico.status_code == 200 and len(pico.content) > 10_000
     assert css.status_code == 200 and ".echo-result" in css.text
+
+
+# --- Review findings (slice 5): contract-strictness on the canary surface.
+
+def test_malformed_json_body_is_invalid_request_not_internal_error():
+    """Client garbage is a client error: 400 `invalid_request`, never a 500
+    `internal_error` (ADR-0001 item 4 — the fixed taxonomy; a real capability
+    copied from this one must not learn to 500 on bad input)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        r = c.post(
+            "/v1/echo",
+            content=b"{not json",
+            headers={"Content-Type": "application/json"},
+        )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
+def test_tools_call_args_for_a_bodyless_operation_are_rejected_loudly():
+    """Arguments the operation cannot consume are an error result, not
+    silently dropped — a silent drop would promise behavior it doesn't
+    deliver (review finding; query-param dispatch lands with the first real
+    GET-with-params capability)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        r = rpc(c, "tools/call", req_id=9, params={"name": "echo.ping", "arguments": {"x": 1}})
+    assert r.status_code == 200
+    result = r.json()["result"]
+    assert result["isError"] is True
+    assert "x" in result["content"][0]["text"]

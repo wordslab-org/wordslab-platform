@@ -10,6 +10,28 @@ describe the API the way a client drives it — schema per request body,
 from __future__ import annotations
 
 openapi_fragment = {
+    "components": {
+        "schemas": {
+            # The item-4 error body, as every endpoint's error responses
+            # reference it ($ref below).
+            "error": {
+                "type": "object",
+                "required": ["error", "request_id"],
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "required": ["type", "message"],
+                        "properties": {
+                            "type": {"type": "string"},
+                            "message": {"type": "string"},
+                            "resource": {"type": "string"},
+                        },
+                    },
+                    "request_id": {"type": "string"},
+                },
+            },
+        }
+    },
     "paths": {
         "/v1/echo": {
             "post": {
@@ -35,7 +57,22 @@ openapi_fragment = {
                                 "schema": {"type": "object", "additionalProperties": True}
                             }
                         },
-                    }
+                    },
+                    # The error taxonomy is contract-wide (item 4: one JSON
+                    # shape, fixed 11 codes) — the fragments document the
+                    # per-operation codes a client can hit here.
+                    "400": {
+                        "description": "Missing, non-object, malformed, or oversized body.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer key.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                    "413": {
+                        "description": "Body over the canary's echo limit.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
                 },
             }
         },
@@ -50,7 +87,11 @@ openapi_fragment = {
                         "content": {
                             "application/json": {"schema": {"type": "object", "required": ["pong"], "properties": {"pong": {"type": "boolean"}}}}
                         },
-                    }
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer key.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
                 },
             }
         },

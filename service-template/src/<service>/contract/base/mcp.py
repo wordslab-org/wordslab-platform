@@ -137,7 +137,12 @@ class McpSurface:
                 if key == b"authorization":
                     auth = value.decode("latin-1")
                     if auth[:7].lower() == "bearer ":
-                        _bearer_cvar.set(auth[7:])
+                        token = _bearer_cvar.set(auth[7:])
+                        try:
+                            await sdk_asgi(scope, receive, send)
+                        finally:
+                            _bearer_cvar.reset(token)  # no leakage between requests
+                        return
             await sdk_asgi(scope, receive, send)
 
         return Mount("/mcp", app=endpoint, name="mcp")
@@ -176,8 +181,27 @@ class McpSurface:
                     )
                 ],
             )
-        method, path, _schema = self._operations[name]
+        method, path, schema = self._operations[name]
         arguments = dict(params.arguments or {})
+        if arguments and schema is None:
+            # A bodyless operation (GET/DELETE without a requestBody) consumes
+            # no arguments — the OpenAPI-generated schema is the empty object.
+            # Reject loudly rather than silently dropping them (a silent drop
+            # would promise behavior it doesn't deliver); query-param dispatch
+            # lands with the first real GET-with-params capability + suite.
+            return types.CallToolResult(
+                is_error=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=(
+                            f"{name!r} takes no arguments (its OpenAPI "
+                            f"operation {method} {path} has no request body) "
+                            f"— got: {sorted(arguments)}"
+                        ),
+                    )
+                ],
+            )
         try:
             status, body = await self._dispatch(method, path, arguments)
         except Exception as exc:  # noqa: BLE001 — surfaced as a tool error

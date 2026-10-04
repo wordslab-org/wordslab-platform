@@ -11,7 +11,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from contract.base.errors import invalid_request
+from contract.base.errors import invalid_request, request_too_large
 
 MAX_ECHO_BYTES = 64 * 1024  # the canary echoes small JSON objects only
 
@@ -22,10 +22,13 @@ async def echo(request: Request) -> JSONResponse:
     if not body:
         raise invalid_request("POST /v1/echo expects a JSON object request body.")
     if len(body) > MAX_ECHO_BYTES:
-        from contract.base.errors import request_too_large
-
         raise request_too_large(f"Echo body exceeds the {MAX_ECHO_BYTES}-byte canary limit.")
-    parsed = await request.json()
+    try:
+        parsed = await request.json()
+    except ValueError:  # malformed JSON is a CLIENT error (item 4 taxonomy),
+        raise invalid_request(  # never an unhandled 500 internal_error
+            "POST /v1/echo expects a JSON object request body."
+        ) from None
     if not isinstance(parsed, dict):
         raise invalid_request("POST /v1/echo expects a JSON object request body.")
     return JSONResponse(parsed)

@@ -28,6 +28,7 @@ def openapi_document(
     """
     paths: dict = {}
     operation_ids: set[str] = set()
+    components: dict = {}
     for fragment in fragments or []:
         for path, item in fragment.get("paths", {}).items():
             if path in paths:
@@ -39,8 +40,19 @@ def openapi_document(
                         raise ValueError(f"duplicate operationId in OpenAPI fragments: {op_id}")
                     operation_ids.add(op_id)
             paths[path] = item
-    return {
+        for kind, definitions in fragment.get("components", {}).items():
+            existing = components.setdefault(kind, {})
+            for name, definition in definitions.items():
+                if name in existing:
+                    raise ValueError(
+                        f"duplicate OpenAPI component {kind}/{name} across capabilities"
+                    )
+                existing[name] = definition
+    document = {
         "openapi": "3.1.0",
         "info": {"title": title, "version": version, "description": description},
         "paths": paths,
     }
+    if components:
+        document["components"] = components
+    return document
