@@ -24,7 +24,7 @@ sys.path.insert(0, str(TEMPLATE_SRC))
 
 from tests.support.test_server import InProcessService  # noqa: E402,F401
 
-from .runner import declared_families  # noqa: E402
+from .runner import declared_families, failures  # noqa: E402
 
 _declared = declared_families()
 
@@ -73,3 +73,15 @@ def service():
 @pytest.fixture()
 def client(service):
     return service.authorized()
+
+
+@pytest.fixture()
+def gated_client(client):
+    """The never-bypassable red gate for family conformance blocks (the one
+    definition, shared by every block — runner.py's failures()): the block
+    cannot start while the base contract is violated on its own seam —
+    probed with the documented 404 error body (base item 4) through the
+    authorized client."""
+    problems = failures(client.get("/v1/__conformance_probe__"), error_type="not_found")
+    assert problems == [], f"base contract violated on the family seam: {problems}"
+    return client

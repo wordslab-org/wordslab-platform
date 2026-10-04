@@ -20,6 +20,7 @@ Imported by `tests/contract/conftest.py`:
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -31,10 +32,23 @@ MANIFEST = FAMILIES_DIR / "manifest.toml"
 # The ADR-0001 family numbers — the manifest's only legal entries.
 KNOWN_FAMILIES = frozenset({"1", "2", "3", "4", "5", "6", "7", "8", "9"})
 
+# A family block's directory name: `f<N>_<slug>`, N one of the nine numbers.
+# Anything else under families/ (e.g. `__pycache__`) is not a block.
+BLOCK_NAME = re.compile(r"^f([1-9])_")
+
 
 def declared_families() -> list[str]:
     """The family numbers the manifest lists, validated loudly."""
-    data = tomllib.loads(MANIFEST.read_text())
+    try:
+        data = tomllib.loads(MANIFEST.read_text())
+    except FileNotFoundError as exc:
+        raise pytest.UsageError(
+            "families/manifest.toml not found — the suite's test-side "
+            "parameterization data (ticket #70). The suite refuses to run "
+            "without it; restore it next to the tests."
+        ) from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise pytest.UsageError(f"families/manifest.toml is not valid TOML: {exc}") from exc
     declared = data.get("families", [])
     if not isinstance(declared, list) or not all(isinstance(f, str) for f in declared):
         raise pytest.UsageError(
@@ -48,7 +62,11 @@ def declared_families() -> list[str]:
             "not among ADR-0001's nine family numbers "
             f"{sorted(KNOWN_FAMILIES)!r}. The suite refuses to silently skip them."
         )
-    on_disk = {d.name.split("_", 1)[0][1:] for d in FAMILIES_DIR.iterdir() if d.is_dir()}
+    on_disk = {
+        m.group(1)
+        for d in FAMILIES_DIR.iterdir()
+        if d.is_dir() and (m := BLOCK_NAME.match(d.name))
+    }
     missing = [f for f in declared if f not in on_disk]
     if missing:
         raise pytest.UsageError(
@@ -96,9 +114,18 @@ def failures(response, error_type: str | None = None) -> list[str]:
             )
         elif error_type is not None and error.get("type") != error_type:
             problems.append(f"error type {error.get('type')!r} != {error_type!r} (base item 4)")
+        # An ERROR body carries request_id, paired with the header — its
+        # absence is a violation, not a skip (base item 4).
+        if body.get("request_id") is None:
+            problems.append("error body carries no request_id (base item 4)")
+        elif body["request_id"] != response.headers.get("X-Request-Id"):
+            problems.append("request_id does not match the X-Request-Id header (base item 4)")
     elif error_type is not None:
         problems.append(f"response carries no error body; expected {error_type!r} (base item 4)")
-    request_id = body.get("request_id")
-    if request_id is not None and request_id != response.headers.get("X-Request-Id"):
-        problems.append("request_id does not match the X-Request-Id header (base item 4)")
+    else:
+        # Success bodies are free-form (business endpoints); when one carries
+        # a request_id it must still pair with the header.
+        request_id = body.get("request_id")
+        if request_id is not None and request_id != response.headers.get("X-Request-Id"):
+            problems.append("request_id does not match the X-Request-Id header (base item 4)")
     return problems

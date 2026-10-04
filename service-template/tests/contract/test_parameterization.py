@@ -97,9 +97,10 @@ def collect_families(copied: Path) -> subprocess.CompletedProcess:
     return run_suite(copied, "--collect-only", "tests/contract/families")
 
 
-# pytest exits 5 ("no tests collected") when the probe's every node is
-# deselected — which IS the empty-manifest behavior under test.
-COLLECT_OK = {0, 5}
+# pytest's exit codes a collect-only probe may legitimately return: 0 (nodes
+# collected) or 5 ("no tests collected" — the probe's every node deselected,
+# which IS the empty-manifest behavior under test).
+COLLECTION_EXIT_CODES = {0, 5}
 
 
 def test_the_manifest_ships_as_explicit_test_side_data(copied_template):
@@ -116,7 +117,7 @@ def test_base_suite_passes_out_of_the_box_on_a_fresh_copy(copied_template):
 
 def test_no_family_tests_collected_when_the_manifest_is_empty(copied_template):
     collected = collect_families(copied_template)
-    assert collected.returncode in COLLECT_OK, collected.stdout + collected.stderr
+    assert collected.returncode in COLLECTION_EXIT_CODES, collected.stdout + collected.stderr
     for block in block_dirs(copied_template):
         assert f"families/{block}" not in collected.stdout
 
@@ -147,7 +148,7 @@ def test_deleting_an_unlisted_block_does_not_break_the_suite(copied_template):
     victim = block_dirs(copied_template)[1]  # unlisted — the manifest is empty
     shutil.rmtree(copied_template / "tests/contract/families" / victim)
     assert run_base(copied_template).returncode == 0
-    assert collect_families(copied_template).returncode in COLLECT_OK
+    assert collect_families(copied_template).returncode in COLLECTION_EXIT_CODES
 
 
 def test_a_listed_block_with_no_directory_fails_the_suite_loudly(copied_template):
@@ -172,3 +173,13 @@ def test_a_malformed_manifest_fails_the_suite_loudly(copied_template):
     result = run_base(copied_template)
     assert result.returncode != 0
     assert "list of ADR-0001" in result.stdout + result.stderr
+
+
+def test_a_missing_manifest_fails_the_suite_loudly(copied_template):
+    # The suite refuses to run without its parameterization data — a guided
+    # UsageError, not a traceback.
+    (copied_template / "tests/contract/families/manifest.toml").unlink()
+    result = run_base(copied_template)
+    assert result.returncode != 0
+    assert "refuses to run" in result.stdout + result.stderr
+    assert "Traceback" not in result.stdout + result.stderr

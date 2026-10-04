@@ -16,7 +16,10 @@ system — spec #68 Implementation Decisions):
   every request it serves (dispatch assertions without the real
   collaborator; the composition-specific resolution patterns remain #73).
 
-Test-side only: production code never imports this module (spec #68).
+Test-side only: production code never imports this module (spec #68). The
+response-shape checking is NOT duplicated here: the matchers reuse the
+suite's canonical checker (`tests.contract.runner.failures`), so stub-factory
+drift-detection and the family red gate share one implementation.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ from starlette.routing import Route
 
 from contract.base.health import CANNOT_SERVE_STATUSES, HEALTH_STATUSES
 from contract.base.health import resources as build_resources
+from tests.contract.runner import failures
 
 __all__ = [
     "StubCollaborator",
@@ -52,12 +56,13 @@ def stub_api_key() -> str:
 
 def stub_401_violations(response) -> list[str]:
     """Violations against the documented 401 `authentication_failed` body:
-    status 401; body `{"error": {"type", "message"}, "request_id"}` with the
-    error type and the `request_id`/`X-Request-Id` pairing."""
+    status 401 (base item 2) plus the canonical error-body checks — the
+    shape `{"error": {"type", "message"}, "request_id"}`, the taxonomy type,
+    and the `request_id`/`X-Request-Id` pairing (base item 4)."""
     problems: list[str] = []
     if response.status_code != 401:
         problems.append(f"status {response.status_code} != 401 (base item 2)")
-    problems += _error_body_problems(response, "authentication_failed")
+    problems += failures(response, "authentication_failed")
     return problems
 
 
@@ -164,22 +169,3 @@ class StubCollaborator:
         )
         return JSONResponse(self.body, status_code=self.status)
 
-
-def _error_body_problems(response, expected_type: str) -> list[str]:
-    """The documented error-body problems for one response (base item 4)."""
-    problems: list[str] = []
-    try:
-        body = response.json()
-    except ValueError:
-        return ["response body is not JSON (base item 1)"]
-    if not isinstance(body, dict) or "error" not in body:
-        return [f'error body missing {"error"!r} key (base item 4)']
-    error = body["error"]
-    if not (isinstance(error, dict) and error.get("type") and error.get("message")):
-        problems.append('error body is not {"type", "message", "resource"?} (base item 4)')
-    elif error.get("type") != expected_type:
-        problems.append(f"error type {error.get('type')!r} != {expected_type!r} (base items 2/4)")
-    request_id = body.get("request_id")
-    if request_id is not None and request_id != response.headers.get("X-Request-Id"):
-        problems.append("request_id does not match the X-Request-Id header (base item 4)")
-    return problems

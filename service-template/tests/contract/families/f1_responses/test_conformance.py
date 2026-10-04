@@ -14,23 +14,13 @@ red gate).
 
 import pytest
 
-from tests.contract.runner import contract_family, failures
+from tests.contract.runner import contract_family
 
 pytestmark = contract_family("1")
 
 # A minimal Responses-API request by reference (ADR-0001 family 1: follow
 # upstream OpenAI shapes, pinned to a reference date).
 STUB_REQUEST = {"model": "stub-model", "input": "ping"}
-
-
-@pytest.fixture()
-def gated_client(client):
-    # The never-bypassable red gate: the block cannot start while the base
-    # contract is violated on its own seam — probed with the documented 404
-    # error body (base item 4) through the authorized client.
-    problems = failures(client.get("/v1/__conformance_probe__"), error_type="not_found")
-    assert problems == [], f"base contract violated on the family seam: {problems}"
-    return client
 
 
 def test_post_v1_responses_returns_the_responses_body(gated_client):

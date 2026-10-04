@@ -13,7 +13,7 @@ never-bypassable red gate (base contract honored on the same seam).
 
 import pytest
 
-from tests.contract.runner import contract_family, failures
+from tests.contract.runner import contract_family
 
 pytestmark = contract_family("5")
 
@@ -21,13 +21,6 @@ pytestmark = contract_family("5")
 MODEL_STATUSES = frozenset(
     {"absent", "downloading", "available", "loading", "ready", "unloading", "error"}
 )
-
-
-@pytest.fixture()
-def gated_client(client):
-    problems = failures(client.get("/v1/__conformance_probe__"), error_type="not_found")
-    assert problems == [], f"base contract violated on the family seam: {problems}"
-    return client
 
 
 def test_get_v1_models_returns_the_lifecycle_shape(gated_client):
@@ -48,10 +41,3 @@ def test_unknown_model_load_is_not_found(gated_client):
     r = gated_client.post("/v1/models/no-such-model/load")
     assert r.status_code == 404
     assert r.json()["error"]["type"] == "not_found"
-
-
-def test_job_object_shape_is_the_documented_contract():
-    # The job contract shape, verbatim from ADR-0001 family 5.
-    job = {"id": "job_1", "status": "queued", "progress": 0}
-    assert job["status"] in {"queued", "running", "completed", "failed"}
-    assert 0 <= job["progress"] <= 100
