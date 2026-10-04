@@ -141,19 +141,19 @@ path = "skills/canary/SKILL.md"
 """
 
 DOCS_BLOCK = """\
-[[svc.canary.learning.docs]]
+[[svc.{cap}.learning.docs]]
 level = "{level}"
-path = "docs/canary/{level}.md"
+path = "docs/{cap}/{level}.md"
 
 """
 
 
-def write_service_root(tmp_path, *, toml: str = SERVICE_TOML_BAR,
+def write_service_root(tmp_path, *, toml: str | None = None,
                        doc_overrides: dict[str, str] | None = None,
                        skill_md: str = SKILL_MD, write_files: bool = True):
     """A service root: `service.toml` + the declared bar artifacts."""
     doc_overrides = doc_overrides or {}
-    write(tmp_path, "service.toml", toml)
+    write(tmp_path, "service.toml", toml if toml is not None else SERVICE_TOML_BAR)
     for level in DOC_LEVELS:
         text = doc_overrides.get(level) or bar_doc_md(level)
         if write_files:
@@ -208,3 +208,260 @@ def test_a_capability_without_the_learning_section_loads(tmp_path):
 
 
 # --------------------------------------------------- the shipped bar is real
+
+
+# ------------------------------------------------------- loud-rejection rules
+#
+# Every loud-rejection rule gets a rejection test feeding the offending key
+# and asserting the specific message — a text grep of the shipped file
+# proves nothing (the settled #74 lesson). Fixtures are assembled from
+# named part constants; mutations swap whole blocks (drift asserts on).
+
+SERVICE_TOML_HEAD = """\
+name = "svc"
+description = "d"
+version = "1.0.0"
+
+[requirements]
+disk-gb = 0.1
+ram-gb = 0.1
+
+[svc.canary]
+description = "d"
+version = "0.1.0"
+api = "/v1/echo"
+api-functions = "d"
+versions-history = "d"
+required = false
+
+[svc.canary.ui]
+description = "d"
+versions-history = "d"
+
+"""
+
+SKILL_BLOCK = """\
+[svc.{cap}.learning.skill]
+name = "drive-canary"
+path = "skills/{cap}/SKILL.md"
+"""
+
+NOTE_LINE = 'not-agent-operable = "A physical-machine panel driven by its own UI; an agent has no deterministic surface to drive."\n'
+
+
+def bar_toml(*, docs: bool = True, skill_block: str | None = SKILL_BLOCK,
+             note: str | None = None, learning_header: str = "[svc.canary.learning]\n\n",
+             cap: str = "canary", head: str | None = SERVICE_TOML_HEAD) -> str:
+    text = head or ""
+    text += learning_header
+    # TOML ordering: a learning key sits directly under the [learning]
+    # header — after any [[docs]] / [skill] sub-table header it would be
+    # swallowed into that table (the ordering pitfall).
+    if note is not None:
+        text += f'not-agent-operable = "{note}"\n'
+    if docs:
+        text += "".join(DOCS_BLOCK.format(cap=cap, level=level) for level in DOC_LEVELS)
+    if skill_block is not None:
+        text += skill_block.format(cap=cap)
+    return text
+
+
+# drift guard: the slice-1 literal and the assembled fixture must agree
+assert bar_toml() == SERVICE_TOML_BAR, "fixture drift: bar_toml() != SERVICE_TOML_BAR"
+
+
+def test_not_agent_operable_note_is_accepted(tmp_path):
+    """AC3: the explicit note is a first-class declared value — a capability
+    that genuinely can't be agent-driven records it INSTEAD of a skill
+    (no theater, ADR-0024 §1)."""
+    path = write_service_root(tmp_path, toml=bar_toml(skill_block=None, note="A physical panel."))
+    svc = load_service_toml(path)
+    bar = svc.capabilities[0].learning
+    assert bar.skill is None
+    assert bar.not_agent_operable == "A physical panel."
+    # the docs are still validated — the note replaces the skill, not the docs
+    assert len(bar.parsed_docs) == 4
+    assert bar.parsed_skill is None
+
+
+@pytest.mark.parametrize(
+    "toml,match",
+    [
+        # unknown key in the learning table
+        (bar_toml(learning_header="[svc.canary.learning]\nskillz = []\n\n"), "unknown key.*declares only"),
+        # docs required
+        (bar_toml(docs=False), "learning.docs` is required"),
+        # docs not a list (no [[docs]] blocks — the scalar+AoT coexistence is
+        # a TOML decode error; the loader must catch the bad TYPE first)
+        (
+            bar_toml(docs=False, learning_header='[svc.canary.learning]\ndocs = "docs/canary"\n\n'),
+            "docs.*must be a list of tables",
+        ),
+        # missing level — the bar is graded, all four
+        (
+            bar_toml() + DOCS_BLOCK.format(cap="canary", level="how-to-use"),
+            "declares `how-to-use` twice",
+        ),
+        (
+            bar_toml().replace(DOCS_BLOCK.format(cap="canary", level="going-further"), ""),
+            "missing level.*going-further",
+        ),
+        # unknown level token
+        (
+            bar_toml().replace('level = "how-to-use"', 'level = "basics"'),
+            "must be one of",
+        ),
+        # doc entry closed shape
+        (
+            bar_toml().replace(
+                DOCS_BLOCK.format(cap="canary", level="how-to-use"),
+                DOCS_BLOCK.format(cap="canary", level="how-to-use") + "surprise = 1\n\n",
+            ),
+            "docs\\[0\\].*unknown key",
+        ),
+        # paths: relative to the declaration's directory, no escapes
+        (
+            bar_toml().replace('path = "docs/canary/how-to-use.md"', 'path = "/etc/canary.md"'),
+            "relative to the declaration's directory",
+        ),
+        (
+            bar_toml().replace('path = "docs/canary/how-to-use.md"', 'path = "docs/../secrets.md"'),
+            "relative to the declaration's directory",
+        ),
+        # declared doc file missing on disk — no theater
+        (
+            bar_toml().replace('path = "docs/canary/how-to-use.md"', 'path = "docs/canary/absent.md"'),
+            "declares doc file not found",
+        ),
+        # both skill and note — a fake skill is theater
+        (
+            bar_toml(note="A physical panel."),
+            "declares both `skill` and `not-agent-operable`",
+        ),
+        # neither skill nor note
+        (bar_toml(skill_block=None), "declares neither `skill` nor"),
+        # the note must say something
+        (bar_toml(skill_block=None, note="   "), "must be a non-empty string"),
+        # skill entry closed shape
+        (
+            bar_toml(skill_block=SKILL_BLOCK + "slug = \"x\"\n"),
+            "a skill entry declares only: name, path",
+        ),
+        # skill slug grammar (ADR-0008's user-chosen name)
+        (
+            bar_toml(skill_block=SKILL_BLOCK.replace("drive-canary", "Drive Canary")),
+            "lowercase slug",
+        ),
+        # declared skill file missing on disk
+        (
+            bar_toml(skill_block=SKILL_BLOCK.format(cap="canary").replace('path = "skills/canary/SKILL.md"', 'path = "skills/absent/SKILL.md"')),
+            "declares skill file not found",
+        ),
+        # skill front-matter name must match the declared slug — no drift
+        (
+            bar_toml(skill_block=SKILL_BLOCK.replace("drive-canary", "drive-cap")),
+            "does not match the declared skill name",
+        ),
+    ],
+)
+def test_learning_declaration_rejections(tmp_path, toml, match):
+    path = write_service_root(tmp_path, toml=toml)
+    with pytest.raises(ServiceDeclarationError, match=match):
+        load_service_toml(path)
+
+
+def test_skill_names_must_be_unique_within_the_service(tmp_path):
+    """The authored registry entry is `<service>.skill.<name>` (ADR-0008) —
+    two capabilities declaring the same slug collide at the name authority;
+    the loader rejects it at load."""
+    other_head = (
+        SERVICE_TOML_HEAD[SERVICE_TOML_HEAD.index("[svc.canary]"):]
+        .replace("[svc.canary", "[svc.other")
+        .replace('api = "/v1/echo"', 'api = "/v1/other"')
+    )
+    other_bar = bar_toml(
+        learning_header="[svc.other.learning]\n\n",
+        cap="other",
+        skill_block=SKILL_BLOCK,
+        head=None,  # `other_head` already carries this capability's section
+    )
+    path = write_service_root(tmp_path, toml=bar_toml() + other_head + other_bar)
+    # the second capability's artifacts: same slug, its own honest files
+    write(tmp_path, "skills/other/SKILL.md", SKILL_MD)
+    for level in DOC_LEVELS:
+        write(
+            tmp_path, f"docs/other/{level}.md",
+            bar_doc_md(level, capability="other", title="Other"),
+        )
+    with pytest.raises(ServiceDeclarationError, match="unique within the service"):
+        load_service_toml(path)
+
+
+@pytest.mark.parametrize(
+    "override,match",
+    [
+        # front-matter delimiters
+        (lambda text: "\n".join(text.splitlines()[1:]), "must open with a `---`"),
+        (
+            lambda text: text[: text.index("mcp-tools: []\n") + len("mcp-tools: []\n")],
+            "not closed",
+        ),
+        # unknown front-matter key
+        (lambda text: text.replace("title: Echo", "title: Echo\nsurprise: x"), "unknown front-matter key"),
+        # title required
+        (lambda text: text.replace("title: Echo\n", ""), "front-matter `title` must be a non-empty string"),
+        # exactly one of capability/implementation
+        (lambda text: text.replace("capability: canary", "capability: canary\nimplementation: qwen3-4b"), "exactly one of `capability`"),
+        (lambda text: text.replace("capability: canary\n", ""), "exactly one of `capability`"),
+        # level token + drift between declaration and artifact
+        (lambda text: text.replace("level: how-to-use", "level: basics"), "`level` must be one of"),
+        (lambda text: text.replace("level: how-to-use", "level: how-it-works"), "does not match the declared level"),
+        # the doc names what it documents
+        (lambda text: text.replace("capability: canary", "capability: other"), "front-matter `capability` is 'other'"),
+        # keywords — the doc is indexed for agents too
+        (lambda text: text.replace("keywords:\n  - echo\n  - consent\n", "keywords: []\n"), "`keywords` must be a non-empty list"),
+        # the canonical section schema — exact, in order (ADR-0024 §1)
+        (lambda text: text.replace("## Details\n", "### Details\n"), "canonical section schema"),
+        (
+            lambda text: text.replace("## Details", "## TEMPTMP")
+            .replace("## See also", "## Details")
+            .replace("## TEMPTMP", "## See also"),
+            "canonical section schema",
+        ),
+        (lambda text: text.replace("## See also\n", "## See also\n\n## Extra\n"), "canonical section schema exactly"),
+        # the body opens with the human title
+        (lambda text: text.replace("# Echo\n", ""), "must open with a `# <title>` heading"),
+    ],
+)
+def test_doc_artifact_rejections(tmp_path, override, match):
+    level = "how-to-use"
+    path = write_service_root(
+        tmp_path, doc_overrides={level: override(bar_doc_md(level))}
+    )
+    with pytest.raises(ServiceDeclarationError, match=match):
+        load_service_toml(path)
+
+
+@pytest.mark.parametrize(
+    "skill,match",
+    [
+        # SKILL.md front-matter closed shape
+        (lambda text: text.replace("name: drive-canary", "name: drive-canary\nversion: 1"), "unknown front-matter key"),
+        # description — the registry entry's one-line summary
+        (
+            lambda text: text.replace(
+                "description: How an agent drives the canary capability — every operation, parameter and consent flag, over /mcp or /v1.\n", ""
+            ),
+            "front-matter `description` must be a non-empty string",
+        ),
+        # an empty body is a hollow artifact
+        (lambda text: "\n".join(text.splitlines()[:4]) + "\n", "empty body"),
+        # the SKILL.md name must be a slug
+        (lambda text: text.replace("name: drive-canary", "name: Drive Canary"), "front-matter `name` must be a lowercase slug"),
+    ],
+)
+def test_skill_artifact_rejections(tmp_path, skill, match):
+    path = write_service_root(tmp_path, skill_md=skill(SKILL_MD))
+    with pytest.raises(ServiceDeclarationError, match=match):
+        load_service_toml(path)
+

@@ -201,6 +201,7 @@ def load_service_toml(path: str | Path) -> Service:
     }
 
     capabilities = _parse_capability_sections(raw, name, Path(path).parent)
+    _reject_duplicate_skill_names(capabilities, name)
     return Service(
         name=name,
         description=description,
@@ -250,6 +251,27 @@ def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
         f" only: {', '.join(sorted(SERVICE_TOP_LEVEL_KEYS))} plus capability"
         f" sections `[{service_name}.<capability-name>]` (typos fail loudly, ADR-0031 §2)"
     )
+
+
+def _reject_duplicate_skill_names(
+    capabilities: tuple[Capability, ...], service_name: str
+) -> None:
+    """The how-an-agent-drives-me skill is a registry `skill` entry whose
+    authored name is `<service>.skill.<slug>` (ADR-0008) — two capabilities
+    declaring the same slug collide at the name authority; reject at load."""
+    seen: dict[str, str] = {}
+    for cap in capabilities:
+        if cap.learning is None or cap.learning.skill is None:
+            continue
+        slug = cap.learning.skill.name
+        if slug in seen:
+            raise ServiceDeclarationError(
+                f"capability `{cap.name}` declares skill {slug!r} — skill"
+                f" names must be unique within the service (the authored"
+                f" registry entry is `{service_name}.skill.{slug}`, already"
+                f" declared by `{seen[slug]}`; ADR-0008)"
+            )
+        seen[slug] = cap.name
 
 
 def _parse_capability_sections(
