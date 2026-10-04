@@ -553,8 +553,9 @@ def test_dependency_on_a_specific_implementation(tmp_path):
 def test_a_type_may_appear_several_times_and_parts_sum(tmp_path):
     """IMPORTANT (maintainer): each content-part type can appear multiple
     times — e.g. an implementation can use several models. Quantities sum
-    across every local part; storage-space contributes no requirements
-    (its quota is the user's choice, not a machine fit)."""
+    across every local part; a storage-space part contributes its
+    min-quota-gb (its disk requirement — the user's allocation may only
+    exceed it)."""
     body = valid_impl_toml().replace(
         """\
     [[dependencies]]
@@ -585,6 +586,7 @@ def test_a_type_may_appear_several_times_and_parts_sum(tmp_path):
     [llm.model.storage-space.cache]
     description = "Prompt/response cache storage."
     version = "0.1.0"
+    min-quota-gb = 1.0
     default-quota-gb = 2.0
 
     [[dependencies]]
@@ -602,13 +604,13 @@ def test_a_type_may_appear_several_times_and_parts_sum(tmp_path):
     small = impl.contents[1]
     assert small.huggingface == "https://huggingface.co/Qwen/Qwen3-0.6B"
     storage = impl.contents[2]
+    assert storage.min_quota_gb == 1.0
     assert storage.default_quota_gb == 2.0
-    assert storage.requirements is None
-    # sum across BOTH local-model parts + own
-    assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5 + 0.6)
+    assert storage.requirements.disk_gb == 1.0  # the minimum IS the part's disk requirement
+    # sum across BOTH local-model parts + own + the storage minimum
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5 + 0.6 + 1.0)
     assert impl.requirements.ram_gb == pytest.approx(0.3 + 0.2 + 0.1)
     assert impl.requirements.vram_gb == pytest.approx(3.2 + 0.6)
-    assert impl.is_cloud is False
 
 
 def test_cloud_parts_carry_privacy_tier_and_no_requirements(tmp_path):
@@ -623,7 +625,8 @@ def test_cloud_parts_carry_privacy_tier_and_no_requirements(tmp_path):
     assert part.requirements is None  # cloud parts declare no requirements
     # aggregation ignores cloud parts; only the own code remains
     assert impl.requirements.disk_gb == 0.2
-    assert impl.is_cloud is True
+    # all-cloud-parts — derivable from the part types (no is_cloud field)
+    assert all(p.type == "cloud-model" for p in impl.contents)
 
 
 def test_a_cloud_service_part(tmp_path):
@@ -645,7 +648,8 @@ def test_a_cloud_service_part(tmp_path):
     assert svc_part.service == "chat-completions"
     assert svc_part.privacy_tier == "cloud_no_data"
     assert svc_part.requirements is None
-    assert impl.is_cloud is False  # a local-model part is still present
+    # a local-model part is still present — the implementation is not cloud
+    assert any(p.type == "local-model" for p in impl.contents)
 
 
 def test_an_engine_part_declares_github_url(tmp_path):
@@ -1327,3 +1331,40 @@ def test_menu_hooks_are_closed(tmp_path):
     )
     with pytest.raises(ServiceDeclarationError, match="menu.*unknown key"):
         _svc_load(tmp_path, body)
+
+
+def test_storage_space_minimum_is_required(tmp_path):
+    body = valid_impl_toml() + (
+        "\n    [llm.model.storage-space.cache]\n"
+        '    description = "Cache storage."\n'
+        '    version = "0.1.0"\n'
+    )
+    with pytest.raises(ImplementationDeclarationError, match="min-quota-gb.*is required"):
+        _impl_load(tmp_path, body)
+
+
+def test_storage_space_default_may_not_undercut_the_minimum(tmp_path):
+    body = valid_impl_toml() + (
+        "\n    [llm.model.storage-space.cache]\n"
+        '    description = "Cache storage."\n'
+        '    version = "0.1.0"\n'
+        "    min-quota-gb = 2.0\n"
+        "    default-quota-gb = 1.0\n"
+    )
+    with pytest.raises(ImplementationDeclarationError, match="may not undercut"):
+        _impl_load(tmp_path, body)
+
+
+def test_storage_space_minimum_counts_in_aggregate_disk(tmp_path):
+    body = valid_impl_toml() + (
+        "\n    [llm.model.storage-space.cache]\n"
+        '    description = "Cache storage."\n'
+        '    version = "0.1.0"\n'
+        "    min-quota-gb = 3.0\n"
+    )
+    impl = _impl_load(tmp_path, body)
+    storage = impl.contents[-1]
+    assert storage.min_quota_gb == 3.0
+    assert storage.default_quota_gb is None  # a proposal, optional
+    # own 0.2 + local-model 2.5 + storage minimum 3.0
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5 + 3.0)

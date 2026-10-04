@@ -59,8 +59,11 @@ meet inside the service repo.
    (huggingface weights URL + artificial-analysis slug + objective facts +
    requirements) · `cloud-model` (provider/model ref + AA slug +
    `privacy-tier`; NO requirements — a cloud part consumes no machine) ·
-   `database` (github, requirements) · `storage-space`
-   (`default-quota-gb` proposal; the user's install-time choice binds) ·
+   `database` (github, requirements) · `storage-space` (a **required
+   `min-quota-gb`** — the minimum quota at install, included in the
+   implementation's aggregate disk requirement; an optional
+   `default-quota-gb` proposal, the user's install-time choice binds,
+   never below the minimum) ·
    `open-source-app` (github, requirements) · `cloud-service`
    (provider/service ref + privacy-tier; NO requirements). **The
    implementation's requirements are the sum/union** of its own

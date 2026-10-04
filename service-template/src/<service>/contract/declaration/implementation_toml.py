@@ -16,8 +16,10 @@ named `<capability>.<content-part-type>.<content-part-name>` (ADR-0031 §3):
   artificial-analysis slug + objective facts + requirements) · `cloud-model`
   (provider/model ref + AA slug + privacy-tier; NO requirements — a cloud
   part consumes no machine) · `database` (github, requirements) ·
-  `storage-space` (default-quota-gb proposal; the user's install-time
-  choice binds) · `open-source-app` (github, requirements) · `cloud-service`
+  `storage-space` (a required `min-quota-gb` — the minimum quota at
+  install, included in the implementation's aggregate disk requirement;
+  an optional `default-quota-gb` proposal — the user's install-time
+  choice binds, never below the minimum) · `open-source-app` (github, requirements) · `cloud-service`
   (provider/service ref + privacy-tier; NO requirements).
 - **aggregation**: the implementation's requirements are the **sum/union**
   of its own requirements and its parts' requirements (disk/ram/vram sum,
@@ -74,13 +76,14 @@ PART_TYPE_KEYS = {
     "local-model": ("huggingface", "artificial-analysis"),
     "cloud-model": ("provider", "model", "artificial-analysis", "privacy-tier"),
     "database": ("github",),
-    "storage-space": ("default-quota-gb",),
+    "storage-space": ("min-quota-gb", "default-quota-gb"),
     "open-source-app": ("github",),
     "cloud-service": ("provider", "service", "privacy-tier"),
 }
 
 # types that may declare [requirements] (cloud parts consume no machine;
-# a storage-space part's requirement IS its quota)
+# a storage-space part's requirement IS its minimum quota — the user's
+# install-time allocation is a maximum on top, never less than the minimum)
 PART_TYPES_WITH_REQUIREMENTS = frozenset(
     {"inference-engine", "local-model", "database", "open-source-app"}
 )
@@ -151,6 +154,7 @@ class ContentPart:
     service: str | None = None             # cloud-service (the provider's service id)
     privacy_tier: str | None = None         # cloud parts only (ADR-0006/0008)
     default_quota_gb: float | None = None   # storage-space proposal; the user's choice binds
+    min_quota_gb: float | None = None       # storage-space minimum — required; counts as the part's disk requirement
     facts: dict = field(default_factory=dict)     # model objective facts
     requirements: Requirements | None = None     # part requirements (cloud parts: None)
 
@@ -187,13 +191,6 @@ class Implementation:
     requirements: Requirements
     contents: tuple[ContentPart, ...]
     dependencies: tuple[Dependency, ...]
-
-    @property
-    def is_cloud(self) -> bool:
-        """True when every content part is a cloud part — the implementation
-        consumes no machine hardware (ADR-0031 §3: cloud parts declare no
-        requirements)."""
-        return bool(self.contents) and all(p.type in CLOUD_TYPES for p in self.contents)
 
 
 def load_implementation_toml(path: str | Path) -> Implementation:
@@ -506,6 +503,18 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
         object.__setattr__(part, "privacy_tier", _validate_privacy(spec, where))
 
     elif type_ == "storage-space":
+        # The minimum quota is REQUIRED and is the part's disk requirement —
+        # the implementation cannot install with less; the user's
+        # install-time allocation (a maximum, monitored and changeable
+        # later — ADR-0005 §8) may only exceed it. The default is a proposal.
+        min_quota = spec.get("min-quota-gb")
+        if not isinstance(min_quota, (int, float)) or isinstance(min_quota, bool) or min_quota <= 0:
+            raise _err(
+                f"`{where}.min-quota-gb` is required for a `storage-space` part"
+                " — a positive number: the minimum quota at install, included"
+                " in the implementation's aggregate disk requirement"
+                " (ADR-0031 §3)"
+            )
         quota = spec.get("default-quota-gb")
         if quota is not None and (
             not isinstance(quota, (int, float)) or isinstance(quota, bool) or quota < 0
@@ -514,8 +523,22 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
                 f"`{where}.default-quota-gb` must be a non-negative number — a"
                 " proposal; the user's install-time choice is the bound (ADR-0031 §3)"
             )
+        if quota is not None and float(quota) < float(min_quota):
+            raise _err(
+                f"`{where}.default-quota-gb` proposes {float(quota)} GB but"
+                f" `min-quota-gb` is {float(min_quota)} GB — the proposal may"
+                " not undercut the minimum"
+            )
+        object.__setattr__(part, "min_quota_gb", float(min_quota))
         if quota is not None:
             object.__setattr__(part, "default_quota_gb", float(quota))
+        # the part's requirement IS its minimum quota — flows into the
+        # implementation's aggregate disk requirement
+        object.__setattr__(
+            part,
+            "requirements",
+            Requirements(disk_gb=float(min_quota), ram_gb=0.0),
+        )
 
     if type_ in PART_TYPES_WITH_REQUIREMENTS:
         object.__setattr__(

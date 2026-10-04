@@ -46,7 +46,7 @@ def test_the_implementation_template_toml_is_valid():
     # aggregation: own + parts (sum/union)
     assert impl.requirements.disk_gb == pytest.approx(0.2 + part.facts["disk-gb"])
     assert impl.requirements.vram_gb == part.requirements.vram_gb
-    assert impl.is_cloud is False
+    assert any(p.type == "local-model" for p in impl.contents)  # not all-cloud
     assert impl.dependencies[0].capability == "llm.engine"
 
 

@@ -81,7 +81,10 @@ AVX2 = true
 # [llm.model.storage-space.cache]
 # description = "Prompt/response cache storage for this model."
 # version = "0.1.0"
-# default-quota-gb = 2.0          # a proposal; the user's install-time choice binds
+# min-quota-gb = 1.0            # REQUIRED — the minimum at install; counts
+#                               # in the implementation's aggregate disk
+# default-quota-gb = 2.0        # a proposal; the user's install-time choice
+#                               # binds (never below the minimum)
 
 # Generic dependencies (ADR-0031 §4): on a capability (any implementation
 # of it satisfies) or on a specific implementation (that one is required),
