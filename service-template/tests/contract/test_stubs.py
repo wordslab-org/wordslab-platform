@@ -286,11 +286,11 @@ def _engine_service(make_service, **engine_kwargs):
     """A service with the stub engine's family-shaped surface wired in — the
     construction every engine test shares."""
     engine = StubEngine(**engine_kwargs)
-    return engine, make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    return make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
 
 
 def test_the_stub_engine_serves_the_family_1_responses_shape(make_service):
-    _, svc = _engine_service(make_service)
+    svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.post("/v1/responses", json={"model": "stub-model", "input": "ping"})
     assert r.status_code == 200
@@ -316,7 +316,7 @@ def test_the_stub_engine_is_deterministic_and_offline():
 
 
 def test_the_stub_engine_serves_the_family_5_model_catalog(make_service):
-    _, svc = _engine_service(make_service)
+    svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.get("/v1/models")
     assert r.status_code == 200
@@ -332,7 +332,7 @@ def test_the_stub_engine_serves_the_family_5_model_catalog(make_service):
 
 
 def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
-    _, svc = _engine_service(make_service)
+    svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.post("/v1/embeddings", json={"model": "stub-model", "input": "ping"})
     assert r.status_code == 200
@@ -355,17 +355,18 @@ def test_the_stub_engine_honours_a_custom_catalog_and_embedding_dim(make_service
             "status": "available",
         }
     ]
-    _, svc = _engine_service(make_service, models=catalog, embedding_dim=4)
+    svc = _engine_service(make_service, model_name="tiny", models=catalog, embedding_dim=4)
     with svc.authorized() as c:
         models = c.get("/v1/models").json()["items"]
         embedded = c.post("/v1/embeddings", json={"input": "ping"}).json()
     assert [model["id"] for model in models] == ["tiny"]
+    assert embedded["model"] == "tiny"  # model_name drives the default model
     assert len(embedded["data"][0]["embedding"]) == 4
 
 
 def test_the_stub_engine_rejects_a_malformed_body(make_service):
     # Malformed JSON is a CLIENT error (base item 4), never an unhandled 500.
-    _, svc = _engine_service(make_service)
+    svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.post(
             "/v1/responses",
@@ -395,19 +396,27 @@ def test_the_stub_registry_resolves_a_call_reference_to_the_fake_endpoint(make_s
     assert collab.requests[-1]["payload"] == {"document": "bundle-1"}
 
 
-def test_the_stub_registry_resolves_call_model_and_agent_references():
+def test_the_stub_registry_resolves_call_model_and_agent_references(make_service):
     # ADR-0008 §7: one registry, one name→URL role — the three composition
-    # primitive kinds all resolve a stable name to the same endpoint, each
-    # reference recording the primitive that made it.
+    # primitive kinds all resolve a stable name to the same fake endpoint, and
+    # each reference dispatches there (the endpoint records every one).
+    collab = StubCollaborator()
     registry = StubRegistry()
-    registry.register("document.parse", "/v1/document/parse")
-    for primitive in COMPOSITION_PRIMITIVES:
-        reference = registry.resolve(primitive, "document.parse")
-        assert (reference.primitive, reference.name, reference.endpoint) == (
-            primitive,
-            "document.parse",
-            "/v1/document/parse",
-        )
+    registry.register("document.parse", collab.path)
+    svc = make_service(api_keys=["sk-correct"], extra_routes=[collab.route])
+    with svc.authorized() as c:
+        for primitive in COMPOSITION_PRIMITIVES:
+            reference = registry.resolve(primitive, "document.parse")
+            assert (reference.primitive, reference.name, reference.endpoint) == (
+                primitive,
+                "document.parse",
+                collab.path,
+            )
+            dispatched = c.post(reference.endpoint, json={"primitive": primitive})
+            assert dispatched.status_code == 200
+    assert [r["payload"]["primitive"] for r in collab.requests] == list(
+        COMPOSITION_PRIMITIVES
+    )
 
 
 def test_the_stub_registry_refuses_an_unknown_reference():

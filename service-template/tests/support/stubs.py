@@ -479,8 +479,9 @@ class StubRegistry:
 
     def register(self, name: str, endpoint: str) -> None:
         """Reserve a stable name → endpoint. The endpoint is the entry's
-        resolving reference, opaque to the registry (ADR-0008 §1: "a reference
-        to the owning service") — not a service's own `/v1/...` request path.
+        resolving reference — opaque to the registry (ADR-0008 §1: "a
+        reference to the owning service"), so no path shape is imposed here;
+        in a test it is typically a `StubCollaborator`'s `/v1/...` route path.
         A second claimant is refused: a name is reserved once (ADR-0008 §8)."""
         _validate_stable_name(name)
         if not isinstance(endpoint, str) or not endpoint:
