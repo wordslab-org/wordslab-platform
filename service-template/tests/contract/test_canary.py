@@ -195,6 +195,12 @@ def test_the_echo_page_carries_the_visible_private_secret_toggle_defaulting_to_m
     assert "private: false" in html  # the toggle STARTS in the may-use state
     assert "may_use" in html and "private_secret" in html  # it sends the real states
     assert ".consent-toggle" in css and ".consent-hint" in css  # styled, not bare
+    # The visibility bar, asserted block-scoped (round-1 + round-3 review):
+    # the .consent-toggle rule itself emphasizes the toggle — without some
+    # emphasis in its own block the toggle is a bare checkbox, not "very
+    # visible" (ADR-0026 §1).
+    toggle_block = css.split(".consent-toggle {", 1)[1].split("}", 1)[0]
+    assert "font-weight" in toggle_block
 
 
 def test_vendored_static_assets_are_served():

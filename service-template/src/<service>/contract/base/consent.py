@@ -46,7 +46,7 @@ def resolve_consent(value: object) -> str:
     )
 
 
-def input_consent(parsed) -> str:
+def input_consent(parsed: dict) -> str:
     """Resolve a user-input mapping's consent state (ADR-0026 §1 — the
     default rule lives ONCE, next to the states): an ABSENT flag takes the
     `may_use` default; a DECLARED mark — a state, an unknown value, or an

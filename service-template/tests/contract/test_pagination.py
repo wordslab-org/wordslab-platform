@@ -128,14 +128,16 @@ def test_paginate_extra_fields_ride_the_envelope():
         api_keys=["sk-correct"],
         extra_routes=[Route("/v1/things-extra", list_things_extra, methods=["GET"])],
     )
-    with svc.authorized() as c:
-        r = c.get("/v1/things-extra")
-    assert r.status_code == 200
-    body = r.json()
-    assert set(body) == {"items", "next_cursor", "excluded"}
-    assert body["excluded"] == {"unset": 1}  # rides the page, describes the whole collection
-    assert len(body["items"]) == 50
-    svc.close()
+    try:
+        with svc.authorized() as c:
+            r = c.get("/v1/things-extra")
+        assert r.status_code == 200
+        body = r.json()
+        assert set(body) == {"items", "next_cursor", "excluded"}
+        assert body["excluded"] == {"unset": 1}  # rides the page, describes the whole collection
+        assert len(body["items"]) == 50
+    finally:
+        svc.close()
 
 
 def test_paginate_extra_key_collision_fails_loudly():
@@ -143,17 +145,18 @@ def test_paginate_extra_key_collision_fails_loudly():
     fails loudly at request time (500 `internal_error`, item 4), never by
     silently replacing the envelope's own fields."""
     from contract.base.pagination import paginate
-    from starlette.requests import Request
+    from starlette.testclient import TestClient
     from starlette.routing import Route
 
     async def colliding(request):
         return paginate(request, THINGS, lambda t: str(t["id"]), extra={"items": []})
 
     app = create_service_app(service_name="x", version="1", api_keys=["k"], extra_routes=[Route("/v1/clash", colliding, methods=["GET"])])
-    from starlette.testclient import TestClient
-
     client = TestClient(app, raise_server_exceptions=False)
-    client.headers["Authorization"] = "Bearer k"
-    r = client.get("/v1/clash")
-    assert r.status_code == 500
-    assert r.json()["error"]["type"] == "internal_error"
+    try:
+        client.headers["Authorization"] = "Bearer k"
+        r = client.get("/v1/clash")
+        assert r.status_code == 500
+        assert r.json()["error"]["type"] == "internal_error"
+    finally:
+        client.close()

@@ -76,7 +76,7 @@ def paginate(request: Request, items: list, key_fn, extra: dict | None = None) -
     a key colliding with `items`/`next_cursor` is a template bug and fails
     loudly (the 500 `internal_error` handler picks it up, item 4).
     """
-    if extra:
+    if extra is not None:
         clash = set(extra) & {"items", "next_cursor"}
         if clash:
             raise ValueError(
@@ -97,5 +97,5 @@ def paginate(request: Request, items: list, key_fn, extra: dict | None = None) -
     has_more = start + limit < len(items)
     next_cursor = encode_cursor(str(key_fn(page[-1]))) if has_more else ""
     return JSONResponse(
-        {**(extra or {}), "items": page, "next_cursor": next_cursor}
+        {**(extra if extra is not None else {}), "items": page, "next_cursor": next_cursor}
     )
