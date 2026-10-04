@@ -282,9 +282,15 @@ def test_the_consent_gate_matcher_flags_an_extracted_item_outside_the_may_use_st
 # added (the family modules are #76–#84's deliverables; this stub serves them).
 
 
+def _engine_service(make_service, **engine_kwargs):
+    """A service with the stub engine's family-shaped surface wired in — the
+    construction every engine test shares."""
+    engine = StubEngine(**engine_kwargs)
+    return engine, make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+
+
 def test_the_stub_engine_serves_the_family_1_responses_shape(make_service):
-    engine = StubEngine()
-    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    _, svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.post("/v1/responses", json={"model": "stub-model", "input": "ping"})
     assert r.status_code == 200
@@ -310,8 +316,7 @@ def test_the_stub_engine_is_deterministic_and_offline():
 
 
 def test_the_stub_engine_serves_the_family_5_model_catalog(make_service):
-    engine = StubEngine()
-    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    _, svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.get("/v1/models")
     assert r.status_code == 200
@@ -327,8 +332,7 @@ def test_the_stub_engine_serves_the_family_5_model_catalog(make_service):
 
 
 def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
-    engine = StubEngine()
-    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    _, svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.post("/v1/embeddings", json={"model": "stub-model", "input": "ping"})
     assert r.status_code == 200
@@ -340,10 +344,28 @@ def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
     assert "usage" in body
 
 
+def test_the_stub_engine_honours_a_custom_catalog_and_embedding_dim(make_service):
+    catalog = [
+        {
+            "id": "tiny",
+            "supported": True,
+            "recommended": False,
+            "downloaded": True,
+            "size_gb": 0.2,
+            "status": "available",
+        }
+    ]
+    _, svc = _engine_service(make_service, models=catalog, embedding_dim=4)
+    with svc.authorized() as c:
+        models = c.get("/v1/models").json()["items"]
+        embedded = c.post("/v1/embeddings", json={"input": "ping"}).json()
+    assert [model["id"] for model in models] == ["tiny"]
+    assert len(embedded["data"][0]["embedding"]) == 4
+
+
 def test_the_stub_engine_rejects_a_malformed_body(make_service):
     # Malformed JSON is a CLIENT error (base item 4), never an unhandled 500.
-    engine = StubEngine()
-    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    _, svc = _engine_service(make_service)
     with svc.authorized() as c:
         r = c.post(
             "/v1/responses",
@@ -413,6 +435,8 @@ def test_the_stub_registry_rejects_a_malformed_stable_name():
         StubRegistry().register("document", "/v1/document")
 
 
-def test_the_stub_registry_rejects_a_non_v1_endpoint():
-    with pytest.raises(ValueError, match="under /v1"):
-        StubRegistry().register("document.parse", "/document/parse")
+def test_the_stub_registry_rejects_an_empty_endpoint():
+    # The entry's endpoint is its resolving reference (ADR-0008 §1) — never
+    # empty.
+    with pytest.raises(ValueError, match="resolving reference"):
+        StubRegistry().register("document.parse", "")

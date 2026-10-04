@@ -21,7 +21,8 @@ system — spec #68 Implementation Decisions):
   service's contract behavior is assertable without a real engine;
 - `StubRegistry` + `ResolvedReference` — the fake capability registry (the
   name→URL resolver, ADR-0008 §7) that `call`/`model`/`agent` composition
-  references resolve against, each pointing at a `StubCollaborator` endpoint.
+  references resolve against, each to the fake endpoint registered under its
+  stable name (typically a `StubCollaborator`'s path).
 
 Test-side only: production code never imports this module (spec #68). The
 response-shape checking is NOT duplicated here: the matchers reuse the
@@ -261,7 +262,16 @@ def stub_consent_gate_violations(extracted: list, recorded: list) -> list[str]:
 # The composition primitive kinds a reference can carry (ADR-0007 §3): `call`
 # = a service capability, `model` = a raw model call, `agent` = run a native
 # agent to completion. The other primitives (`subworkflow`/`delay`/`event`/
-# `user_input`) are not service references, so they never reach the registry.
+# `user_input`) are not service references, so they never reach the resolver.
+#
+# Of the three, `call` (a service capability) and `agent` (an agent entry) are
+# registry entries the name→URL resolver serves (ADR-0008 §2/§7); `model` is
+# NOT a registry entry — ADR-0008 §2 keeps models out ("models are never
+# entries"); a `model(...)` reference names an explicit implementation choice
+# (ADR-0007 §10) whose surface is the Responses API (ADR-0007 §5). The stub
+# resolves all three kinds uniformly so a composition test can assert dispatch
+# without the real collaborator (spec #68 story 4); the `model` primitive's
+# exact resolution path is an open question flagged on ticket #73.
 COMPOSITION_PRIMITIVES = ("call", "model", "agent")
 
 
@@ -468,13 +478,14 @@ class StubRegistry:
         self._endpoints: dict[str, str] = {}
 
     def register(self, name: str, endpoint: str) -> None:
-        """Reserve a stable name → endpoint (a full `/v1/...` contract path,
-        base item 3). A second claimant is refused — a name is reserved once
-        (ADR-0008 §8)."""
+        """Reserve a stable name → endpoint. The endpoint is the entry's
+        resolving reference, opaque to the registry (ADR-0008 §1: "a reference
+        to the owning service") — not a service's own `/v1/...` request path.
+        A second claimant is refused: a name is reserved once (ADR-0008 §8)."""
         _validate_stable_name(name)
-        if not endpoint.startswith("/v1/"):
+        if not isinstance(endpoint, str) or not endpoint:
             raise ValueError(
-                "The endpoint is a full contract path under /v1 (base item 3)."
+                "The endpoint is the entry's resolving reference (ADR-0008 §1)."
             )
         if name in self._endpoints:
             raise ValueError(
