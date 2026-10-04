@@ -464,9 +464,7 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
 
     elif type_ == "cloud-model":
         for key in ("provider", "model", "artificial-analysis"):
-            value = spec.get(key)
-            if not isinstance(value, str) or not value.strip():
-                raise _err(f"`{where}.{key}` is required for a `cloud-model` part")
+            _req_str(key)
         object.__setattr__(part, "provider", spec["provider"])
         object.__setattr__(part, "model", spec["model"])
         object.__setattr__(part, "artificial_analysis", spec["artificial-analysis"])
@@ -475,9 +473,7 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
 
     elif type_ == "cloud-service":
         for key in ("provider", "service"):
-            value = spec.get(key)
-            if not isinstance(value, str) or not value.strip():
-                raise _err(f"`{where}.{key}` is required for a `cloud-service` part")
+            _req_str(key)
         object.__setattr__(part, "provider", spec["provider"])
         object.__setattr__(part, "service", spec["service"])
         object.__setattr__(part, "privacy_tier", _validate_privacy(spec, where))
