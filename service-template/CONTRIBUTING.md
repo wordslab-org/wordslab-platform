@@ -130,7 +130,7 @@ declaration.
 
 ## What is not in these templates yet
 
-The vendored conformance suite (#70), the canary capability (#71), the
-consent-flag template contract (#72), the stub patterns (#73), and the nine
-family modules (#76–#84) arrive as their own stage-0 tickets on top of this
-base. The installer contract for `install/` recipes is #65's concern.
+The vendored conformance suite (#70), the consent-flag template contract
+(#72), the stub patterns (#73), and the nine family modules (#76–#84) arrive
+as their own stage-0 tickets on top of this base. The installer contract for
+`install/` recipes is #65's concern.

@@ -13,6 +13,8 @@ Slices, one per red→green cycle:
   3. /echo — the human surface.
 """
 
+from pathlib import Path
+
 from tests.support.test_server import InProcessService
 
 
@@ -27,8 +29,15 @@ def test_openapi_doc_is_served_at_openapi_json():
     assert r.status_code == 200
     doc = r.json()
     assert doc["openapi"].startswith("3.1")
-    assert doc["info"]["title"] == "template-service"
-    assert doc["info"]["version"]
+    # The service identity flows from the declaration, not from literals:
+    # the copy-to-start ritual renames it (ticket #71).
+    from contract.declaration import load_service_toml
+
+    declaration = load_service_toml(
+        Path(__file__).resolve().parents[2] / "service.toml"
+    )
+    assert doc["info"]["title"] == declaration.name
+    assert doc["info"]["version"] == declaration.version
 
 
 def test_openapi_doc_carries_the_canary_operations():
@@ -82,8 +91,13 @@ def test_mcp_initialize_returns_the_service_identity():
     assert r.status_code == 200
     result = r.json()["result"]
     assert result["protocolVersion"].startswith("2025-")
-    assert result["serverInfo"]["name"] == "template-service"
-    assert result["serverInfo"]["version"]
+    from contract.declaration import load_service_toml
+
+    declaration = load_service_toml(
+        Path(__file__).resolve().parents[2] / "service.toml"
+    )
+    assert result["serverInfo"]["name"] == declaration.name
+    assert result["serverInfo"]["version"] == declaration.version
     assert "tools" in result["capabilities"]
 
 

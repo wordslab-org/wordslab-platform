@@ -17,11 +17,24 @@ from contract.declaration import load_implementation_toml, load_service_toml
 
 SERVICE_TEMPLATE = Path(__file__).resolve().parents[2]
 REPO_ROOT = SERVICE_TEMPLATE.parent
+IMPLEMENTATION_TEMPLATE = REPO_ROOT / "implementation-template"
+
+# The implementation-template assertions are TEMPLATE-REPO facts: they read
+# the sibling `implementation-template/` directory, which does not travel
+# with a copied service (the copy-to-start ritual copies `service-template/`
+# alone). Running inside a copied service they skip — the template's own
+# suite stays green out of the box (ticket #71's acceptance).
+requires_sibling_template = pytest.mark.skipif(
+    not IMPLEMENTATION_TEMPLATE.is_dir(),
+    reason="running inside a copied service — `implementation-template/` is a template-repo artifact",
+)
 
 
 def test_the_service_template_own_service_toml_is_valid():
     svc = load_service_toml(SERVICE_TEMPLATE / "service.toml")
-    assert svc.name == "template-service"
+    # Identity is DATA (the declaration); the suite is identity-agnostic so
+    # the copy-to-start ritual's rename keeps it green (ticket #71).
+    assert svc.name
     assert svc.version
     assert svc.description
     assert svc.requirements["disk-gb"] > 0
@@ -34,6 +47,7 @@ def test_the_service_template_own_service_toml_is_valid():
     assert canary.ui_menu[0].entry == "/echo"
 
 
+@requires_sibling_template
 def test_the_implementation_template_toml_is_valid():
     """The copy-per-implementation skeleton validates through the same
     loader a contributor's copied file will use."""
@@ -63,10 +77,10 @@ def test_no_service_implementation_toml_in_the_service_template():
 
 
 def test_no_supported_recommended_or_ranks_keys_in_template_declarations():
-    for path in (
-        SERVICE_TEMPLATE / "service.toml",
-        REPO_ROOT / "implementation-template" / "implementation.toml",
-    ):
+    paths = [SERVICE_TEMPLATE / "service.toml"]
+    if IMPLEMENTATION_TEMPLATE.is_dir():
+        paths.append(IMPLEMENTATION_TEMPLATE / "implementation.toml")
+    for path in paths:
         text = path.read_text()
         for key in ("supported", "recommended", "ranks"):
             assert not any(
