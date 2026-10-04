@@ -46,6 +46,17 @@ def resolve_consent(value: object) -> str:
     )
 
 
+def input_consent(parsed) -> str:
+    """Resolve a user-input mapping's consent state (ADR-0026 §1 — the
+    default rule lives ONCE, next to the states): an ABSENT flag takes the
+    `may_use` default; a DECLARED mark — a state, an unknown value, or an
+    explicit `null` — goes through `resolve_consent` (ValueError, which the
+    caller turns into 400 `invalid_request`)."""
+    if "consent" in parsed:
+        return resolve_consent(parsed["consent"])
+    return DEFAULT_CONSENT
+
+
 def consent_gate(interactions) -> tuple[list[dict], dict[str, int]]:
     """Filter = the consent gate (ADR-0026 §2 pass 1): the eligibility pass
     every extraction surface applies before anything leaves the user sphere.

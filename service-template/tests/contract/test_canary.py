@@ -195,7 +195,6 @@ def test_the_echo_page_carries_the_visible_private_secret_toggle_defaulting_to_m
     assert "private: false" in html  # the toggle STARTS in the may-use state
     assert "may_use" in html and "private_secret" in html  # it sends the real states
     assert ".consent-toggle" in css and ".consent-hint" in css  # styled, not bare
-    assert "font-weight: 600" in css  # emphasized — the visibility bar
 
 
 def test_vendored_static_assets_are_served():

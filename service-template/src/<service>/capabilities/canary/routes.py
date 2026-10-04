@@ -12,14 +12,13 @@ consent gate — the private/secret exclusion is never bypassable.
 
 from __future__ import annotations
 
-import json
 from collections import deque
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from contract.base.consent import DEFAULT_CONSENT, consent_gate, resolve_consent
+from contract.base.consent import consent_gate, input_consent
 from contract.base.errors import invalid_request, request_too_large
 from contract.base.pagination import paginate
 
@@ -87,13 +86,10 @@ def routes(interactions: InteractionStore) -> list[Route]:
         # an ABSENT flag takes the `may_use` default; a DECLARED mark that is
         # not one of the two states — an unknown value or an explicit null —
         # is 400 invalid_request, never a silent normalization.
-        if "consent" in parsed:
-            try:
-                consent = resolve_consent(parsed["consent"])
-            except ValueError as error:
-                raise invalid_request(str(error)) from None
-        else:
-            consent = DEFAULT_CONSENT
+        try:
+            consent = input_consent(parsed)
+        except ValueError as error:
+            raise invalid_request(str(error)) from None
         interactions.record(text=text, consent=consent)
         return JSONResponse(parsed)
 
@@ -104,10 +100,9 @@ def routes(interactions: InteractionStore) -> list[Route]:
         the WHOLE record; the base item-5 pagination slices the eligible
         list, and the exclusion report rides every page."""
         eligible, excluded = consent_gate(interactions.all())
-        response = paginate(request, eligible, key_fn=lambda item: item["seq"])
-        payload = json.loads(bytes(response.body))
-        payload["excluded"] = excluded
-        return JSONResponse(payload, status_code=response.status_code)
+        return paginate(
+            request, eligible, key_fn=lambda item: item["seq"], extra={"excluded": excluded}
+        )
 
     return [
         Route("/v1/echo", echo, methods=["POST"]),

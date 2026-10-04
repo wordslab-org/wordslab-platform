@@ -66,12 +66,22 @@ def parse_limit(request: Request) -> int:
     return min(limit, MAX_LIMIT)
 
 
-def paginate(request: Request, items: list, key_fn) -> JSONResponse:
+def paginate(request: Request, items: list, key_fn, extra: dict | None = None) -> JSONResponse:
     """Slice `items` for this request and return the contract envelope.
 
     `items` must be in their stable order; `key_fn(item)` gives each item's
-    unique, order-stable key (the cursor's anchor).
+    unique, order-stable key (the cursor's anchor). `extra` top-level fields
+    ride the envelope on every page (an extraction surface's exclusion
+    report, ticket #72 — they describe the whole collection, not the page);
+    a key colliding with `items`/`next_cursor` is a template bug and fails
+    loudly (the 500 `internal_error` handler picks it up, item 4).
     """
+    if extra:
+        clash = set(extra) & {"items", "next_cursor"}
+        if clash:
+            raise ValueError(
+                f"extra envelope fields collide with the item-5 keys: {sorted(clash)}"
+            )
     limit = parse_limit(request)
     cursor = request.query_params.get("cursor")
     if cursor:
@@ -86,4 +96,6 @@ def paginate(request: Request, items: list, key_fn) -> JSONResponse:
     page = items[start : start + limit]
     has_more = start + limit < len(items)
     next_cursor = encode_cursor(str(key_fn(page[-1]))) if has_more else ""
-    return JSONResponse({"items": page, "next_cursor": next_cursor})
+    return JSONResponse(
+        {**(extra or {}), "items": page, "next_cursor": next_cursor}
+    )

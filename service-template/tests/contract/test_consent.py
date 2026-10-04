@@ -208,3 +208,21 @@ def test_the_consent_gate_excludes_an_unset_interaction_fail_closed():
     )
     assert [i["text"] for i in eligible] == ["ok"]
     assert excluded == {"unset": 1, "private_secret": 1}
+
+
+def test_input_consent_applies_the_default_only_for_an_absent_flag():
+    """The ADR-0026 §1 default rule lives ONCE (review round 2): an absent
+    flag → the may-use default; a declared mark — a state, an unknown value,
+    or an explicit null — → resolve_consent (ValueError → the caller's 400
+    invalid_request)."""
+    import pytest
+
+    from contract.base.consent import input_consent
+
+    assert input_consent({"text": "x"}) == MAY_USE
+    assert input_consent({"text": "x", "consent": PRIVATE_SECRET}) == PRIVATE_SECRET
+    assert input_consent({"text": "x", "consent": MAY_USE}) == MAY_USE
+    with pytest.raises(ValueError):
+        input_consent({"consent": None})
+    with pytest.raises(ValueError):
+        input_consent({"consent": "sure-why-not"})

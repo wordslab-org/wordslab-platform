@@ -115,7 +115,7 @@ openapi_fragment = {
                     {
                         "name": "limit",
                         "in": "query",
-                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                        "schema": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200},
                         "description": "Page size (base contract item 5).",
                     },
                     {

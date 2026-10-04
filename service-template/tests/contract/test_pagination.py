@@ -108,3 +108,52 @@ def test_create_service_app_mounts_extra_routes_under_v1():
     # Sanity for the factory's /v1 mounting, independent of pagination.
     app = create_service_app(service_name="x", version="1", api_keys=["k"], extra_routes=[])
     assert any(getattr(r, "path", "") == "/v1" for r in app.routes)
+
+
+# --- extra envelope fields (ticket #72 review round 2: an extraction
+# --- surface stitches its exclusion report into the item-5 envelope without
+# --- a serialize→re-parse round-trip through the response object).
+
+
+async def list_things_extra(request):
+    from contract.base.pagination import paginate
+
+    return paginate(request, THINGS, lambda t: str(t["id"]), extra={"excluded": {"unset": 1}})
+
+
+def test_paginate_extra_fields_ride_the_envelope():
+    from starlette.routing import Route
+
+    svc = InProcessService(
+        api_keys=["sk-correct"],
+        extra_routes=[Route("/v1/things-extra", list_things_extra, methods=["GET"])],
+    )
+    with svc.authorized() as c:
+        r = c.get("/v1/things-extra")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"items", "next_cursor", "excluded"}
+    assert body["excluded"] == {"unset": 1}  # rides the page, describes the whole collection
+    assert len(body["items"]) == 50
+    svc.close()
+
+
+def test_paginate_extra_key_collision_fails_loudly():
+    """An extra field colliding with the item-5 keys is a template bug — it
+    fails loudly at request time (500 `internal_error`, item 4), never by
+    silently replacing the envelope's own fields."""
+    from contract.base.pagination import paginate
+    from starlette.requests import Request
+    from starlette.routing import Route
+
+    async def colliding(request):
+        return paginate(request, THINGS, lambda t: str(t["id"]), extra={"items": []})
+
+    app = create_service_app(service_name="x", version="1", api_keys=["k"], extra_routes=[Route("/v1/clash", colliding, methods=["GET"])])
+    from starlette.testclient import TestClient
+
+    client = TestClient(app, raise_server_exceptions=False)
+    client.headers["Authorization"] = "Bearer k"
+    r = client.get("/v1/clash")
+    assert r.status_code == 500
+    assert r.json()["error"]["type"] == "internal_error"
