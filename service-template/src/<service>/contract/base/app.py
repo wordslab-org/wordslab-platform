@@ -10,6 +10,7 @@ UI pages via `ui_routes` — they do not modify this file.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any, Callable
 
 from starlette.applications import Starlette
@@ -68,6 +69,7 @@ def create_service_app(
     extra_routes: list[Route | Mount] | None = None,
     ui_routes: list[Route | Mount] | None = None,
     openapi_doc: dict | None = None,
+    mcp: bool = False,
     idempotency_store=None,
 ) -> Starlette:
     """Build the template service app embodying the base contract.
@@ -75,11 +77,34 @@ def create_service_app(
     - items 2/4/7: auth, error taxonomy, idempotency via middleware
     - item 3: `extra_routes` mount at `/v1`
     - item 6: `/health` from the given status/resources/models
-    - item 1/9: `openapi_doc` served at `/openapi.json`; `ui_routes` are the
-      capabilities' human-surface pages mounted at their own top-level
-      paths (`/echo`, `/static/...` — outside `/v1`, Bearer-gated like
-      everything but `/health`)
+    - item 1/9: `openapi_doc` served at `/openapi.json`; with `mcp=True` the
+      same document drives the stateless MCP surface at `/mcp` (tools
+      auto-generated from it — the document is the single source of truth);
+      `ui_routes` are the capabilities' human-surface pages mounted at their
+      own top-level paths (`/echo`, `/static/...` — outside `/v1`,
+      Bearer-gated like everything but `/health`)
     """
+
+    holder: dict = {}
+
+    mcp_surface = None
+    if mcp and openapi_doc is not None:
+        from .mcp import McpSurface
+
+        mcp_surface = McpSurface(
+            openapi_doc=openapi_doc,
+            dispatch_app=lambda: holder["app"],  # late-bound: the app mounts /mcp itself
+            server_name=service_name,
+            server_version=version,
+        )
+
+    @contextlib.asynccontextmanager
+    async def _lifespan(app):
+        if mcp_surface is not None:
+            async with mcp_surface.run():
+                yield
+        else:
+            yield
 
     async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
         return JSONResponse(exc.body(request.state.request_id), status_code=exc.status)
@@ -117,12 +142,15 @@ def create_service_app(
     ]
     if openapi_doc is not None:
         top_level_routes.append(Route("/openapi.json", _openapi_endpoint(openapi_doc), methods=["GET"]))
-    return Starlette(
+    if mcp_surface is not None:
+        top_level_routes.append(mcp_surface.mount())
+    app = Starlette(
         routes=[
             *top_level_routes,
             Mount("/v1", Router(routes=_under_v1(extra_routes or []))),
             *(ui_routes or []),
         ],
+        lifespan=_lifespan,
         middleware=[
             Middleware(RequestIdMiddleware),
             Middleware(AuthMiddleware, api_keys=frozenset(api_keys)),
@@ -136,3 +164,5 @@ def create_service_app(
             Exception: unhandled_error_handler,
         },
     )
+    holder["app"] = app  # late binding: the MCP surface re-enters this app
+    return app

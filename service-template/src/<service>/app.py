@@ -69,5 +69,6 @@ def create_app(
         extra_routes=[*canary.routes, *(extra_routes or [])],
         ui_routes=canary.ui_routes(name, version_),
         openapi_doc=openapi_doc,
+        mcp=True,
         idempotency_store=idempotency_store,
     )
