@@ -138,8 +138,8 @@ declaration.
 
 ## What is not in these templates yet
 
-The vendored conformance suite (#70) and the base-contract stub-factory
-(`tests/support/stubs.py`) are in; the canary capability (#71), the
+The vendored conformance suite (#70), the canary capability (#71), and the
+base-contract stub-factory (`tests/support/stubs.py`) are in; the
 consent-flag template contract (#72), the composition stub patterns —
 stub-engine and stub-collaborator resolution (#73) — and the nine family
 modules with their full conformance blocks (#76–#84) arrive as their own

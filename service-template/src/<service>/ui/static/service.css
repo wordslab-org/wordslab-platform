@@ -1,0 +1,41 @@
+/* The template's minimal design tokens (ADR-0002 §4 — one product look;
+   the shared UI kit arrives as its own template ticket and replaces this). */
+
+:root {
+  --wl-muted: var(--pico-muted-color, #6b7280);
+  --wl-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+main.container {
+  max-width: 44rem;
+}
+
+.muted {
+  color: var(--wl-muted);
+  font-weight: normal;
+  font-size: 0.75em;
+}
+
+.echo-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.echo-form input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.echo-result {
+  background: var(--pico-card-background-color, #f8f9fa);
+  border-radius: 0.4rem;
+  padding: 1rem;
+  font-family: var(--wl-mono);
+  white-space: pre-wrap;
+}
+
+.echo-error {
+  color: var(--pico-danger, #b91c1c);
+  font-family: var(--wl-mono);
+}

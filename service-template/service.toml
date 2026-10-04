@@ -21,25 +21,19 @@ version = "0.1.0"
 disk-gb = 0.01
 ram-gb = 0.05
 
-# The per-capability documentation sections. The template ships none yet:
-# the canary capability arrives with ticket #71. Each section is named
-# [<service-name>.<capability-name>] and holds the FULL capability
-# documentation: description, version, the api description entry point,
-# a short description of the api functions, the versions history, and the
-# UI hooks to integrate in the general platform dashboard. Example (when
-# #71 lands) — uncomment in place:
-#
-# [template-service.canary]
-# description = "The template's proof capability."
-# version = "0.1.0"
-# api = "/v1/echo"
-# api-functions = "POST /v1/echo — returns the request body; GET /v1/echo/ping — returns pong."
-# versions-history = "0.1.0 — initial canary (ticket #71)."
-# required = false
-#
-# [template-service.canary.ui]
-# description = "A single Echo page echoing text input."
-# versions-history = "0.1.0 — initial Echo page."
-# menu = [
-#   { label = "Echo", entry = "/echo" },
-# ]
+# The per-capability documentation sections. The canary is the template's
+# proof capability (ticket #71) — a real service replaces it with its own.
+[template-service.canary]
+description = "The template's proof capability — echo, wired to all three callable surfaces."
+version = "0.1.0"
+api = "/v1/echo"
+api-functions = "POST /v1/echo — returns the request body; GET /v1/echo/ping — returns pong."
+versions-history = "0.1.0 — initial canary (ticket #71)."
+required = false
+
+[template-service.canary.ui]
+description = "A single Echo page echoing text input (FastHTML + Alpine, vendored assets)."
+versions-history = "0.1.0 — initial Echo page."
+menu = [
+  { label = "Echo", entry = "/echo" },
+]
