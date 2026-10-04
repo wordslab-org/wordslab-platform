@@ -28,6 +28,7 @@ from fasthtml.common import (
     Head,
     Html,
     Input,
+    Label,
     Link,
     Main,
     P,
@@ -47,13 +48,14 @@ from starlette.staticfiles import StaticFiles
 STATIC_DIR = Path(__file__).resolve().parents[2] / "ui" / "static"
 
 _ECHO_FORM_ALPINE = (
-    "{text: '', busy: false, result: null, error: null, "
+    "{text: '', private: false, busy: false, result: null, error: null, "
     "async submit() {"
     "this.busy = true; this.error = null;"
     "try {"
     "const r = await fetch('/v1/echo', {method: 'POST',"
     "headers: {'Content-Type': 'application/json'},"
-    "body: JSON.stringify({text: this.text})});"
+    "body: JSON.stringify({text: this.text, "
+    "consent: this.private ? 'private_secret' : 'may_use'})});"
     "this.result = await r.json();"
     "} catch (e) { this.error = e; }"
     "finally { this.busy = false; }"
@@ -89,6 +91,26 @@ def echo_page(service_name: str, version: str) -> HTMLResponse:
                     Button("Echo", type="submit", **{":disabled": "busy"}),
                     cls="echo-form",
                     **{"x-data": _ECHO_FORM_ALPINE, "@submit.prevent": "submit()"},
+                ),
+                # The consent toggle rides every user input (ADR-0026 §1,
+                # ticket #72): per-interaction consent defaults to "may use
+                # for improvement"; the private/secret state is the very
+                # visible, one-gesture-away opt-out — never a hidden
+                # heuristic, never bypassable in the extraction surface.
+                Div(
+                    Label(
+                        Input(type="checkbox", x_model="private"),
+                        "private/secret — do not use",
+                        cls="consent-toggle",
+                    ),
+                    Small(
+                        "Unchecked (the default): this input may use for improvement — "
+                        "it stays eligible for extraction, which always applies the "
+                        "consent gate (private/secret excluded) + anonymization. "
+                        "Checked: never used, never extractable.",
+                        cls="muted consent-hint",
+                    ),
+                    cls="consent",
                 ),
                 Div(
                     Pre(

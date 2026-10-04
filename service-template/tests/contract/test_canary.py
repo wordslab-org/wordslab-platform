@@ -45,7 +45,7 @@ def test_openapi_doc_carries_the_canary_operations():
     with svc.authorized() as c:
         doc = c.get("/openapi.json").json()
     paths = doc["paths"]
-    assert set(paths) == {"/v1/echo", "/v1/echo/ping"}
+    assert set(paths) == {"/v1/echo", "/v1/echo/extract", "/v1/echo/ping"}
     post = paths["/v1/echo"]["post"]
     get = paths["/v1/echo/ping"]["get"]
     assert post["operationId"] == "echo"
@@ -176,6 +176,22 @@ def test_echo_page_drives_the_deterministic_surface_and_vendors_assets():
     assert "htmx" not in html.lower()
     lowered = html.lower()
     assert "cdn." not in lowered and "://unpkg" not in lowered and "://jsdelivr" not in lowered
+
+
+def test_the_echo_page_carries_the_visible_private_secret_toggle_defaulting_to_may_use():
+    """Every user input surface carries the consent flag with the default
+    may-use state and a VERY visible 'private/secret — do not use' toggle
+    (ADR-0026 §1, ticket #72 AC1) — and the page drives the same API with it
+    (no duplicate logic)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        html = c.get("/echo").text
+    lowered = html.lower()
+    assert "private/secret" in lowered  # the ADR's toggle wording, visible
+    assert "do not use" in lowered
+    assert "may use" in lowered  # the default state is explained, not assumed
+    assert "private: false" in html  # the toggle STARTS in the may-use state
+    assert "may_use" in html and "private_secret" in html  # it sends the real states
 
 
 def test_vendored_static_assets_are_served():

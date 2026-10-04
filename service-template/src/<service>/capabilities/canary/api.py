@@ -44,6 +44,22 @@ openapi_fragment = {
                         "application/json": {
                             "schema": {
                                 "type": "object",
+                                # The consent flag rides every user input
+                                # (ADR-0026 §1, ticket #72): two states, the
+                                # `may_use` default. The MCP surface inherits
+                                # this schema — zero drift by construction.
+                                "properties": {
+                                    "consent": {
+                                        "type": "string",
+                                        "enum": ["may_use", "private_secret"],
+                                        "default": "may_use",
+                                        "description": (
+                                            "The interaction's consent state (ADR-0026 §1): "
+                                            "'may_use' (the default — eligible for improvement "
+                                            "extraction) or 'private_secret' — do not use."
+                                        ),
+                                    },
+                                },
                                 "additionalProperties": True,
                             }
                         }
@@ -71,6 +87,58 @@ openapi_fragment = {
                     },
                     "413": {
                         "description": "Body over the canary's echo limit.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                },
+            }
+        },
+        "/v1/echo/extract": {
+            "get": {
+                "operationId": "echo.extract",
+                "summary": "Extract the canary's interactions through the consent gate.",
+                "description": (
+                    "The canary's extraction surface (ticket #72, ADR-0026 §2 pass 1): "
+                    "only 'may_use' interactions are eligible to pass; private/secret "
+                    "and unset interactions are excluded and reported, never bypassed."
+                ),
+                "responses": {
+                    "200": {
+                        "description": "The eligible interactions and the exclusion report.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["interactions", "excluded"],
+                                    "properties": {
+                                        "interactions": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["text", "consent"],
+                                                "properties": {
+                                                    "text": {},
+                                                    "consent": {
+                                                        "type": "string",
+                                                        "enum": ["may_use"],
+                                                    },
+                                                },
+                                            },
+                                        },
+                                        "excluded": {
+                                            "type": "object",
+                                            "description": (
+                                                "Excluded-interaction counts by consent "
+                                                "state ('private_secret' / 'unset')."
+                                            ),
+                                            "additionalProperties": {"type": "integer"},
+                                        },
+                                    },
+                                }
+                            }
+                        },
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer key.",
                         "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
                     },
                 },
