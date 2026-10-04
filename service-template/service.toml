@@ -1,0 +1,45 @@
+# The service declaration (ADR-0002 §5, shape v3 per ADR-0031 §2).
+# The copy-to-start ritual edits this file (service-template/CONTRIBUTING.md
+# step 3).
+#
+# A service is a set of capabilities. Layout: the service's own properties
+# first, then one documentation section per capability, named
+# [<service-name>.<capability-name>]. This file is DATA read at
+# startup/install/catalog-build (ticket #74's `load_service_toml`).
+# API families are NOT declared — the capabilities' APIs implement
+# ADR-0001's family contracts; their documentation is enough. No
+# capability-level dependencies — implementations declare their
+# dependencies.
+name = "template-service"
+description = "The service template — copy-to-start skeleton."
+version = "0.1.0"
+
+[requirements]
+# The service's own API + UI code execution only — each capability
+# implementation selected at install time adds its own requirements
+# (the implementation template's parts and own requirements).
+disk-gb = 0.01
+ram-gb = 0.05
+
+# The per-capability documentation sections. The template ships none yet:
+# the canary capability arrives with ticket #71. Each section is named
+# [<service-name>.<capability-name>] and holds the FULL capability
+# documentation: description, version, the api description entry point,
+# a short description of the api functions, the versions history, and the
+# UI hooks to integrate in the general platform dashboard. Example (when
+# #71 lands) — uncomment in place:
+#
+# [template-service.canary]
+# description = "The template's proof capability."
+# version = "0.1.0"
+# api = "/v1/echo"
+# api-functions = "POST /v1/echo — returns the request body; GET /v1/echo/ping — returns pong."
+# versions-history = "0.1.0 — initial canary (ticket #71)."
+# required = false
+#
+# [template-service.canary.ui]
+# description = "A single Echo page echoing text input."
+# versions-history = "0.1.0 — initial Echo page."
+# menu = [
+#   { label = "Echo", entry = "/echo" },
+# ]

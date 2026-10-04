@@ -20,7 +20,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 # `<service>` is the placeholder package directory; the copy-to-start ritual
-# renames it (template/CONTRIBUTING.md).
+# renames it (service-template/CONTRIBUTING.md).
 packages = ["src/<service>"]
 
 [tool.pytest.ini_options]

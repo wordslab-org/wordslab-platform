@@ -2,6 +2,8 @@
 
 **Status:** accepted (resolution of wayfinder ticket "Define the minimal uniform service contract"); **amended by ADR-0002** (base item 9 — callable surfaces; family 3 narrowed), **ADR-0004** (family conformance: capability API = union of implementation variants), **ADR-0005** (429 taxonomy: `cloud-spend` resource name) and **ADR-0007** (family 9 authoring shape: agents carry accessible + preloaded tool lists; workflows are Python programs with the composition primitive set)
 
+> **Evolution (ADR-0031 — declaration model v2):** item 1's "Service identity (name, version, **families**) is reported by `/health`" wording is superseded on the families clause — families are no longer part of a service's declared identity; a service's APIs implement the family contracts, documented in each capability's API documentation (ADR-0031 §2). Item 6's `/health` payload shape (status/service/version/resources/models) never carried families, so no contract change results. The nine family contracts themselves are unchanged — they remain the API-alignment taxonomy between services.
+
 > **Evolution (2026-09, terminology sweep #33):** family 1 below still carries the service's earlier name, "the unique **LLM inference service**." The service is now the **Inference service** — the unique *model-serving* service, serving the `llm`, `diffusion` and `ml` (classic/pretrained) model classes, not only LLMs (ADR-0027 / #32). The decision text above is left as its historical record.
 
 ## Context

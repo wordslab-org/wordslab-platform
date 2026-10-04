@@ -1,0 +1,96 @@
+# The capability-implementation declaration (ADR-0031 §3/§4, shape v3; the
+# loader is the service template's vendored
+# `contract/declaration/load_implementation_toml`).
+#
+# Copy this folder per implementation to
+# services/<service>/implementations/<capability>/<implementation>/
+# — implementations live in a subdirectory of the service, keyed
+# service-name/capability-name/implementation-name. One declaration per
+# implementation; several implementations of the same capability are
+# swappable at runtime.
+#
+# Layout: the implementation's OWN properties first, then one documentation
+# section per content part, named
+# [<capability>.<content-part-type>.<content-part-name>] — each type may
+# appear several times (an implementation can bundle several models).
+# The implementation-specific install function receives the typed parse
+# result as its configuration data. No [ranks], no [engine-dependency], no
+# stored supported/recommended (ADR-0031 §5).
+capability = "llm.model"
+license = "Apache-2.0"            # SPDX (ADR-0022); model weights carry their
+                                 # five-question compliance profile as facts
+
+[identity]
+name = "qwen3-4b"
+version = "2026-05"
+description = "A 4B LLM served locally."
+
+# The implementation's OWN code requirements — the minimum to install AND
+# run the implementation's code itself. The implementation's total
+# requirements (what the installer checks against the machine) are the
+# sum/union of these and its parts' requirements, computed at load.
+[requirements]
+disk-gb = 0.2
+ram-gb = 0.3
+
+# Content-part documentation sections. Part types: inference-engine ·
+# local-model · cloud-model · database · storage-space · open-source-app ·
+# cloud-service. Per part: description, version, its type-specific
+# properties, and its own [requirements] (cloud parts declare none — they
+# consume no machine; privacy-tier is a cloud-part property). The parts,
+# parsed, are the configuration data for the install function.
+
+[llm.model.local-model.qwen3-4b]
+description = "The Qwen3 4B weights, quantized Q4_K_M."
+version = "2026-05"
+huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
+artificial-analysis = "qwen-3-4b"   # the AA slug — the join key for the
+                                     # dynamic metrics at selection time
+[llm.model.local-model.qwen3-4b.facts]
+disk-gb = 2.5
+parameters-active = 4.0          # billions
+parameters-total = 4.0           # billions
+vram-at-load-gb = 3.2
+kv-cache-per-token = 0.00012     # GB
+quantization = "Q4_K_M"
+
+[llm.model.local-model.qwen3-4b.requirements]
+disk-gb = 2.5
+ram-gb = 0.2
+vram-gb = 3.2
+
+[llm.model.local-model.qwen3-4b.requirements.cpu]
+AVX2 = true
+
+# Example of a SECOND part of the same type (types may appear several times)
+# and of cloud parts — uncomment and adapt:
+#
+# [llm.model.cloud-model.gpt-5-nano]
+# description = "OpenAI's smallest reasoning model, via the cloud gateway."
+# version = "2026-08"
+# provider = "openai"
+# model = "gpt-5-nano"
+# artificial-analysis = "gpt-5-nano"
+# privacy-tier = "cloud"          # local | cloud_no_data | cloud (ADR-0006/0008)
+#
+# [llm.model.cloud-model.gpt-5-nano.facts]
+# parameters-active = 8.0
+# parameters-total = 12.0
+# quantization = "unknown"
+#
+# [llm.model.storage-space.cache]
+# description = "Prompt/response cache storage for this model."
+# version = "0.1.0"
+# min-quota-gb = 1.0            # REQUIRED — the minimum at install; counts
+#                               # in the implementation's aggregate disk
+# default-quota-gb = 2.0        # a proposal; the user's install-time choice
+#                               # binds (never below the minimum)
+
+# Generic dependencies (ADR-0031 §4): on a capability (any implementation
+# of it satisfies) or on a specific implementation (that one is required),
+# each with optional min-version/features (ADR-0016 §3's satisfy relation).
+# Model→engine is an instance of this rule — no special syntax.
+[[dependencies]]
+capability = "llm.engine"
+min-version = "0.5.0"
+features = ["vision"]

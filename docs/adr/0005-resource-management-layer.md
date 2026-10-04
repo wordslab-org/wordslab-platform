@@ -1,5 +1,7 @@
 # ADR-0005 — Resource management layer (reservation ledger, load/unload policy, quotas)
 
+> **Evolution (ADR-0031 — declaration model v2):** §7's speed-rank feed into the `speed` model-selection goal is superseded — `[ranks]` no longer exists in `implementation.toml`; speed, quality and cost metrics are fetched from artificialanalysis.ai at model-selection time (ADR-0031 §5). §8's disk-quota machinery gains a new bookable kind: an implementation with a **`storage-space` content part** carries a **user-allocated maximum quota, chosen at install time, monitored and changeable later** (ADR-0031 §3).
+
 **Status:** accepted (resolution of wayfinder ticket "Design the resource management layer (disk, RAM, VRAM across machines)"); **amends ADR-0001** (base contract 429 taxonomy: `cloud-spend` resource name); **amended by ADR-0007** (a refused load surfaces and the user re-chooses an implementation — no inference-policy fallback)
 
 ## Context
