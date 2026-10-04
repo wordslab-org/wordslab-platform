@@ -219,6 +219,20 @@ def load_implementation_toml(path: str | Path) -> Implementation:
     identity = raw.get("identity")
     if not isinstance(identity, dict):
         raise _err("`[identity]` table is required (name, version, description)")
+    for retired, hint in (
+        ("supported", "`supported` is computed from hardware facts at read time — never stored (ADR-0031 §5)"),
+        ("recommended", "`recommended` is computed from the model-selection goal at read time — never stored (ADR-0031 §5)"),
+        ("ranks", "`[ranks]` is removed (ADR-0031 §5) — dynamic metrics at selection time"),
+    ):
+        if retired in identity:
+            raise _err(f"`[identity].{retired}` — {hint} — remove the key")
+    unknown_identity = set(identity) - {"name", "version", "description"}
+    if unknown_identity:
+        raise _err(
+            f"`[identity]` has unknown key(s) {sorted(unknown_identity)} —"
+            " `[identity]` declares only: name, version, description"
+            " (closed shape, typos fail loudly)"
+        )
     name = identity["name"] if isinstance(identity.get("name"), str) else ""
     version = identity["version"] if isinstance(identity.get("version"), str) else ""
     description = (
@@ -229,6 +243,13 @@ def load_implementation_toml(path: str | Path) -> Implementation:
             "`[identity].name`, `[identity].version` and `[identity].description`"
             " must all be non-empty strings"
         )
+    for retired, hint in (
+        ("supported", "`supported` is computed from hardware facts at read time — never stored (ADR-0031 §5)"),
+        ("recommended", "`recommended` is computed from the model-selection goal at read time — never stored (ADR-0031 §5)"),
+        ("ranks", "`[ranks]` is removed (ADR-0031 §5) — dynamic metrics at selection time"),
+    ):
+        if retired in identity:
+            raise _err(f"`[identity].{retired}` — {hint}")
 
     license_id = raw.get("license")
     if not isinstance(license_id, str) or not license_id.strip():
@@ -394,11 +415,7 @@ def _validate_part_sections(
             " `[capability.type.part-name]` section (ADR-0031 §3)"
         )
     parts: list[ContentPart] = []
-    seen: set[str] = set()
     for capability, type_, part_name, spec in found:
-        if part_name in seen:
-            raise _err(f"duplicate content-part declaration: {part_name!r}")
-        seen.add(part_name)
         parts.append(_validate_part(part_name, type_, spec))
     return tuple(parts)
 
@@ -443,6 +460,11 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
         part_github = spec.get("github")
         if not isinstance(part_github, str) or not part_github.strip():
             raise _err(f"`{where}.github` is required for a `{type_}` part (ADR-0031 §3)")
+        if not _is_github_url(part_github):
+            raise _err(
+                f"`{where}.github` must be the part's github repository URL"
+                ' (e.g. "https://github.com/org/repo")'
+            )
         object.__setattr__(part, "github", part_github)
 
     if type_ == "local-model":
@@ -451,6 +473,11 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
             raise _err(
                 f"`{where}.huggingface` is required for a `local-model` part"
                 " (the weights URL, ADR-0031 §3)"
+            )
+        if not _is_huggingface_url(hf):
+            raise _err(
+                f"`{where}.huggingface` must be the weights URL on huggingface.co"
+                ' (e.g. "https://huggingface.co/Qwen/Qwen3-4B")'
             )
         slug = spec.get("artificial-analysis")
         if not isinstance(slug, str) or not slug.strip():
@@ -502,6 +529,16 @@ def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
     return part
 
 
+def _is_github_url(value: str) -> bool:
+    return value.startswith("https://github.com/") and len(value) > len("https://github.com/")
+
+
+def _is_huggingface_url(value: str) -> bool:
+    return value.startswith("https://huggingface.co/") and len(value) > len(
+        "https://huggingface.co/"
+    )
+
+
 def _validate_privacy(spec: dict, where: str) -> str:
     tier = spec.get("privacy-tier")
     if tier not in PRIVACY_TIERS:
@@ -535,6 +572,19 @@ def _validate_requirements(req: object, *, where: str, required: bool) -> Requir
         return EMPTY_REQUIREMENTS
     if not isinstance(req, dict):
         raise _err(f"`{where}` must be a table")
+    unknown = set(req) - {"disk-gb", "ram-gb", "vram-gb", "cpu", "gpu"}
+    for retired, hint in (
+        ("supported", "`supported` is computed from hardware facts at read time — never stored (ADR-0031 §5)"),
+        ("recommended", "`recommended` is computed from the model-selection goal at read time — never stored (ADR-0031 §5)"),
+    ):
+        if retired in unknown:
+            raise _err(f"`{where}.{retired}` — {hint} — remove the key")
+    if unknown:
+        raise _err(
+            f"`{where}` has unknown key(s) {sorted(unknown)} — a requirements"
+            " table declares only: disk-gb, ram-gb, vram-gb, cpu, gpu"
+            " (closed shape, typos fail loudly)"
+        )
     for key in ("disk-gb", "ram-gb"):
         value = req.get(key, 0.0)
         if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
@@ -605,6 +655,13 @@ def _validate_dependencies(deps: object) -> tuple[Dependency, ...]:
         where = f"[[dependencies]][{i}]"
         if not isinstance(dep, dict):
             raise _err(f"{where} is not a table")
+        unknown = set(dep) - {"capability", "implementation", "min-version", "features"}
+        if unknown:
+            raise _err(
+                f"{where} has unknown key(s) {sorted(unknown)} — a dependency"
+                " declares only: capability, implementation, min-version, features"
+                " (ADR-0031 §4)"
+            )
         capability = dep.get("capability")
         implementation = dep.get("implementation")
         if (capability is None) == (implementation is None):

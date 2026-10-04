@@ -113,19 +113,20 @@ def order_supported(
         return list(supported)
 
     def _metric(impl: Implementation, key: str) -> float | None:
-        # Ordering keys off the FIRST content part carrying an AA slug —
-        # a bundled implementation is one model + satellites in practice;
-        # the alternative (rejecting multi-slug parts) waits for a real need.
-        slug = next(
-            (p.artificial_analysis for p in impl.contents if p.artificial_analysis),
-            None,
-        )
-        if slug is None:
+        # An implementation may carry several AA slugs (several model parts).
+        # The ordering value is the MEAN of the parts' known values — every
+        # slug's data counts, none is silently ignored (unknown → last,
+        # ADR-0031 §5); no slug at all → unknown.
+        values = [
+            float(v)
+            for part in impl.contents
+            if part.artificial_analysis
+            for v in [(metrics.get(part.artificial_analysis) or {}).get(key)]
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        ]
+        if not values:
             return None
-        value = (metrics.get(slug) or {}).get(key)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        return float(value)
+        return sum(values) / len(values)
 
     if goal == "size":
         def size_key(impl: Implementation) -> tuple[float, str]:

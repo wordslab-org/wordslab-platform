@@ -266,7 +266,12 @@ def _walk_capability_specs(
 ) -> None:
     for key, entry in node.items():
         if not isinstance(entry, dict):
-            continue
+            raise ServiceDeclarationError(
+                f"`[{service_name}.{'.'.join(path + [key])}]` is not a table —"
+                " under the service's own name only capability documentation"
+                f" sections `[{service_name}.<capability-name>]` are declared"
+                " (typos fail loudly, ADR-0031 §2)"
+            )
         cap_path = path + [key]
         if set(entry) & CAPABILITY_SECTION_KEYS:
             # this dict is a capability spec — the walk stops here
@@ -282,8 +287,19 @@ def _walk_capability_specs(
                     entry, cap_name, f"{service_name}.{'.'.join(cap_path)}"
                 )
             )
-        else:
+        elif any(isinstance(v, dict) for v in entry.values()):
+            # a path segment on the way to a deeper capability section
+            # (dotted capability names, e.g. `[svc.audio.stt]`)
             _walk_capability_specs(entry, service_name, cap_path, seen, out)
+        else:
+            # a leaf table carrying no capability documentation keys — a
+            # mistyped section must not vanish silently
+            raise ServiceDeclarationError(
+                f"`[{service_name}.{'.'.join(cap_path)}]` declares no capability"
+                " documentation keys — a capability section declares:"
+                f" {', '.join(sorted(CAPABILITY_SECTION_KEYS))} (typos fail"
+                " loudly, ADR-0031 §2)"
+            )
 
 
 def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capability:
@@ -326,6 +342,13 @@ def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capab
     for j, item in enumerate(menu_raw):
         if not isinstance(item, dict):
             raise ServiceDeclarationError(f"`[{section}].ui.menu[{j}]` is not a table")
+        unknown_item = set(item) - {"label", "entry"}
+        if unknown_item:
+            raise ServiceDeclarationError(
+                f"`[{section}].ui.menu[{j}]` has unknown key(s)"
+                f" {sorted(unknown_item)} — a menu hook declares only: label,"
+                " entry (closed shape, typos fail loudly)"
+            )
         menu.append(
             MenuItem(
                 label=_require_str(item, "label", f"[{section}].ui.menu[{j}]"),

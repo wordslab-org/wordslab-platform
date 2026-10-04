@@ -860,14 +860,6 @@ def _prepend_own_property(text: str, line: str) -> str:
             ),
             "privacy-tier.*must be",
         ),
-        # duplicate part name
-        (
-            lambda s: _prepend_own_property(
-                s,
-                '[llm.model.database.qwen3-4b]\ndescription = "d"\nversion = "1"\ngithub = "https://github.com/x/y"\n',
-            ),
-            "duplicate content-part",
-        ),
         # a local part may not declare cloud properties
         (
             lambda s: s.replace(
@@ -973,6 +965,7 @@ def make_impl(
     slug: str | None = None,
     cpu_tech: tuple[str, ...] = (),
     gpu_tech: tuple[str, ...] = (),
+    contents_override: tuple[ContentPart, ...] | None = None,
 ) -> Implementation:
     """A parsed `Implementation` (what `load_implementation_toml` returns)."""
     part = ContentPart(
@@ -1001,7 +994,7 @@ def make_impl(
         license="Apache-2.0",
         own_requirements=reqs,
         requirements=reqs,
-        contents=(part,),
+        contents=contents_override if contents_override is not None else (part,),
         dependencies=(),
     )
 
@@ -1148,3 +1141,189 @@ def test_declarations_carry_no_quality_claims_or_stored_flags():
         "elo-score",
     ):
         assert banned not in text
+
+# ------------------------------------------- spec-review round 2 (closed shapes)
+
+
+
+def _impl_load(tmp_path, body: str) -> Implementation:
+    return load_implementation_toml(write(tmp_path, "implementation.toml", body))
+
+
+SERVICE_TOML_STT_UI = """\
+        [audio.stt]
+        description = "Batch speech-to-text."
+        version = "0.1.0"
+        api = "/v1/audio/transcriptions"
+        api-functions = "POST /v1/audio/transcriptions — transcribes an upload."
+        versions-history = "0.1.0 — initial."
+        required = true
+
+        [audio.stt.ui]
+        description = "A transcription page."
+        versions-history = "0.1.0 — initial page."
+        menu = [
+            { label = "Transcribe", entry = "/stt" },
+        ]
+        """
+
+
+def _svc_load(tmp_path, body: str) -> Service:
+    return load_service_toml(write(tmp_path, "service.toml", body))
+
+
+def test_same_part_name_under_two_types_is_legal(tmp_path):
+    """'each content-part type can appear multiple times' (maintainer, #74
+    comment 5977934074) — a name reused under a DIFFERENT type is two
+    distinct sections, not a duplicate."""
+    body = valid_impl_toml() + (
+        "\n    [llm.model.database.qwen3-4b]\n"
+        '    description = "The KV cache database."\n'
+        '    version = "1"\n'
+        '    github = "https://github.com/x/y"\n'
+    )
+    impl = _impl_load(tmp_path, body)
+    names = {(p.type, p.name) for p in impl.contents}
+    assert ("local-model", "qwen3-4b") in names
+    assert ("database", "qwen3-4b") in names
+
+
+def test_identity_rejects_unknown_keys(tmp_path):
+    body = valid_impl_toml().replace(
+        "    [identity]\n", '    [identity]\n    surprise = "x"\n'
+    )
+    with pytest.raises(ImplementationDeclarationError, match=r"\[identity\].*unknown key"):
+        _impl_load(tmp_path, body)
+
+
+def test_identity_rejects_stored_flags(tmp_path):
+    body = valid_impl_toml().replace(
+        "    [identity]\n", "    [identity]\n    supported = true\n"
+    )
+    with pytest.raises(ImplementationDeclarationError, match="supported.*never stored"):
+        _impl_load(tmp_path, body)
+
+
+def test_dependency_entries_are_closed(tmp_path):
+    body = valid_impl_toml().replace(
+        '    capability = "llm.engine"\n',
+        '    capability = "llm.engine"\n    version = "1.0"\n',
+    )
+    with pytest.raises(ImplementationDeclarationError, match="dependencies.*unknown key"):
+        _impl_load(tmp_path, body)
+
+
+def test_part_requirements_tables_are_closed(tmp_path):
+    body = valid_impl_toml().replace(
+        "    [llm.model.local-model.qwen3-4b.requirements]\n",
+        "    [llm.model.local-model.qwen3-4b.requirements]\n    recommended = true\n",
+    )
+    with pytest.raises(ImplementationDeclarationError, match="recommended.*never stored"):
+        _impl_load(tmp_path, body)
+
+
+def test_part_github_must_be_a_github_url(tmp_path):
+    body = valid_impl_toml() + (
+        "\n    [llm.model.database.qwen3-4b]\n"
+        '    description = "The KV cache database."\n'
+        '    version = "1"\n'
+        '    github = "not-a-url"\n'
+    )
+    with pytest.raises(ImplementationDeclarationError, match="github repository URL"):
+        _impl_load(tmp_path, body)
+
+
+def test_model_part_huggingface_must_be_a_huggingface_url(tmp_path):
+    body = valid_impl_toml().replace(
+        '    huggingface = "https://huggingface.co/Qwen/Qwen3-4B"',
+        '    huggingface = "x"',
+    )
+    with pytest.raises(ImplementationDeclarationError, match=r"huggingface.*huggingface\.co"):
+        _impl_load(tmp_path, body)
+
+
+def test_multi_slug_ordering_uses_every_parts_data():
+    """A bundled implementation's SECOND model's data must not be silently
+    ignored — the ordering value aggregates every AA slug (mean), unknown
+    last (ADR-0031 §5)."""
+    def bundled(name, slugs):
+        parts = tuple(
+            ContentPart(
+                name=f"m{i}", type="local-model", description="d", version="1",
+                artificial_analysis=s,
+            )
+            for i, s in enumerate(slugs)
+        )
+        return make_impl(name, slug=None, contents_override=parts)
+
+    a = bundled("a", ["a"])
+    b = bundled("b", ["b1", "b2"])
+    ordered = order_supported(
+        [a, b], "performance",
+        metrics={"a": {"performance": 100}, "b1": {"performance": 50}, "b2": {"performance": 150}},
+    )
+    # a's single 100 vs b's mean(50, 150) = 100 — tie, name-breaker
+    assert [i.name for i in ordered] == ["a", "b"]
+    # b1 alone would rank below a; the aggregate proves b2's data counted
+    ordered2 = order_supported(
+        [a, b], "performance",
+        metrics={"a": {"performance": 100}, "b1": {"performance": 50}, "b2": {"performance": 200}},
+    )
+    assert [i.name for i in ordered2] == ["b", "a"]
+
+
+def test_service_walk_rejects_scalar_under_the_service_root(tmp_path):
+    """A scalar key living under the service-name root (a mistyped section
+    header, e.g. `[audio] zz = 5`) fails loudly — TOML makes it a dotted
+    key `audio.zz` beside the capability sections."""
+    body = """\
+        name = "audio"
+        description = "The platform's voice surface."
+        version = "0.1.0"
+        audio.zz = 5
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.2
+
+        """ + SERVICE_TOML_STT_UI
+    with pytest.raises(ServiceDeclarationError, match="not a table"):
+        _svc_load(tmp_path, body)
+
+
+def test_service_walk_rejects_typoed_capability_section(tmp_path):
+    """A section whose keys are ALL typo'd (no capability-section key
+    matches) must fail loudly, not vanish as a phantom capability."""
+    body = """\
+        name = "audio"
+        description = "The platform's voice surface."
+        version = "0.1.0"
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.2
+
+        """ + SERVICE_TOML_STT_UI + """\
+        [audio.tts]
+        descrption = "typo"
+        """
+    with pytest.raises(ServiceDeclarationError, match="no capability documentation keys"):
+        _svc_load(tmp_path, body)
+
+
+def test_menu_hooks_are_closed(tmp_path):
+    body = """\
+        name = "audio"
+        description = "The platform's voice surface."
+        version = "0.1.0"
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.2
+
+        """ + SERVICE_TOML_STT_UI.replace(
+        '{ label = "Transcribe", entry = "/stt" }',
+        '{ label = "Transcribe", entry = "/stt", extra = "junk" }',
+    )
+    with pytest.raises(ServiceDeclarationError, match="menu.*unknown key"):
+        _svc_load(tmp_path, body)
