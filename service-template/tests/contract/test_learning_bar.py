@@ -32,10 +32,12 @@ from contract.declaration import (
     DOC_LEVELS,
     BarDoc,
     DocRef,
+    ImplementationDeclarationError,
     LearningBar,
     Service,
     ServiceDeclarationError,
     SkillRef,
+    load_implementation_toml,
     load_service_toml,
 )
 
@@ -55,9 +57,16 @@ def write(tmp_path, name: str, content: str):
 
 
 def bar_doc_md(level: str, *, title: str = "Echo", capability: str = "canary",
+               implementation: str | None = None,
                keywords: str = "  - echo\n  - consent", mcp_tools: str = "[]",
                body: str | None = None) -> str:
-    """One graded doc file — canonical front-matter + section schema."""
+    """One graded doc file — canonical front-matter + section schema. The
+    front-matter names what it documents: `capability:` (a service
+    capability's doc) or `implementation:` (an implementation's doc)."""
+    about = (
+        f"implementation: {implementation}\n" if implementation is not None
+        else f"capability: {capability}\n"
+    )
     if body is None:
         body = (
             "# Echo\n\n"
@@ -73,7 +82,7 @@ def bar_doc_md(level: str, *, title: str = "Echo", capability: str = "canary",
     return (
         "---\n"
         f"title: {title}\n"
-        f"capability: {capability}\n"
+        f"{about}"
         f"level: {level}\n"
         "keywords:\n"
         f"{keywords}\n"
@@ -208,6 +217,170 @@ def test_a_capability_without_the_learning_section_loads(tmp_path):
 
 
 # --------------------------------------------------- the shipped bar is real
+
+
+# ------------------------------------------------------------ implementation
+#
+# The same bar, declared per implementation in `implementation.toml`
+# (ADR-0027, #32: the bar is declared per implementation) — own-properties
+# block, paths relative to the implementation's directory; the docs'
+# front-matter names the IMPLEMENTATION (`implementation:` field).
+
+
+IMPL_TOML_HEAD = """\
+capability = "llm.model"
+license = "Apache-2.0"
+
+[identity]
+name = "qwen3-4b"
+version = "2026-05"
+description = "A 4B LLM served locally."
+
+[requirements]
+disk-gb = 0.2
+ram-gb = 0.3
+
+[[dependencies]]
+capability = "llm.engine"
+min-version = "0.5.0"
+
+"""
+
+IMPL_SKILL_BLOCK = """\
+[learning.skill]
+name = "drive-qwen3-4b"
+path = "skills/SKILL.md"
+"""
+
+IMPL_SKILL_MD = """\
+---
+name: drive-qwen3-4b
+description: How an agent drives this llm.model implementation — pick it in \
+the model catalog, call it through the capability's API.
+---
+# drive-qwen3-4b
+
+Select this implementation (fit-gated), then drive it through the parent
+capability's OpenAPI/MCP surface; parameters and consent flags are the
+capability's.
+"""
+
+IMPL_DOCS_BLOCK = """\
+[[learning.docs]]
+level = "{level}"
+path = "docs/{level}.md"
+
+"""
+
+
+IMPL_PART_BLOCK = """\
+[llm.model.local-model.qwen3-4b]
+description = "The Qwen3 4B weights, quantized Q4_K_M."
+version = "2026-05"
+huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
+artificial-analysis = "qwen-3-4b"
+
+[llm.model.local-model.qwen3-4b.requirements]
+disk-gb = 2.5
+ram-gb = 0.2
+
+"""
+
+
+def impl_bar_toml(*, docs: bool = True, skill_block: str | None = IMPL_SKILL_BLOCK,
+                  note: str | None = None, learning_header: str = "[learning]\n\n") -> str:
+    text = IMPL_TOML_HEAD + learning_header
+    if note is not None:
+        text += f'not-agent-operable = "{note}"\n'
+    if docs:
+        text += "".join(IMPL_DOCS_BLOCK.format(level=level) for level in DOC_LEVELS)
+    if skill_block is not None:
+        text += skill_block
+    # the content-part sections come last (own properties — the bar is one —
+    # first, then one documentation section per content part, ADR-0031 §3)
+    text += IMPL_PART_BLOCK
+    return text
+
+
+def write_impl_root(tmp_path, *, toml: str, doc_overrides: dict[str, str] | None = None,
+                    skill_md: str = IMPL_SKILL_MD, write_files: bool = True):
+    doc_overrides = doc_overrides or {}
+    write(tmp_path, "implementation.toml", toml)
+    for level in DOC_LEVELS:
+        if write_files:
+            write(
+                tmp_path, f"docs/{level}.md",
+                doc_overrides.get(level) or bar_doc_md(level, implementation="qwen3-4b", title="Qwen3 4B"),
+            )
+    if write_files:
+        write(tmp_path, "skills/SKILL.md", skill_md)
+    return tmp_path / "implementation.toml"
+
+
+def test_the_implementation_bar_declares_four_levels_and_the_skill(tmp_path):
+    impl = load_implementation_toml(
+        write_impl_root(tmp_path, toml=impl_bar_toml())
+    )
+    assert isinstance(impl.learning, LearningBar)
+    assert [d.level for d in impl.learning.docs] == list(DOC_LEVELS)
+    assert impl.learning.docs[0].path == "docs/how-to-use.md"
+    assert impl.learning.skill.name == "drive-qwen3-4b"
+    assert impl.learning.skill.path == "skills/SKILL.md"
+    # the docs name the IMPLEMENTATION (ADR-0024 §1: capability/implementation)
+    assert len(impl.learning.parsed_docs) == 4
+    assert impl.learning.parsed_docs[0].implementation == "qwen3-4b"
+    assert impl.learning.parsed_docs[0].capability is None
+    assert impl.learning.parsed_skill.name == "drive-qwen3-4b"
+    # the learning table is the implementation's OWN — requirements unchanged
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5)
+
+
+def test_an_implementation_without_the_learning_section_loads(tmp_path):
+    toml = IMPL_TOML_HEAD + (
+        "[llm.model.local-model.qwen3-4b]\n"
+        'description = "The Qwen3 4B weights, quantized Q4_K_M."\n'
+        'version = "2026-05"\n'
+        'huggingface = "https://huggingface.co/Qwen/Qwen3-4B"\n'
+        'artificial-analysis = "qwen-3-4b"\n'
+    )
+    impl = load_implementation_toml(write_impl_root(tmp_path, toml=toml, write_files=False))
+    assert impl.learning is None
+
+
+@pytest.mark.parametrize(
+    "toml,match",
+    [
+        # unknown key in [learning]
+        (impl_bar_toml(learning_header="[learning]\nskillz = []\n\n"), "unknown key.*declares only"),
+        # docs required
+        (impl_bar_toml(docs=False), r"\[learning\]\.docs` is required"),
+        # both skill and note — no theater
+        (impl_bar_toml(note="A weights-only artifact; nothing to drive directly."), "declares both `skill` and `not-agent-operable`"),
+        # neither
+        (impl_bar_toml(skill_block=None), "declares neither `skill` nor"),
+        # declared doc file missing
+        (
+            impl_bar_toml().replace('path = "docs/how-to-use.md"', 'path = "docs/absent.md"'),
+            "declares doc file not found",
+        ),
+    ],
+)
+def test_implementation_bar_rejections(tmp_path, toml, match):
+    path = write_impl_root(tmp_path, toml=toml)
+    with pytest.raises(ImplementationDeclarationError, match=match):
+        load_implementation_toml(path)
+
+
+def test_the_impl_doc_must_name_this_implementation(tmp_path):
+    path = write_impl_root(
+        tmp_path, toml=impl_bar_toml(),
+        doc_overrides={
+            "how-to-use": bar_doc_md("how-to-use", implementation="mistral-7b", title="Mistral"),
+        },
+    )
+    with pytest.raises(ImplementationDeclarationError, match="front-matter `implementation` is 'mistral-7b'"):
+        load_implementation_toml(path)
+
 
 
 # ------------------------------------------------------- loud-rejection rules

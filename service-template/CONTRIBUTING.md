@@ -99,6 +99,16 @@ meet inside the service repo.
    comparisons are dynamic (artificialanalysis at selection time); never
    put those keys in a declaration.
 
+   **The implementation's own learning/operability bar** (ADR-0024 §1;
+   ADR-0031 §3 as amended): an own-properties `[learning]` table — the
+   same shape as the capability bar (step 3): the **four graded doc
+   levels** in `[[learning.docs]]` entries (paths relative to the
+   implementation directory; each artifact's canonical front-matter names
+   THIS implementation — `implementation: <name>` — not a capability) plus
+   **exactly one of** the how-an-agent-drives-me skill (`[learning.skill]`,
+   a registry `skill` entry, ADR-0008) or the explicit
+   `not-agent-operable` note. Validated by the same loader machinery.
+
    The implementation-specific install function receives the **typed
    `Implementation` object** (the loader's parse result) as its
    configuration data — no re-parsing.
@@ -136,7 +146,13 @@ folder contains:
   `[requirements]`, `[[dependencies]]`), then per-part documentation
   sections `[<capability>.<type>.<part-name>]` (each type may appear
   several times; per-type properties and per-part `[requirements]`; the
-  parts are the configuration data for the install function).
+  parts are the configuration data for the install function), plus the
+  own-properties `[learning]` bar table (ADR-0024 §1; ADR-0031 §3 as
+  amended — the four graded docs levels + the skill or the note).
+- **`docs/`** — the four graded bar docs (canonical front-matter + section
+  schema, ADR-0024 §1 / #75).
+- **`skills/SKILL.md`** — the how-an-agent-drives-me skill body
+  (a registry `skill` entry, ADR-0008).
 - **`install/`** — the installer's recipe (how the implementation is
   installed on the machine — weights to download, engine to install,
   service to configure). The exact installer contract is the install/

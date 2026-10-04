@@ -28,6 +28,14 @@ named `<capability>.<content-part-type>.<content-part-name>` (ADR-0031 §3):
   receives the typed `Implementation` object (this module's parse result)
   as its configuration data; the `ContentPart` objects are the per-part
   config.
+- **the learning/operability bar** (ticket #75; ADR-0024 §1, ADR-0002 §7,
+  shape per ADR-0031 §3 as amended): an own-properties `[learning]` table —
+  the four graded doc levels (one Markdown artifact per level, `level` +
+  `path`, relative to THIS file's directory) and exactly one of the
+  how-an-agent-drives-me `skill` or the explicit "not agent-operable" note
+  (no theater); the docs' front-matter names the implementation
+  (`implementation:`). Validated fully when declared — a declared-but-fake
+  artifact fails at load (`learning_bar.py`).
 
 `supported`/`recommended` are **computed, never stored** (ADR-0002 §5,
 ADR-0005, ADR-0031 §5): no `[ranks]`, no quality claims — model ordering
@@ -40,6 +48,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import tomllib
+
+from .learning_bar import LearningBar, load_learning_artifacts, validate_learning
 
 PRIVACY_TIERS = ("local", "cloud_no_data", "cloud")
 
@@ -94,6 +104,7 @@ IMPLEMENTATION_TOP_LEVEL_KEYS = {
     "identity",
     "requirements",
     "dependencies",
+    "learning",
 }
 
 
@@ -191,6 +202,7 @@ class Implementation:
     requirements: Requirements
     contents: tuple[ContentPart, ...]
     dependencies: tuple[Dependency, ...]
+    learning: LearningBar | None = None
 
 
 def load_implementation_toml(path: str | Path) -> Implementation:
@@ -256,6 +268,7 @@ def load_implementation_toml(path: str | Path) -> Implementation:
         raw.get("requirements"), where="[requirements]", required=False
     )
     dependencies = _validate_dependencies(raw.get("dependencies", []))
+    learning = _parse_learning(raw, name, Path(path).parent)
     contents = _validate_part_sections(raw, capability)
 
     return Implementation(
@@ -268,6 +281,29 @@ def load_implementation_toml(path: str | Path) -> Implementation:
         requirements=aggregate_requirements(own_requirements, contents),
         contents=contents,
         dependencies=dependencies,
+        learning=learning,
+    )
+
+
+def _parse_learning(raw: dict, identity_name: str, root: Path) -> LearningBar | None:
+    """The implementation's own learning/operability bar (ADR-0024 §1,
+    ADR-0031 §3 as amended): own-properties block; the docs' front-matter
+    names the implementation; artifacts validated at load (no theater)."""
+    learning_raw = raw.get("learning")
+    if learning_raw is None:
+        return None
+    if not isinstance(learning_raw, dict):
+        raise _err("`[learning]` must be a table")
+    bar = validate_learning(
+        learning_raw, where="[learning]", err=ImplementationDeclarationError
+    )
+    return load_learning_artifacts(
+        bar,
+        root=root,
+        about_kind="implementation",
+        about=identity_name,
+        where="[learning]",
+        err=ImplementationDeclarationError,
     )
 
 
