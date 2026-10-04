@@ -1,7 +1,11 @@
 """The stub-factory's own conformance (ticket #70 acceptance: "the
 stub-factory produces the documented stub shapes for base contract
 fixtures") — every stub exercised over the real HTTP seam (the one seam,
-spec #46 §Testing Decisions), never against internals.
+spec #46 §Testing Decisions), never against internals. The one exception is
+the engine's family-5 lifecycle seam (`download`/`load`/`unload`/`prepare`),
+in-process by design — the ruling on #73 scopes the HTTP lifecycle surface and
+its job object to the family-5 module (#80) — so those tests call the
+operations directly.
 
 The stub shapes are documented in `tests/support/stubs.py`; the independent
 source of truth for the *contract* shapes is ADR-0001 (cited per assertion).
@@ -17,6 +21,7 @@ from tests.support.stubs import (
     StubCollaborator,
     StubEngine,
     StubRegistry,
+    model_record,
     stub_api_key,
     stub_401_violations,
     stub_health_payload,
@@ -289,18 +294,6 @@ def _engine_service(make_service, **engine_kwargs):
     return make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
 
 
-def _model_record(model_id, *, status, downloaded, size_gb=1.0):
-    """One family-5 model record (ADR-0001 §Families.5) — the shared shape."""
-    return {
-        "id": model_id,
-        "supported": True,
-        "recommended": True,
-        "downloaded": downloaded,
-        "size_gb": size_gb,
-        "status": status,
-    }
-
-
 def test_the_stub_engine_serves_the_family_1_responses_shape(make_service):
     svc = _engine_service(make_service)
     with svc.authorized() as c:
@@ -357,7 +350,7 @@ def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
 
 
 def test_the_stub_engine_honours_a_custom_catalog_and_embedding_dim(make_service):
-    catalog = [_model_record("tiny", status="available", downloaded=True, size_gb=0.2)]
+    catalog = [model_record("tiny", status="available", downloaded=True, size_gb=0.2)]
     svc = _engine_service(make_service, model_name="tiny", models=catalog, embedding_dim=4)
     with svc.authorized() as c:
         models = c.get("/v1/models").json()["items"]
@@ -371,12 +364,12 @@ def test_the_stub_engine_transitions_a_model_through_its_lifecycle():
     # The family-5 lifecycle engine seam (ADR-0001 §Families.5) — deterministic
     # status transitions, in-process: the HTTP lifecycle surface is #80's
     # family module, which calls these operations.
-    engine = StubEngine(models=[_model_record("tiny", status="absent", downloaded=False)])
+    engine = StubEngine(models=[model_record("tiny", status="absent", downloaded=False)])
     assert engine.download("tiny")["status"] == "available"
     assert engine.load("tiny")["status"] == "ready"
     assert engine.unload("tiny")["status"] == "available"
     assert engine.model_catalog() == [
-        _model_record("tiny", status="available", downloaded=True)
+        model_record("tiny", status="available", downloaded=True)
     ]
 
 
@@ -386,8 +379,8 @@ def test_the_stub_engine_prepare_sequences_to_ready():
     def build():
         return StubEngine(
             models=[
-                _model_record("resident", status="ready", downloaded=True),
-                _model_record("target", status="absent", downloaded=False, size_gb=0.2),
+                model_record("resident", status="ready", downloaded=True),
+                model_record("target", status="absent", downloaded=False, size_gb=0.2),
             ]
         )
 

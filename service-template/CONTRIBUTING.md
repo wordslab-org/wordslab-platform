@@ -143,7 +143,8 @@ base-contract stub-factory (`tests/support/stubs.py`), the consent-flag
 template contract (#72 — the flag on every user input, the never-bypassable
 private/secret extraction exclusion, the consent stub interaction), and the
 composition stub patterns (#73 — the `StubEngine` behind the family-1/2/5
-seam returning deterministic canned model output, and the `StubRegistry`
+seam returning deterministic canned model output, the family-5 model catalog
+and its lifecycle operations, and the `StubRegistry`
 name→URL resolver that `call`/`model`/`agent` composition references resolve
 against) are in; the nine family modules with their full conformance blocks
 (#76–#84) arrive as their own stage-0 tickets on top of this base. The

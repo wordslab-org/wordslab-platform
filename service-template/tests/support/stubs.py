@@ -20,6 +20,9 @@ system — spec #68 Implementation Decisions):
   catalog and its lifecycle operations), with a family-shaped HTTP surface
   (`/v1/responses`, `/v1/embeddings`, `/v1/models`) so a model-backed
   service's contract behavior is assertable without a real engine;
+- `model_record(...)` — the one encoding of the family-5 model record shape,
+  shared by `StubEngine`'s default catalog and by tests that need a specific
+  catalog;
 - `StubRegistry` + `ResolvedReference` — the fake capability registry (the
   name→URL resolver, ADR-0008 §7) that `call`/`model`/`agent` composition
   references resolve against, each to the fake endpoint registered under its
@@ -310,6 +313,27 @@ async def _json_object(request: Request) -> dict:
     return parsed
 
 
+def model_record(
+    model_id: str,
+    *,
+    status: str,
+    downloaded: bool,
+    size_gb: float = 1.0,
+    recommended: bool = True,
+) -> dict:
+    """One family-5 model record (ADR-0001 §Families.5) — the one encoding of
+    the record shape, shared by the stub's default catalog and by tests that
+    need a specific catalog."""
+    return {
+        "id": model_id,
+        "supported": True,
+        "recommended": recommended,
+        "downloaded": downloaded,
+        "size_gb": size_gb,
+        "status": status,
+    }
+
+
 class StubEngine:
     """A fake engine behind the family-1/2/5 seam (spec #68 story 3).
 
@@ -318,8 +342,10 @@ class StubEngine:
     embeddings) — no engine, no network, no randomness. The family-5 lifecycle
     operations (`download`/`load`/`unload`/`prepare`) are the in-process engine
     seam a family-5 module calls — deterministic status transitions, no HTTP
-    routes (the lifecycle surface is that module's, #80). Wire the
-    family-shaped surface through the factory's `extra_routes`:
+    routes, returning the terminal state: the lifecycle surface, the job
+    object, and its transient `downloading`/`loading`/`unloading` states are
+    that module's (#80). Wire the family-shaped surface through the factory's
+    `extra_routes`:
 
         engine = StubEngine()
         svc = InProcessService(extra_routes=engine.routes())
@@ -337,16 +363,7 @@ class StubEngine:
         self.models = (
             list(models)
             if models is not None
-            else [
-                {
-                    "id": model_name,
-                    "supported": True,
-                    "recommended": True,
-                    "downloaded": True,
-                    "size_gb": 1.0,
-                    "status": "ready",
-                }
-            ]
+            else [model_record(model_name, status="ready", downloaded=True)]
         )
         self.calls: list[dict] = []
 
@@ -436,9 +453,11 @@ class StubEngine:
         return dict(model)
 
     def prepare(self, model_id: str) -> dict:
-        """The full prepare sequence (ADR-0001 §Families.5): download when
-        absent, unload the other resident model, then load the target to
-        `ready`."""
+        """The prepare sequence (ADR-0001 §Families.5): unload the resident
+        model, download the target when absent, then ready it. The stub models
+        a single-resident engine, so every other `ready` model is unloaded, and
+        prepare readies the target from any state (the ADR's prepare is a
+        re-attempt)."""
         self.calls.append({"operation": "prepare", "model": model_id})
         target = self._model(model_id)
         for model in self.models:
