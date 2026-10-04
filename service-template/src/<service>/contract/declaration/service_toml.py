@@ -21,6 +21,17 @@ the platform UI and the catalog render:
 ADR-0001's family contracts; their documentation is enough (ADR-0031 §2).
 **No capability-level dependencies** — the implementations declare their
 dependencies (`implementation_toml.py`), not the service.
+
+Each capability section may also declare its **learning/operability bar**
+(ticket #75; ADR-0024 §1, ADR-0002 §7, shape per ADR-0031 §2 as amended):
+a `[<service-name>.<capability-name>.learning]` sub-table carrying the four
+graded doc levels (one Markdown artifact per level, `level` + `path`) and
+exactly one of the how-an-agent-drives-me `skill` (a registry `skill`
+entry, ADR-0008) or the explicit "not agent-operable" note (no theater).
+Every declared artifact must exist and parse — a declared-but-fake artifact
+fails at load (`learning_bar.py`). The bar is mandatory to publish
+(ADR-0018's tiers), not to boot: a capability may omit `learning` while
+being written; a DECLARED bar is validated fully.
 """
 
 from __future__ import annotations
@@ -28,6 +39,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import tomllib
+
+from .learning_bar import (
+    LearningBar,
+    load_learning_artifacts,
+    validate_learning,
+)
 
 
 class ServiceDeclarationError(ValueError):
@@ -67,6 +84,7 @@ class Capability:
         ui_menu: tuple[MenuItem, ...],
         ui_description: str,
         ui_versions_history: str,
+        learning: LearningBar | None = None,
     ) -> None:
         self.name = name
         self.description = description
@@ -78,6 +96,7 @@ class Capability:
         self.ui_menu = ui_menu
         self.ui_description = ui_description
         self.ui_versions_history = ui_versions_history
+        self.learning = learning
 
 
 class Service:
@@ -136,6 +155,7 @@ CAPABILITY_SECTION_KEYS = {
     "versions-history",
     "required",
     "ui",
+    "learning",
 }
 
 CAPABILITY_UI_KEYS = {"menu", "description", "versions-history"}
@@ -180,7 +200,7 @@ def load_service_toml(path: str | Path) -> Service:
         for key in ("disk-gb", "ram-gb")
     }
 
-    capabilities = _parse_capability_sections(raw, name)
+    capabilities = _parse_capability_sections(raw, name, Path(path).parent)
     return Service(
         name=name,
         description=description,
@@ -232,7 +252,9 @@ def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
     )
 
 
-def _parse_capability_sections(raw: dict, service_name: str) -> tuple[Capability, ...]:
+def _parse_capability_sections(
+    raw: dict, service_name: str, service_root: Path
+) -> tuple[Capability, ...]:
     """Parse every `[<service-name>.<capability-name>]` documentation section.
 
     Capability names may themselves be dotted (`audio.stt` → section
@@ -253,7 +275,7 @@ def _parse_capability_sections(raw: dict, service_name: str) -> tuple[Capability
 
     capabilities: list[Capability] = []
     seen: set[str] = set()
-    _walk_capability_specs(node, service_name, [], seen, capabilities)
+    _walk_capability_specs(node, service_name, [], seen, capabilities, service_root)
     return tuple(capabilities)
 
 
@@ -263,6 +285,7 @@ def _walk_capability_specs(
     path: list[str],
     seen: set[str],
     out: list[Capability],
+    service_root: Path,
 ) -> None:
     for key, entry in node.items():
         if not isinstance(entry, dict):
@@ -284,13 +307,14 @@ def _walk_capability_specs(
             seen.add(cap_name)
             out.append(
                 _parse_capability_section(
-                    entry, cap_name, f"{service_name}.{'.'.join(cap_path)}"
+                    entry, cap_name, f"{service_name}.{'.'.join(cap_path)}",
+                    service_root,
                 )
             )
         elif any(isinstance(v, dict) for v in entry.values()):
             # a path segment on the way to a deeper capability section
             # (dotted capability names, e.g. `[svc.audio.stt]`)
-            _walk_capability_specs(entry, service_name, cap_path, seen, out)
+            _walk_capability_specs(entry, service_name, cap_path, seen, out, service_root)
         else:
             # a leaf table carrying no capability documentation keys — a
             # mistyped section must not vanish silently
@@ -302,7 +326,9 @@ def _walk_capability_specs(
             )
 
 
-def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capability:
+def _parse_capability_section(
+    entry: dict, cap_name: str, section: str, service_root: Path
+) -> Capability:
     unknown = set(entry) - CAPABILITY_SECTION_KEYS
     if unknown:
         if "dependencies" in unknown:
@@ -356,6 +382,23 @@ def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capab
             )
         )
 
+    learning_raw = entry.get("learning")
+    learning: LearningBar | None = None
+    if learning_raw is not None:
+        if not isinstance(learning_raw, dict):
+            raise ServiceDeclarationError(f"`[{section}].learning` must be a table")
+        bar = validate_learning(
+            learning_raw, where=f"[{section}].learning", err=ServiceDeclarationError
+        )
+        learning = load_learning_artifacts(
+            bar,
+            root=service_root,
+            about_kind="capability",
+            about=cap_name,
+            where=f"[{section}].learning",
+            err=ServiceDeclarationError,
+        )
+
     return Capability(
         name=cap_name,
         description=_require_str(entry, "description", f"[{section}]"),
@@ -367,4 +410,5 @@ def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capab
         ui_menu=tuple(menu),
         ui_description=_require_str(ui_raw, "description", f"[{section}].ui"),
         ui_versions_history=_require_str(ui_raw, "versions-history", f"[{section}].ui"),
+        learning=learning,
     )

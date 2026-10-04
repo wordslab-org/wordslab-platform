@@ -41,6 +41,30 @@ meet inside the service repo.
    must precede any `[table]` header — in TOML everything after a table
    header belongs to that table.
 
+   **The learning/operability bar** (ADR-0024 §1, ADR-0002 §7; declaration
+   shape per ADR-0031 §2 as amended): each capability section may carry a
+   `[<service>.<capability>.learning]` sub-table declaring
+   - the **four graded doc levels** — `[[<service>.<capability>.learning.docs]]`
+     with `level` (`how-to-use` · `how-it-works` · `study-in-depth` ·
+     `going-further` — all four, each exactly once; graded, not flattened)
+     and `path` (relative to `service.toml`) — each a distinct Markdown
+     artifact with the **canonical front-matter** (`title`, `capability`,
+     `level`, `keywords`, `mcp-tools`) and the **canonical section schema**
+     (`## Summary` / `## Details` / `## See also`, in this order) — one
+     source, dual-consumed by the human surface and the agent indexer;
+   - **exactly one of**: the **how-an-agent-drives-me skill**
+     (`[<service>.<capability>.learning.skill]` — `name`: the registry
+     skill slug, unique within the service; the authored registry entry is
+     `<service>.skill.<name>`, ADR-0008; `path`: its SKILL.md body —
+     front-matter `name`/`description` + instructions) or the explicit
+     **`not-agent-operable` note** (the honest why for a capability that
+     genuinely can't be agent-driven — never a fake skill, no theater).
+   The loader validates every declared artifact (it must exist and parse —
+   a declared-but-fake artifact fails at load) and keeps a service bootable
+   while the bar is being written: **the bar is mandatory to publish**
+   (`bundled`/`listed`; tracked-gaps for `third-party`, ADR-0018), so
+   declare it for every capability you publish.
+
 4. **Declare capability implementations** — copy
    `implementation-template/` per implementation (a service has NO
    implementation.toml; ADR-0031 §1) into

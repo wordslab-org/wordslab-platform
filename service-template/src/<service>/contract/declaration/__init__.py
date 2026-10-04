@@ -24,6 +24,17 @@ from .implementation_toml import (
     aggregate_requirements,
     load_implementation_toml,
 )
+from .learning_bar import (
+    DOC_LEVELS,
+    BarDoc,
+    DocRef,
+    LearningBar,
+    SkillDoc,
+    SkillRef,
+    load_bar_doc,
+    load_skill_md,
+    validate_learning,
+)
 from .model_selection import (
     GOALS,
     compute_supported,
@@ -39,20 +50,29 @@ from .service_toml import (
 )
 
 __all__ = [
+    "DOC_LEVELS",
     "GOALS",
+    "BarDoc",
     "Capability",
     "ContentPart",
     "Dependency",
+    "DocRef",
     "Implementation",
     "ImplementationDeclarationError",
+    "LearningBar",
     "MenuItem",
     "Requirements",
     "Service",
     "ServiceDeclarationError",
+    "SkillDoc",
+    "SkillRef",
     "aggregate_requirements",
     "compute_supported",
+    "load_bar_doc",
     "load_implementation_toml",
     "load_service_toml",
+    "load_skill_md",
     "order_supported",
     "validate_goal",
+    "validate_learning",
 ]
