@@ -1,9 +1,11 @@
 """The in-process test-server helper (spec #68, piece a).
 
-Spins up the template service in-process and drives it over real HTTP
-(Starlette's ASGI transport — the full middleware + routing stack, no port
-bound, no network, no real engine). Every service's contract suite consumes
-this same seam, vendored with the template (ADR-0002).
+Spins up the FULL template service in-process — base contract + the canary
+capability + its three callable surfaces (`/openapi.json`, `/mcp`, `/echo`)
+— and drives it over real HTTP (Starlette's ASGI transport — the full
+middleware + routing stack, no port bound, no network, no real engine).
+Every service's contract suite consumes this same seam, vendored with the
+template (ADR-0002).
 
 This is a TEST-SIDE artifact: production code never imports it (spec #68,
 Implementation Decisions).
@@ -16,7 +18,7 @@ from typing import Any
 
 from starlette.testclient import TestClient
 
-from contract.base import create_service_app
+from app import create_app
 
 # Paths the base contract leaves unauthenticated. `/health` must be
 # readable without a key: it is the monitoring/dashboard surface
@@ -42,16 +44,16 @@ class InProcessService:
     def __init__(
         self,
         *,
-        service_name: str = "template-service",
-        version: str = "0.1.0",
+        service_name: str | None = None,
+        version: str | None = None,
         api_keys: list[str] | None = None,
         **app_kwargs: Any,
     ) -> None:
         self.api_keys = api_keys if api_keys is not None else [stub_api_key()]
-        self.app = create_service_app(
+        self.app = create_app(
+            api_keys=self.api_keys,
             service_name=service_name,
             version=version,
-            api_keys=self.api_keys,
             **app_kwargs,
         )
         self.client = TestClient(self.app, raise_server_exceptions=False)

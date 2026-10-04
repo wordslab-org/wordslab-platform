@@ -1,11 +1,11 @@
 """The service app factory — wires the base contract (ADR-0001) into one
 Starlette application (ADR-0002 §The template: one `/health`, one auth, one
-`/mcp`, one OpenAPI; the MCP/OpenAPI surfaces are later stage-0 tickets —
-#73's stub patterns and #70's suite build on this seam).
+`/mcp`, one OpenAPI; the canary ticket #71 wires the OpenAPI + MCP surfaces).
 
 Vendored, never edited (ADR-0002 §1): services add capabilities via
-`extra_routes` (mounted under the `/v1` prefix, base item 3) — they do not
-modify this file.
+`extra_routes` (mounted under the `/v1` prefix, base item 3), ship their
+OpenAPI fragments to the service app (which assembles the document), and add
+UI pages via `ui_routes` — they do not modify this file.
 """
 
 from __future__ import annotations
@@ -25,6 +25,16 @@ from .errors import ApiError
 from .health import health_endpoint
 from .idempotency import IdempotencyMiddleware, InMemoryIdempotencyStore
 from .request_id import RequestIdMiddleware
+
+
+def _openapi_endpoint(doc: dict):
+    """The `/openapi.json` route — serves the assembled document (base item
+    1: the deterministic surface's self-description)."""
+
+    async def openapi(request: Request) -> JSONResponse:
+        return JSONResponse(doc)
+
+    return openapi
 
 
 def _under_v1(routes: list) -> list:
@@ -56,6 +66,8 @@ def create_service_app(
     resources: dict | None = None,
     models: dict | None = None,
     extra_routes: list[Route | Mount] | None = None,
+    ui_routes: list[Route | Mount] | None = None,
+    openapi_doc: dict | None = None,
     idempotency_store=None,
 ) -> Starlette:
     """Build the template service app embodying the base contract.
@@ -63,6 +75,10 @@ def create_service_app(
     - items 2/4/7: auth, error taxonomy, idempotency via middleware
     - item 3: `extra_routes` mount at `/v1`
     - item 6: `/health` from the given status/resources/models
+    - item 1/9: `openapi_doc` served at `/openapi.json`; `ui_routes` are the
+      capabilities' human-surface pages mounted at their own top-level
+      paths (`/echo`, `/static/...` — outside `/v1`, Bearer-gated like
+      everything but `/health`)
     """
 
     async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
@@ -86,20 +102,26 @@ def create_service_app(
             internal_error().body(request.state.request_id), status_code=500
         )
 
+    top_level_routes: list = [
+        Route(
+            "/health",
+            health_endpoint(
+                service_name,
+                version,
+                get_status=lambda: health_status,
+                get_resources=lambda: resources or {},
+                get_models=(lambda: models) if models is not None else None,
+            ),
+            methods=["GET"],
+        ),
+    ]
+    if openapi_doc is not None:
+        top_level_routes.append(Route("/openapi.json", _openapi_endpoint(openapi_doc), methods=["GET"]))
     return Starlette(
         routes=[
-            Route(
-                "/health",
-                health_endpoint(
-                    service_name,
-                    version,
-                    get_status=lambda: health_status,
-                    get_resources=lambda: resources or {},
-                    get_models=(lambda: models) if models is not None else None,
-                ),
-                methods=["GET"],
-            ),
+            *top_level_routes,
             Mount("/v1", Router(routes=_under_v1(extra_routes or []))),
+            *(ui_routes or []),
         ],
         middleware=[
             Middleware(RequestIdMiddleware),

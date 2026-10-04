@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Service template — copy-to-start (ADR-0002). Rename this package when copying."
 requires-python = ">=3.11"
 dependencies = [
+    "mcp>=2.3.0",
+    "python-fasthtml>=0.14.13",
     "starlette>=0.41",
     "uvicorn>=0.32",
 ]
