@@ -11,14 +11,24 @@ import pytest
 
 from contract.base.consent import MAY_USE, PRIVATE_SECRET
 
+from tests.contract.runner import failures
 from tests.support.stubs import (
+    COMPOSITION_PRIMITIVES,
     StubCollaborator,
+    StubEngine,
+    StubRegistry,
     stub_api_key,
     stub_401_violations,
     stub_health_payload,
     stub_health_violations,
 )
 from tests.support.test_server import InProcessService
+
+# The family-5 model status enum, verbatim from ADR-0001 family 5 (the same
+# enum the f5 conformance block pins).
+MODEL_STATUSES = frozenset(
+    {"absent", "downloading", "available", "loading", "ready", "unloading", "error"}
+)
 
 
 @pytest.fixture()
@@ -263,3 +273,146 @@ def test_the_consent_gate_matcher_flags_an_extracted_item_outside_the_may_use_st
         [{"text": "x", "consent": PRIVATE_SECRET}, {"text": "y"}], []
     )
     assert len(violations) == 2, violations
+
+
+# --- stub engine (spec #68 story 3; the family-1/2/5 seam) -------------------
+# The engine's deterministic canned output is asserted through a family-shaped
+# HTTP surface wired to it via the factory's `extra_routes` (the same seam as
+# every stage-0 ticket) — never against internals, and with NO family module
+# added (the family modules are #76–#84's deliverables; this stub serves them).
+
+
+def test_the_stub_engine_serves_the_family_1_responses_shape(make_service):
+    engine = StubEngine()
+    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    with svc.authorized() as c:
+        r = c.post("/v1/responses", json={"model": "stub-model", "input": "ping"})
+    assert r.status_code == 200
+    body = r.json()
+    # ADR-0001 family 1 — the Responses API by reference: `resp_` id, the
+    # `response` object, a typed `output` list, `usage` in tokens.
+    assert body["id"].startswith("resp_")
+    assert body["object"] == "response"
+    assert isinstance(body["output"], list)
+    assert body["usage"]["total_tokens"] > 0  # base item 8
+    assert failures(r) == []  # the base contract holds on the family seam
+
+
+def test_the_stub_engine_is_deterministic_and_offline():
+    # No randomness, no network: two fresh engines answer the same request
+    # identically, and a different request answers differently — canned output
+    # derived purely from the request (spec #68 Implementation Decisions).
+    request = {"model": "stub-model", "input": "ping"}
+    first = StubEngine().responses(dict(request))
+    second = StubEngine().responses(dict(request))
+    assert first == second
+    assert first["id"] != StubEngine().responses({"input": "pong"})["id"]
+
+
+def test_the_stub_engine_serves_the_family_5_model_catalog(make_service):
+    engine = StubEngine()
+    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    with svc.authorized() as c:
+        r = c.get("/v1/models")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) >= {"items", "next_cursor"}  # base item 5 envelope
+    assert body["items"], "the stub catalog is never empty"
+    for model in body["items"]:
+        # ADR-0001 family 5 — the model lifecycle record shape.
+        assert set(model) >= {
+            "id", "supported", "recommended", "downloaded", "size_gb", "status",
+        }
+        assert model["status"] in MODEL_STATUSES
+
+
+def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
+    engine = StubEngine()
+    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    with svc.authorized() as c:
+        r = c.post("/v1/embeddings", json={"model": "stub-model", "input": "ping"})
+    assert r.status_code == 200
+    body = r.json()
+    # ADR-0001 family 2 — embeddings by reference: the `list` object, per-input
+    # embedding records, `usage` in the reference API's native unit.
+    assert body["object"] == "list"
+    assert body["data"] and body["data"][0]["embedding"]
+    assert "usage" in body
+
+
+def test_the_stub_engine_rejects_a_malformed_body(make_service):
+    # Malformed JSON is a CLIENT error (base item 4), never an unhandled 500.
+    engine = StubEngine()
+    svc = make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+    with svc.authorized() as c:
+        r = c.post(
+            "/v1/responses",
+            content=b"not json",
+            headers={"Content-Type": "application/json"},
+        )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
+# --- stub-collaborator resolution (spec #68 story 4; ADR-0008 §7/§8) ---------
+# The fake capability registry: composition references of any primitive kind
+# (`call`/`model`/`agent`, ADR-0007 §3) resolve by stable name to a fake
+# endpoint (a `StubCollaborator`), which records the dispatched request.
+
+
+def test_the_stub_registry_resolves_a_call_reference_to_the_fake_endpoint(make_service):
+    collab = StubCollaborator()
+    registry = StubRegistry()
+    registry.register("document.parse", collab.path)
+    reference = registry.resolve("call", "document.parse")
+    assert reference.endpoint == collab.path
+    svc = make_service(api_keys=["sk-correct"], extra_routes=[collab.route])
+    with svc.authorized() as c:
+        r = c.post(reference.endpoint, json={"document": "bundle-1"})
+    assert r.status_code == 200
+    assert collab.requests[-1]["payload"] == {"document": "bundle-1"}
+
+
+def test_the_stub_registry_resolves_call_model_and_agent_references():
+    # ADR-0008 §7: one registry, one name→URL role — the three composition
+    # primitive kinds all resolve a stable name to the same endpoint, each
+    # reference recording the primitive that made it.
+    registry = StubRegistry()
+    registry.register("document.parse", "/v1/document/parse")
+    for primitive in COMPOSITION_PRIMITIVES:
+        reference = registry.resolve(primitive, "document.parse")
+        assert (reference.primitive, reference.name, reference.endpoint) == (
+            primitive,
+            "document.parse",
+            "/v1/document/parse",
+        )
+
+
+def test_the_stub_registry_refuses_an_unknown_reference():
+    with pytest.raises(ValueError, match="does not resolve"):
+        StubRegistry().resolve("call", "document.parse")
+
+
+def test_the_stub_registry_refuses_an_unknown_composition_primitive():
+    registry = StubRegistry()
+    registry.register("document.parse", "/v1/document/parse")
+    with pytest.raises(ValueError, match="composition primitive"):
+        registry.resolve("subworkflow", "document.parse")
+
+
+def test_the_stub_registry_rejects_a_stable_name_collision():
+    # ADR-0008 §8: a second claimant can never shadow a reserved name.
+    registry = StubRegistry()
+    registry.register("document.parse", "/v1/document/parse")
+    with pytest.raises(ValueError, match="already reserved"):
+        registry.register("document.parse", "/v1/document/parse-2")
+
+
+def test_the_stub_registry_rejects_a_malformed_stable_name():
+    with pytest.raises(ValueError, match="stable name"):
+        StubRegistry().register("document", "/v1/document")
+
+
+def test_the_stub_registry_rejects_a_non_v1_endpoint():
+    with pytest.raises(ValueError, match="under /v1"):
+        StubRegistry().register("document.parse", "/document/parse")
