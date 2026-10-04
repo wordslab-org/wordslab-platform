@@ -12,12 +12,16 @@ consent gate — the private/secret exclusion is never bypassable.
 
 from __future__ import annotations
 
+import json
+from collections import deque
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from contract.base.consent import consent_gate, resolve_consent
+from contract.base.consent import DEFAULT_CONSENT, consent_gate, resolve_consent
 from contract.base.errors import invalid_request, request_too_large
+from contract.base.pagination import paginate
 
 MAX_ECHO_BYTES = 64 * 1024  # the canary echoes small JSON objects only
 MAX_INTERACTIONS = 128  # the canary's bounded interaction record
@@ -26,18 +30,19 @@ MAX_INTERACTIONS = 128  # the canary's bounded interaction record
 class InteractionStore:
     """The canary's in-memory interaction record — per-app state (created by
     `app.py`, handed to the routes), bounded so the template stays a
-    skeleton: over the cap the oldest interaction is evicted. A real
-    capability records its traces durably (its own SQLModel tables)."""
+    skeleton: `deque(maxlen=...)` evicts the oldest interaction over the
+    cap. Each record carries a monotonic `seq` — the unique, order-stable
+    key the item-5 cursor anchors on. A real capability records its traces
+    durably (its own SQLModel tables)."""
 
     def __init__(self, *, max_interactions: int = MAX_INTERACTIONS) -> None:
-        self._max = max_interactions
-        self._interactions: list[dict] = []
+        self._interactions: deque = deque(maxlen=max_interactions)
+        self._seq = 0
 
-    def record(self, *, text: object, consent: str) -> dict:
-        interaction = {"text": text, "consent": consent}
+    def record(self, *, text: str, consent: str) -> dict:
+        self._seq += 1
+        interaction = {"seq": self._seq, "text": text, "consent": consent}
         self._interactions.append(interaction)
-        if len(self._interactions) > self._max:
-            del self._interactions[: len(self._interactions) - self._max]
         return interaction
 
     def all(self) -> list[dict]:
@@ -70,22 +75,39 @@ def routes(interactions: InteractionStore) -> list[Route]:
             ) from None
         if not isinstance(parsed, dict):
             raise invalid_request("POST /v1/echo expects a JSON object request body.")
+        # The interaction's content is the `text` string (the OpenAPI schema
+        # requires it) — a body without one has no interaction to record, so
+        # it is a client error, not a silently degraded record.
+        text = parsed.get("text")
+        if not isinstance(text, str):
+            raise invalid_request(
+                "POST /v1/echo expects a string 'text' in the JSON object request body."
+            )
         # The consent flag rides every user input (ADR-0026 §1, ticket #72):
-        # resolve it against the two states — absent → the `may_use` default,
-        # an unknown mark → 400 invalid_request, never a silent normalization.
-        try:
-            consent = resolve_consent(parsed.get("consent"))
-        except ValueError as error:
-            raise invalid_request(str(error)) from None
-        interactions.record(text=parsed.get("text"), consent=consent)
+        # an ABSENT flag takes the `may_use` default; a DECLARED mark that is
+        # not one of the two states — an unknown value or an explicit null —
+        # is 400 invalid_request, never a silent normalization.
+        if "consent" in parsed:
+            try:
+                consent = resolve_consent(parsed["consent"])
+            except ValueError as error:
+                raise invalid_request(str(error)) from None
+        else:
+            consent = DEFAULT_CONSENT
+        interactions.record(text=text, consent=consent)
         return JSONResponse(parsed)
 
     async def extract(request: Request) -> JSONResponse:
         """GET /v1/echo/extract — the canary's extraction surface: the
         recorded interactions through the base consent gate (ADR-0026 §2
-        pass 1), with the exclusions reported."""
+        pass 1), with the exclusions reported. The gate is eligibility over
+        the WHOLE record; the base item-5 pagination slices the eligible
+        list, and the exclusion report rides every page."""
         eligible, excluded = consent_gate(interactions.all())
-        return JSONResponse({"interactions": eligible, "excluded": excluded})
+        response = paginate(request, eligible, key_fn=lambda item: item["seq"])
+        payload = json.loads(bytes(response.body))
+        payload["excluded"] = excluded
+        return JSONResponse(payload, status_code=response.status_code)
 
     return [
         Route("/v1/echo", echo, methods=["POST"]),

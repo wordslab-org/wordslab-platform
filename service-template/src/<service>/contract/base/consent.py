@@ -30,15 +30,15 @@ UNSET = "unset"
 
 
 def resolve_consent(value: object) -> str:
-    """Resolve one input's consent state.
+    """Resolve one DECLARED consent state.
 
-    Absent/`None` → the ADR-0026 §1 default (`may_use`); a declared state →
-    itself; anything else → `ValueError` — consent never silently normalizes
-    an unknown mark into an eligible state. Callers turn the error into the
-    contract's 400 `invalid_request` (base item 4).
+    A declared state → itself; anything else — including an explicit JSON
+    `null` — → `ValueError`: consent never silently normalizes an unknown
+    mark into an eligible state (ADR-0026 §2, fail-closed). Callers turn
+    the error into the contract's 400 `invalid_request` (base item 4). An
+    ABSENT flag is the caller's case: the ADR-0026 §1 default
+    (`DEFAULT_CONSENT`) applies, never this function.
     """
-    if value is None:
-        return DEFAULT_CONSENT
     if value in CONSENT_STATES:
         return value
     raise ValueError(

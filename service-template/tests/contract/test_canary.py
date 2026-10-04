@@ -182,16 +182,20 @@ def test_the_echo_page_carries_the_visible_private_secret_toggle_defaulting_to_m
     """Every user input surface carries the consent flag with the default
     may-use state and a VERY visible 'private/secret — do not use' toggle
     (ADR-0026 §1, ticket #72 AC1) — and the page drives the same API with it
-    (no duplicate logic)."""
+    (no duplicate logic). The toggle is styled prominent in the vendored CSS
+    (a bare unstyled checkbox is not 'very visible'; review finding)."""
     svc = make_service()
     with svc.authorized() as c:
         html = c.get("/echo").text
+        css = c.get("/static/service.css").text
     lowered = html.lower()
     assert "private/secret" in lowered  # the ADR's toggle wording, visible
     assert "do not use" in lowered
     assert "may use" in lowered  # the default state is explained, not assumed
     assert "private: false" in html  # the toggle STARTS in the may-use state
     assert "may_use" in html and "private_secret" in html  # it sends the real states
+    assert ".consent-toggle" in css and ".consent-hint" in css  # styled, not bare
+    assert "font-weight: 600" in css  # emphasized — the visibility bar
 
 
 def test_vendored_static_assets_are_served():

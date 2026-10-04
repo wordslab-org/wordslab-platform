@@ -9,6 +9,8 @@ source of truth for the *contract* shapes is ADR-0001 (cited per assertion).
 
 import pytest
 
+from contract.base.consent import MAY_USE, PRIVATE_SECRET
+
 from tests.support.stubs import (
     StubCollaborator,
     stub_api_key,
@@ -206,10 +208,10 @@ def test_the_consent_stub_interaction_carries_the_flag_with_the_default():
     from tests.support.stubs import stub_consent_interaction
 
     interaction = stub_consent_interaction()
-    assert interaction["consent"] == "may_use"  # the ADR-0026 §1 default
+    assert interaction["consent"] == MAY_USE  # the ADR-0026 §1 default
     assert "text" in interaction  # the interaction's content
-    marked = stub_consent_interaction(text="a secret", consent="private_secret")
-    assert marked == {"text": "a secret", "consent": "private_secret"}
+    marked = stub_consent_interaction(text="a secret", consent=PRIVATE_SECRET)
+    assert marked == {"text": "a secret", "consent": PRIVATE_SECRET}
 
 
 def test_the_consent_gate_matcher_accepts_an_exclusion_honoring_extraction(make_service):
@@ -224,10 +226,10 @@ def test_the_consent_gate_matcher_accepts_an_exclusion_honoring_extraction(make_
         stub_consent_interaction(text="a private thought", consent="private_secret"),
     ]
     with svc.authorized() as c:
-        c.post("/v1/echo", json={"text": "usable", "consent": "may_use"})
-        c.post("/v1/echo", json={"text": "a private thought", "consent": "private_secret"})
+        c.post("/v1/echo", json={"text": "usable", "consent": MAY_USE})
+        c.post("/v1/echo", json={"text": "a private thought", "consent": PRIVATE_SECRET})
         r = c.get("/v1/echo/extract")
-    assert stub_consent_gate_violations(r.json()["interactions"], recorded) == []
+    assert stub_consent_gate_violations(r.json()["items"], recorded) == []
 
 
 def test_the_consent_gate_matcher_flags_a_private_interaction_leaking_through(make_service):
@@ -238,14 +240,16 @@ def test_the_consent_gate_matcher_flags_a_private_interaction_leaking_through(ma
 
     recorded = [
         stub_consent_interaction(text="usable"),
-        stub_consent_interaction(text="a private thought", consent="private_secret"),
+        stub_consent_interaction(text="a private thought", consent=PRIVATE_SECRET),
     ]
     svc = make_service()
     with svc.authorized() as c:
-        c.post("/v1/echo", json={"text": "usable", "consent": "may_use"})
-        c.post("/v1/echo", json={"text": "a private thought", "consent": "private_secret"})
-        extracted = c.get("/v1/echo/extract").json()["interactions"]
-        extracted.append(stub_consent_interaction(text="a private thought", consent="private_secret"))
+        c.post("/v1/echo", json={"text": "usable", "consent": MAY_USE})
+        c.post("/v1/echo", json={"text": "a private thought", "consent": PRIVATE_SECRET})
+        extracted = c.get("/v1/echo/extract").json()["items"]
+        extracted.append(
+            stub_consent_interaction(text="a private thought", consent=PRIVATE_SECRET)
+        )
     violations = stub_consent_gate_violations(extracted, recorded)
     assert any("private/secret" in v for v in violations), violations
 
@@ -256,6 +260,6 @@ def test_the_consent_gate_matcher_flags_an_extracted_item_outside_the_may_use_st
     from tests.support.stubs import stub_consent_gate_violations
 
     violations = stub_consent_gate_violations(
-        [{"text": "x", "consent": "private_secret"}, {"text": "y"}], []
+        [{"text": "x", "consent": PRIVATE_SECRET}, {"text": "y"}], []
     )
     assert len(violations) == 2, violations

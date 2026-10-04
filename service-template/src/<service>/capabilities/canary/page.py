@@ -105,9 +105,10 @@ def echo_page(service_name: str, version: str) -> HTMLResponse:
                     ),
                     Small(
                         "Unchecked (the default): this input may use for improvement — "
-                        "it stays eligible for extraction, which always applies the "
-                        "consent gate (private/secret excluded) + anonymization. "
-                        "Checked: never used, never extractable.",
+                        "it stays eligible for the service's extraction, which always "
+                        "applies the consent gate (private/secret excluded, never "
+                        "bypassed); anonymization happens later, at the core's "
+                        "datasets boundary. Checked: never used, never extractable.",
                         cls="muted consent-hint",
                     ),
                     cls="consent",

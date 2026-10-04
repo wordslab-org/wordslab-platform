@@ -44,11 +44,18 @@ openapi_fragment = {
                         "application/json": {
                             "schema": {
                                 "type": "object",
-                                # The consent flag rides every user input
-                                # (ADR-0026 §1, ticket #72): two states, the
-                                # `may_use` default. The MCP surface inherits
-                                # this schema — zero drift by construction.
+                                # The interaction's content is the `text`
+                                # string; the consent flag rides every user
+                                # input (ADR-0026 §1, ticket #72): two
+                                # states, the `may_use` default. The MCP
+                                # surface inherits this schema — zero drift
+                                # by construction.
+                                "required": ["text"],
                                 "properties": {
+                                    "text": {
+                                        "type": "string",
+                                        "description": "The interaction's content.",
+                                    },
                                     "consent": {
                                         "type": "string",
                                         "enum": ["may_use", "private_secret"],
@@ -99,30 +106,52 @@ openapi_fragment = {
                 "description": (
                     "The canary's extraction surface (ticket #72, ADR-0026 §2 pass 1): "
                     "only 'may_use' interactions are eligible to pass; private/secret "
-                    "and unset interactions are excluded and reported, never bypassed."
+                    "and unset interactions are excluded and reported, never bypassed. "
+                    "The gate is eligibility over the whole record; the item-5 "
+                    "pagination (?limit/?cursor) slices the eligible list, and the "
+                    "exclusion report rides every page."
                 ),
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer", "default": 50, "maximum": 200},
+                        "description": "Page size (base contract item 5).",
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {"type": "string"},
+                        "description": "The opaque cursor from the previous page.",
+                    },
+                ],
                 "responses": {
                     "200": {
-                        "description": "The eligible interactions and the exclusion report.",
+                        "description": "The eligible interactions (item-5 envelope) and the exclusion report.",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
-                                    "required": ["interactions", "excluded"],
+                                    "required": ["items", "next_cursor", "excluded"],
                                     "properties": {
-                                        "interactions": {
+                                        "items": {
                                             "type": "array",
                                             "items": {
                                                 "type": "object",
-                                                "required": ["text", "consent"],
+                                                "required": ["seq", "text", "consent"],
                                                 "properties": {
-                                                    "text": {},
+                                                    "seq": {"type": "integer"},
+                                                    "text": {"type": "string"},
                                                     "consent": {
                                                         "type": "string",
                                                         "enum": ["may_use"],
                                                     },
                                                 },
                                             },
+                                        },
+                                        "next_cursor": {
+                                            "type": "string",
+                                            "description": "The opaque next-page cursor; empty on the last page.",
                                         },
                                         "excluded": {
                                             "type": "object",
