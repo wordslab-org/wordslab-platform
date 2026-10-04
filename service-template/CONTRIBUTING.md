@@ -1,11 +1,11 @@
-# Contributing a service — the copy-to-start checklist (ADR-0002 §Contribution surface)
+# Contributing a service — the copy-to-start checklist (ADR-0002 §Contribution surface; declaration shape v3 per ADR-0031)
 
 A new service is a folder produced by **copying `service-template/`**. No
 generator CLI, no shared SDK — the contract machinery is vendored into each
 service (ADR-0002 §The template.1); drift is caught by the vendored
 conformance suite. A new **capability implementation** is a folder produced
-by **copying `implementation-template/`** — the second template
-(ADR-0031 §1); the two rituals meet inside the service repo.
+by **copying `implementation-template/`** (ADR-0031 §1); the two rituals
+meet inside the service repo.
 
 ## The ritual (service)
 
@@ -18,50 +18,63 @@ by **copying `implementation-template/`** — the second template
    re-point the `sys.path` seed in `tests/contract/conftest.py` at your
    renamed directory.
 
-3. **Edit `service.toml`** — declare identity (name/description/version),
-   the service-level `[requirements]` (disk-gb + ram-gb for your own API +
-   UI code execution only), and your `[[capabilities]]` list — per
-   capability: name, description, version, `api` (its API path prefix
-   inside the service's single OpenAPI doc), `required` (an implementation
-   MUST be provided) or optional, and `[capabilities.ui]` menu elements +
-   entry points. **API families are NOT declared** — your capabilities'
-   APIs implement ADR-0001's family contracts; their documentation is
-   enough. **No capability-level dependencies** — implementations declare
-   dependencies (step 4). Declaration files are validated at load
-   (`contract/declaration/`); a malformed declaration fails at startup, not
-   at request time.
+3. **Edit `service.toml`** — layout: **the service's own properties first**
+   (identity: `name`, `description`, `version`; one service-level
+   `[requirements]` — disk-gb + ram-gb for your own API + UI code execution
+   only), **then one documentation section per capability**, named
+   `[<service-name>.<capability-name>]`. Each capability section carries the
+   FULL documentation: `description`, `version`, `api` (the api description
+   entry point, e.g. `/v1/stt`), `api-functions` (a short description of the
+   api functions), `versions-history`, `required` (an implementation MUST be
+   provided) or optional, and a `[<service>.<capability>.ui]` sub-table
+   with the **UI hooks to integrate in the general platform dashboard**:
+   `menu` (label + entry-point elements), `description` (a short description
+   of the UI), and `versions-history` (the UI versions history). **API
+   families are NOT declared** — your capabilities' APIs implement
+   ADR-0001's family contracts; their documentation is enough. **No
+   capability-level dependencies** — implementations declare dependencies.
+   Declaration files are validated at load (`contract/declaration/`);
+   unknown keys fail loudly — a malformed declaration fails at startup,
+   not at request time.
 
-   TOML ordering rule: top-level keys (`name`, `description`, `version`,
-   `capabilities`) must precede any `[table]` header — in TOML everything
-   after a table header belongs to that table.
+   TOML ordering rule: top-level keys (`name`, `description`, `version`)
+   must precede any `[table]` header — in TOML everything after a table
+   header belongs to that table.
 
 4. **Declare capability implementations** — copy
    `implementation-template/` per implementation (a service has NO
    implementation.toml; ADR-0031 §1) into
    `services/<your-service>/implementations/<capability>/<implementation>/`
    — the implementations live in a subdirectory of the service, keyed
-   `service-name/capability-name/implementation-name`. Each declares:
-   `[identity]`, `capability`, `source` (`local-weights` or
-   `cloud:<provider>/<model>`), SPDX `license` (model weights carry their
-   ADR-0022 five-question compliance profile as license/links facts — the
-   dedicated profile field is a later concern-ticket), `privacy-tier`
-   (`local`/`cloud_no_data`/`cloud`), `[links]`, **`[contents]`** (named
-   content parts typed `inference-engine | model | database | storage-space
-   | open-source-product`; engine/database/OSS parts carry a `github` URL;
-   a model part carries the `huggingface` weights URL + the
-   `artificial-analysis` slug + objective facts only — disk, active/total
-   parameters, VRAM at load, KV-cache per token, quantization; a
-   storage-space part may propose a `default-quota-gb`, the user's
-   install-time choice binds), **`[requirements]`** (the minimum to
-   install AND run: disk-gb, ram-gb, cpu/gpu technologies, vram-gb), and
-   generic **`[dependencies]`** — on a capability (any implementation of
-   it satisfies) or on a specific implementation (that one is required),
-   with optional `min-version`/`features`. Model→engine is an instance of
-   that rule — no special syntax. **No `[ranks]`, no
-   `[engine-dependency]`, no stored `supported`/`recommended`**
-   (ADR-0031 §5): quality/speed/cost comparisons are dynamic
-   (artificialanalysis at selection time); never put those keys in a
-   declaration.
+   `service-name/capability-name/implementation-name`. Layout: **the
+   implementation's own properties first** (`capability`, `license` (SPDX),
+   `[identity]` (name/version/description), `[requirements]` — its OWN code
+   only — and generic `[[dependencies]]`: on a capability (any
+   implementation of it satisfies) or on a specific implementation (that
+   one is required), with optional `min-version`/`features`), **then one
+   documentation section per content part**, named
+   `[<capability>.<content-part-type>.<content-part-name>]`. **Each type may
+   appear several times** (an implementation can bundle several models).
+   Part types: `inference-engine` (github URL, requirements) · `local-model`
+   (huggingface weights URL + artificial-analysis slug + objective facts +
+   requirements) · `cloud-model` (provider/model ref + AA slug +
+   `privacy-tier`; NO requirements — a cloud part consumes no machine) ·
+   `database` (github, requirements) · `storage-space`
+   (`default-quota-gb` proposal; the user's install-time choice binds) ·
+   `open-source-app` (github, requirements) · `cloud-service`
+   (provider/service ref + privacy-tier; NO requirements). **The
+   implementation's requirements are the sum/union** of its own
+   requirements and its parts' requirements (disk/ram/vram sum, cpu/gpu
+   technologies union), computed at load. **No `[ranks]`, no
+   `[engine-dependency]`, no `source`/`privacy-tier`/`[links]` at
+   implementation level** (moved into the parts), **no stored
+   `supported`/`recommended`** (ADR-0031 §5): quality/speed/cost
+   comparisons are dynamic (artificialanalysis at selection time); never
+   put those keys in a declaration.
+
+   The implementation-specific install function receives the **typed
+   `Implementation` object** (the loader's parse result) as its
+   configuration data — no re-parsing.
 
 5. **Keep only the family modules you implement** — remove every
    `src/<your-service>/contract/families/<family>` module you do not
@@ -78,16 +91,17 @@ by **copying `implementation-template/`** — the second template
 
 A capability implementation is a folder copied from
 `implementation-template/` into the service repo at
-`implementations/<capability>/<implementation>/` (so a model
-implementation's folder reads
-`services/inference/llm.model/qwen3-4b/`). The folder contains:
+`services/<service>/implementations/<capability>/<implementation>/`. The
+folder contains:
 
 - **`implementation.toml`** — the declaration (validated by the service
   template's `contract/declaration/load_implementation_toml` — the loader
-  is part of the vendored contract machinery). The shape is ADR-0031 §3/§4:
-  `capability`, `[identity]`, `source`, `license`, `privacy-tier`,
-  `[links]`, `[contents]` (typed named parts with per-type facts),
-  `[requirements]` (install-and-run minimum), generic `[dependencies]`.
+  is part of the vendored contract machinery). The shape is ADR-0031 §3/§4
+  v3: own properties (`capability`, `[identity]`, `license`,
+  `[requirements]`, `[[dependencies]]`), then per-part documentation
+  sections `[<capability>.<type>.<part-name>]` (each type may appear
+  several times; per-type properties and per-part `[requirements]`; the
+  parts are the configuration data for the install function).
 - **`install/`** — the installer's recipe (how the implementation is
   installed on the machine — weights to download, engine to install,
   service to configure). The exact installer contract is the install/
@@ -95,7 +109,7 @@ implementation's folder reads
 - **`README.md`** — human documentation (what the implementation does,
   its tradeoffs, how it compares to siblings of the same capability).
 
-The same rules as the service ritual apply: top-level keys precede any
+The same rules as the service ritual apply: own properties before any
 `[table]` header; **no `[ranks]`, no `[engine-dependency]`, no stored
 `supported`/`recommended`** (ADR-0031 §5) — never put those keys in a
 declaration.

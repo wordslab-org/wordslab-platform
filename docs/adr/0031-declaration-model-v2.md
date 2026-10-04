@@ -19,23 +19,25 @@ The v1 declaration model (ADR-0002 §5 sharpened by ADR-0018/0027, embodied in t
 - A service has **no implementation** in the capability sense. Any business logic is isolated in a capability and its implementations (ADR-0002's "capabilities own routes/UI" unchanged; ADR-0029 §3's `models` management capability is the canonical example).
 - **`service.toml` describes the service; `implementation.toml` describes one capability implementation.** The repo ships **two templates** (per the maintainer's ruling): **`service-template/`** (the service ritual: contract machinery, `service.toml`, tests) and **`implementation-template/`** (the capability-implementation ritual: a skeleton `implementation.toml`, `install/` recipe home, `README.md`). No service-kind `implementation.toml`.
 
-### 2. `service.toml` v2
+### 2. `service.toml` v2/v3
 
+- **Layout: own properties first, then one documentation section per capability**, named `<service-name>.<capability-name>`.
 - **Identity** — `name`, `description`, `version`.
 - **Service-level `[requirements]`** — `disk-gb` + `ram-gb` for the service's own API + UI code execution: **one service-level figure**. Each capability implementation selected at install time adds its own requirements (§3) on top.
-- **`[[capabilities]]`** — the capability list; each capability declares `name`, `description`, `version`, `api` (the capability's **API path prefix** inside the service's single OpenAPI doc — ADR-0001's one `/openapi.json` per service is unchanged), `required` (`true` = an implementation MUST be provided for the service to be usable; omitted/`false` = an implementation can be omitted), and `[capabilities.ui]` menu elements + entry points to integrate in the platform UI.
+- **Per-capability full documentation** (in `[<service>.<capability>]`): `description`, `version`, `api` (the capability's **API description entry point** inside the service's single OpenAPI doc — ADR-0001's one `/openapi.json` per service is unchanged), `api-functions` (a short description of the api functions), `versions-history` (explanation of the versions history), `required` (`true` = an implementation MUST be provided for the service to be usable; omitted/`false` = an implementation can be omitted).
+- **Per-capability UI documentation** (in `[<service>.<capability>.ui]`): `menu` (the UI hooks to integrate in the general platform dashboard — label + entry-point elements), `description` (a short description of the UI), `versions-history` (the UI versions history).
 - **API families are NOT declared** — the capabilities' APIs implement ADR-0001's family contracts; their documentation is enough.
 - **No capability-level dependencies** — the implementations declare dependencies (§4), not the service.
 
-### 3. `implementation.toml` v2 — contents
+### 3. `implementation.toml` v2/v3 — contents as documented part sections
 
 - `capability` — the capability implemented; several implementations of the same capability are swappable at runtime (ADR-0002 §2 unchanged). An implementation lives **in a subdirectory of its service**, keyed `service-name/capability-name/implementation-name` (e.g. `services/inference/implementations/llm.model/qwen3-4b/`) — copied from `implementation-template/`.
-- `[identity]` (name/version/description), `license` (SPDX), `privacy-tier` (`local`/`cloud_no_data`/`cloud`), `source` (`local-weights` | `cloud:<provider>/<model>` — ADR-0027 §4 unchanged), `[links]` — as before.
-- **`[contents]` replaces `kind`** — a dictionary of **named content parts**, each with a `type`: `inference-engine` · `model` · `database` · `storage-space` · `open-source-product`. An implementation may bundle several parts.
-  - `inference-engine` / `database` / `open-source-product` parts require a **`github` URL**.
-  - `model` parts require the **`huggingface` URL** for the weights and the **`artificial-analysis` slug** (the join key for §5's dynamic metrics), and carry **objective facts only**: disk size, active/total parameters, VRAM size at load, KV-cache size per token, quantization.
-  - `storage-space` parts declare the part; the **maximum quota is the user's choice, allocated at install time**, monitored and changeable later (extends ADR-0005 §8's quota machinery with a new bookable kind; the declaration may propose a `default-quota-gb`).
-- **`[requirements]`** — the minimum to install **and run** the implementation: `disk-gb`, `ram-gb`, `cpu` technologies, `gpu` technologies, `vram-gb`.
+- **Layout: own properties first, then one documentation section per content part**, named `<capability>.<content-part-type>.<content-part-name>`. **Each type may appear several times** (an implementation can bundle several models, several engines, ...). The implementation's own properties: `capability`, `[identity]` (name/version/description), `license` (SPDX), `[requirements]` (its OWN code only), and generic `[[dependencies]]` (§4).
+- Part types and per-type properties: `inference-engine` (github URL, requirements) · `local-model` (huggingface weights URL + artificial-analysis slug + objective facts + requirements) · `cloud-model` (provider/model ref + AA slug + privacy-tier; NO requirements) · `database` (github, requirements) · `storage-space` (`default-quota-gb` proposal; the user's install-time choice binds, monitored and changeable later — extends ADR-0005 §8) · `open-source-app` (github, requirements) · `cloud-service` (provider/service ref + privacy-tier; NO requirements). `source` moved under the model parts; `privacy-tier` is a cloud-part property; `[links]` superseded by the per-part URLs.
+  - `local-model` parts carry **objective facts only**: disk size, active/total parameters, VRAM size at load, KV-cache size per token, quantization.
+  - **Cloud parts consume no machine hardware and declare no requirements**; `privacy-tier` (`local`/`cloud_no_data`/`cloud`, ADR-0006/0008) is required on cloud parts only.
+- **`[requirements]` aggregation** — the implementation's requirements are the **sum/union** of its own code requirements and its parts' requirements: disk/ram/vram sum, CPU/GPU technologies union, computed at load (`aggregate_requirements`).
+- **Install contract** — the implementation-specific install function receives a **typed python object representing the full contents of the toml file** (the loader's parse result); the parsed content parts are its per-part configuration data.
 
 ### 4. Generic dependencies
 

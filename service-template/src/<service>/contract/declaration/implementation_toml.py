@@ -1,27 +1,31 @@
 """The capability-implementation declaration loader (ticket #74; ADR-0018
-§8, ADR-0027, **ADR-0031 — declaration model v2**).
+§8, ADR-0027, **ADR-0031 — declaration model v2/v3**).
 
 An `implementation.toml` describes **one capability implementation** — a
-service has no implementation (ADR-0031 §1). The field map is ADR-0031
-§3/§4; its tests (`tests/contract/test_declaration.py`) document each group:
+service has no implementation (ADR-0031 §1). Layout: the implementation's
+own properties first, then one **documentation section per content part**,
+named `<capability>.<content-part-type>.<content-part-name>` (ADR-0031 §3):
 
-- `[identity]` (name/version/description), `capability`, `source`
-  (`local-weights` | `cloud:<provider>/<model>`, ADR-0027 §4), `license`
-  (SPDX), `privacy-tier` (`local`/`cloud_no_data`/`cloud`), `[links]`.
-- **`[contents]`** (replaces `kind`) — named content parts, each typed
-  `inference-engine | model | database | storage-space | open-source-product`.
-  Per-type facts: engine/database/OSS parts carry a `github` URL; **model**
-  parts carry the `huggingface` weights URL, the `artificial-analysis` slug
-  (the join key for ADR-0031 §5's dynamic metrics) and **objective facts
-  only** (disk size, active/total parameters, VRAM at load, KV-cache size
-  per token, quantization); a `storage-space` part may propose a
-  `default-quota-gb` — the user's install-time choice is the bound.
-- **`[requirements]`** — the minimum to install **and run**: `disk-gb`,
-  `ram-gb`, `cpu` technologies, `gpu` technologies, `vram-gb`.
-- **`[dependencies]`** — generic (ADR-0031 §4): on a **capability** (any
-  implementation of it satisfies) or on a **specific implementation**
-  (that one is required), each with optional `min-version`/`features`
-  (ADR-0016 §3's satisfy relation). Model→engine is an instance, not syntax.
+- own properties: `capability`, `license` (SPDX), `[identity]`
+  (name/version/description), `[requirements]` — the implementation's OWN
+  code only — and generic `[[dependencies]]` (ADR-0031 §4: on a capability
+  or a specific implementation, with optional min-version/features).
+- **content-part sections** — each type may appear **several times** (an
+  implementation can bundle several models): `inference-engine` (github
+  URL, requirements) · `local-model` (huggingface weights URL +
+  artificial-analysis slug + objective facts + requirements) · `cloud-model`
+  (provider/model ref + AA slug + privacy-tier; NO requirements — a cloud
+  part consumes no machine) · `database` (github, requirements) ·
+  `storage-space` (default-quota-gb proposal; the user's install-time
+  choice binds) · `open-source-app` (github, requirements) · `cloud-service`
+  (provider/service ref + privacy-tier; NO requirements).
+- **aggregation**: the implementation's requirements are the **sum/union**
+  of its own requirements and its parts' requirements (disk/ram/vram sum,
+  CPU/GPU technologies union) — `Implementation.requirements`.
+- **install contract**: the implementation-specific install function
+  receives the typed `Implementation` object (this module's parse result)
+  as its configuration data; the `ContentPart` objects are the per-part
+  config.
 
 `supported`/`recommended` are **computed, never stored** (ADR-0002 §5,
 ADR-0005, ADR-0031 §5): no `[ranks]`, no quality claims — model ordering
@@ -39,13 +43,17 @@ PRIVACY_TIERS = ("local", "cloud_no_data", "cloud")
 
 CONTENT_TYPES = (
     "inference-engine",
-    "model",
+    "local-model",
+    "cloud-model",
     "database",
     "storage-space",
-    "open-source-product",
+    "open-source-app",
+    "cloud-service",
 )
 
-MODEL_OBJECTIVE_FACTS = (
+CLOUD_TYPES = frozenset({"cloud-model", "cloud-service"})
+
+LOCAL_MODEL_FACTS = (
     "disk-gb",
     "parameters-active",
     "parameters-total",
@@ -54,26 +62,36 @@ MODEL_OBJECTIVE_FACTS = (
     "quantization",
 )
 
+CLOUD_MODEL_FACTS = (
+    "parameters-active",
+    "parameters-total",
+    "quantization",
+)
+
+# per-type scalar keys (on top of the common description/version)
+PART_TYPE_KEYS = {
+    "inference-engine": ("github",),
+    "local-model": ("huggingface", "artificial-analysis"),
+    "cloud-model": ("provider", "model", "artificial-analysis", "privacy-tier"),
+    "database": ("github",),
+    "storage-space": ("default-quota-gb",),
+    "open-source-app": ("github",),
+    "cloud-service": ("provider", "service", "privacy-tier"),
+}
+
+# types that may declare [requirements] (cloud parts consume no machine;
+# a storage-space part's requirement IS its quota)
+PART_TYPES_WITH_REQUIREMENTS = frozenset(
+    {"inference-engine", "local-model", "database", "open-source-app"}
+)
+
 IMPLEMENTATION_TOP_LEVEL_KEYS = {
     "capability",
-    "source",
     "license",
-    "privacy-tier",
     "identity",
-    "links",
-    "contents",
     "requirements",
     "dependencies",
 }
-
-
-def _is_capability_name(name: str) -> bool:
-    """Capability names are lowercase dotted identifiers (`audio.stt`) —
-    CONTEXT.md *Implementation* / ADR-0029's `<task>.model` grammar. The same
-    grammar `service_toml` enforces on declared capabilities."""
-    return bool(name) and all(
-        part.isidentifier() and part.islower() for part in name.split(".")
-    )
 
 
 class ImplementationDeclarationError(ValueError):
@@ -84,29 +102,57 @@ def _err(msg: str) -> ImplementationDeclarationError:
     return ImplementationDeclarationError(msg)
 
 
-@dataclass(frozen=True)
-class ContentPart:
-    """One named entry of `[contents]` (ADR-0031 §3) — an implementation may
-    bundle several parts; per-type facts key off the part."""
-
-    name: str
-    type: str
-    github: str | None = None          # inference-engine / database / open-source-product
-    huggingface: str | None = None     # model weights URL
-    artificial_analysis: str | None = None  # the AA slug — the join key for dynamic metrics
-    facts: dict = field(default_factory=dict)   # model objective facts / storage default quota
+def _is_capability_name(name: str) -> bool:
+    """Capability names are lowercase dotted identifiers (`audio.stt`) —
+    CONTEXT.md *Implementation* / ADR-0029's `<task>.model` grammar. No
+    segment may be a content-part type token (it would make the part
+    section path `[capability.type.name]` ambiguous)."""
+    if not name:
+        return False
+    parts = name.split(".")
+    return all(
+        part.isidentifier() and part.islower() and part not in CONTENT_TYPES
+        for part in parts
+    )
 
 
 @dataclass(frozen=True)
 class Requirements:
-    """The minimum to install **and run** the implementation (ADR-0031 §3):
-    disk/RAM, CPU/GPU technologies, VRAM."""
+    """The minimum to install **and run** (ADR-0031 §3): disk/RAM/VRAM,
+    CPU/GPU technologies."""
 
     disk_gb: float
     ram_gb: float
     cpu_technologies: tuple[str, ...] = ()
     gpu_technologies: tuple[str, ...] = ()
     vram_gb: float = 0.0
+
+
+EMPTY_REQUIREMENTS = Requirements(disk_gb=0.0, ram_gb=0.0)
+
+
+@dataclass(frozen=True)
+class ContentPart:
+    """One content part, parsed from its documentation section
+    `<capability>.<type>.<name>` (ADR-0031 §3). Each type may appear several
+    times; per-type properties key off the part; the part's requirements
+    feed the implementation's aggregate (sum/union). This object is the
+    per-part configuration data handed to the install function."""
+
+    name: str
+    type: str
+    description: str
+    version: str
+    github: str | None = None              # inference-engine / database / open-source-app
+    huggingface: str | None = None         # local-model weights URL
+    artificial_analysis: str | None = None  # local/cloud-model: the AA slug (dynamic-metrics join key)
+    provider: str | None = None            # cloud-model / cloud-service
+    model: str | None = None               # cloud-model (the provider's model id)
+    service: str | None = None             # cloud-service (the provider's service id)
+    privacy_tier: str | None = None         # cloud parts only (ADR-0006/0008)
+    default_quota_gb: float | None = None   # storage-space proposal; the user's choice binds
+    facts: dict = field(default_factory=dict)     # model objective facts
+    requirements: Requirements | None = None     # part requirements (cloud parts: None)
 
 
 @dataclass(frozen=True)
@@ -124,19 +170,30 @@ class Dependency:
 
 @dataclass(frozen=True)
 class Implementation:
-    """One parsed `implementation.toml` (ADR-0031 §3/§4's field map)."""
+    """One parsed `implementation.toml` — the typed object the
+    implementation-specific install function receives as configuration
+    data (ADR-0031 §3).
+
+    `own_requirements` covers the implementation's own code;
+    `requirements` is the **aggregate**: own + parts, quantities summed,
+    technologies unioned."""
 
     capability: str
     name: str
     version: str
     description: str
-    source: str
     license: str
-    privacy_tier: str
-    links: dict[str, str]
-    contents: tuple[ContentPart, ...]
+    own_requirements: Requirements
     requirements: Requirements
+    contents: tuple[ContentPart, ...]
     dependencies: tuple[Dependency, ...]
+
+    @property
+    def is_cloud(self) -> bool:
+        """True when every content part is a cloud part — the implementation
+        consumes no machine hardware (ADR-0031 §3: cloud parts declare no
+        requirements)."""
+        return bool(self.contents) and all(p.type in CLOUD_TYPES for p in self.contents)
 
 
 def load_implementation_toml(path: str | Path) -> Implementation:
@@ -157,31 +214,7 @@ def load_implementation_toml(path: str | Path) -> Implementation:
             " (`audio.stt`) — the grammar of the capability it references"
         )
 
-    unknown = set(raw) - IMPLEMENTATION_TOP_LEVEL_KEYS
-    if unknown:
-        known = ", ".join(sorted(IMPLEMENTATION_TOP_LEVEL_KEYS))
-        for retired, hint in (
-            ("kind", "`kind` is superseded by `[contents]` (ADR-0031 §3)"),
-            ("ranks", "`[ranks]` is removed (ADR-0031 §5) — dynamic metrics at selection time"),
-            (
-                "engine-dependency",
-                "`[engine-dependency]` is superseded by generic `[dependencies]` (ADR-0031 §4)",
-            ),
-            (
-                "supported",
-                "`supported` is computed from hardware facts at read time — never stored (ADR-0031 §5)",
-            ),
-            (
-                "recommended",
-                "`recommended` is computed from the model-selection goal at read time — never stored (ADR-0031 §5)",
-            ),
-        ):
-            if retired in unknown:
-                raise _err(f"{hint} — remove the key")
-        raise _err(
-            f"unknown top-level key(s) {sorted(unknown)} — implementation.toml"
-            f" declares only: {known} (typos fail loudly, ADR-0031 §3/§4)"
-        )
+    _reject_unknown_top_level(raw)
 
     identity = raw.get("identity")
     if not isinstance(identity, dict):
@@ -197,170 +230,375 @@ def load_implementation_toml(path: str | Path) -> Implementation:
             " must all be non-empty strings"
         )
 
-    source = raw.get("source")
-    if not isinstance(source, str) or not (
-        source == "local-weights" or source.startswith("cloud:")
-    ):
-        raise _err(
-            '`source` must be "local-weights" or "cloud:<provider>/<model>"'
-            " (ADR-0027 §1: local weights → a local engine; a cloud ref →"
-            " the cloud-gateway engine)"
-        )
-    if source.startswith("cloud:"):
-        ref = source[len("cloud:"):]
-        provider, _, model = ref.partition("/")
-        if not provider.strip() or not model.strip():
-            raise _err(
-                '`source` cloud refs are "cloud:<provider>/<model>" — both'
-                f" parts required (got {source!r})"
-            )
-
     license_id = raw.get("license")
     if not isinstance(license_id, str) or not license_id.strip():
         raise _err("`license` must be a non-empty SPDX string (ADR-0022)")
 
-    privacy_tier = raw.get("privacy-tier")
-    if privacy_tier not in PRIVACY_TIERS:
-        raise _err(f"`privacy-tier` must be one of {PRIVACY_TIERS} (ADR-0006/0008)")
-
-    links = raw.get("links", {})
-    if not isinstance(links, dict) or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in links.items()
-    ):
-        raise _err("`[links]` must be a table of strings (release/repo/license/evaluations)")
-
-    contents = _validate_contents(raw.get("contents"))
-    requirements = _validate_requirements(raw.get("requirements"))
+    own_requirements = _validate_requirements(
+        raw.get("requirements"), where="[requirements]", required=False
+    )
     dependencies = _validate_dependencies(raw.get("dependencies", []))
+    contents = _validate_part_sections(raw, capability)
 
     return Implementation(
         capability=capability,
         name=name,
         version=version,
         description=description,
-        source=source,
         license=license_id,
-        privacy_tier=privacy_tier,
-        links=links,
+        own_requirements=own_requirements,
+        requirements=aggregate_requirements(own_requirements, contents),
         contents=contents,
-        requirements=requirements,
         dependencies=dependencies,
     )
 
 
-def _validate_contents(contents: object) -> tuple[ContentPart, ...]:
-    if not isinstance(contents, dict) or not contents:
+def _reject_unknown_top_level(raw: dict) -> None:
+    """The closed-shape rule, part-section aware: a top-level key whose
+    first segment starts the declared capability path is the root of a
+    `[capability.type.part-name]` documentation section, not an unknown
+    key. The part-section walk (`_validate_part_sections`) validates the
+    rest."""
+    capability = raw.get("capability")
+    capability_head = capability.split(".")[0] if isinstance(capability, str) else None
+    unknown = {
+        key
+        for key in set(raw) - IMPLEMENTATION_TOP_LEVEL_KEYS
+        if capability_head is None or key.split(".")[0] != capability_head
+    }
+    for retired, hint in (
+        (
+            "kind",
+            "`kind` is superseded by the content-part documentation sections"
+            " `[capability.type.part-name]` (ADR-0031 §3)",
+        ),
+        ("ranks", "`[ranks]` is removed (ADR-0031 §5) — dynamic metrics at selection time"),
+        (
+            "engine-dependency",
+            "`[engine-dependency]` is superseded by generic `[dependencies]` (ADR-0031 §4)",
+        ),
+        (
+            "supported",
+            "`supported` is computed from hardware facts at read time — never stored (ADR-0031 §5)",
+        ),
+        (
+            "recommended",
+            "`recommended` is computed from the model-selection goal at read time — never stored (ADR-0031 §5)",
+        ),
+        (
+            "source",
+            "`source` moved under the model parts — a `local-model` part carries the"
+            " huggingface weights URL, a `cloud-model` part carries the provider/model"
+            " reference (ADR-0031 §3)",
+        ),
+        (
+            "privacy-tier",
+            "`privacy-tier` moved to the cloud parts (`cloud-model`, `cloud-service`)"
+            " — only a cloud part has a privacy tier (ADR-0031 §3)",
+        ),
+        (
+            "links",
+            "`[links]` is superseded by the per-part URLs (github, huggingface, provider refs)",
+        ),
+        (
+            "contents",
+            "`[contents]` is superseded by the content-part documentation sections"
+            " `[capability.type.part-name]` (ADR-0031 §3)",
+        ),
+    ):
+        if retired in unknown:
+            raise _err(f"{hint} — remove the key")
+    if not unknown:
+        return
+    known = ", ".join(sorted(IMPLEMENTATION_TOP_LEVEL_KEYS))
+    raise _err(
+        f"unknown top-level key(s) {sorted(unknown)} — implementation.toml"
+        f" declares only: {known} plus content-part sections"
+        f" `[capability.type.part-name]` (typos fail loudly, ADR-0031 §3/§4)"
+    )
+
+
+# ------------------------------------------------------------------ part walk
+
+
+def _walk_part_sections(
+    node: dict,
+    capability_segments: list[str],
+    declared: str,
+    out: list,
+) -> None:
+    """Walk the nested tables of the bare TOML headers
+    `[capability.type.part-name...]`, reconstructing the dotted names.
+
+    Deterministic and loud: while the path is still inside the declared
+    capability, only the declared next segment may appear — anything else is
+    an unknown content-part type and fails at load. Type tokens end the
+    capability path (capability names may not contain type tokens —
+    `_is_capability_name`)."""
+    declared_segments = declared.split(".")
+    at_capability_root = len(capability_segments) == len(declared_segments)
+    for key, value in node.items():
+        if not isinstance(value, dict):
+            continue
+        if key in CONTENT_TYPES:
+            if not at_capability_root:
+                raise _err(
+                    f"`{key}` looks like a content-part type but appears inside"
+                    f" the capability path `{'.'.join(capability_segments)}` —"
+                    " content-part sections are"
+                    " `[<capability>.<content-part-type>.<part-name>]`"
+                )
+            capability = ".".join(capability_segments)
+            if capability != declared:
+                raise _err(
+                    f"content-part section `[{'.'.join(capability_segments)}.{key}.*]`"
+                    f" declares capability {capability!r} but this implementation"
+                    f" declares {declared!r}"
+                )
+            for part_name, spec in value.items():
+                if not isinstance(spec, dict):
+                    raise _err(
+                        f"`[{'.'.join(capability_segments + [key, part_name])}]`"
+                        " must be a table"
+                    )
+                out.append((".".join(capability_segments), key, part_name, spec))
+        elif at_capability_root:
+            raise _err(
+                f"unknown content-part type {key!r} — a part section is"
+                f" `[<capability>.<type>.<part-name>]` with type one of"
+                f" {CONTENT_TYPES} (ADR-0031 §3)"
+            )
+        else:
+            expected = declared_segments[len(capability_segments)]
+            if key != expected:
+                raise _err(
+                    f"unknown content-part type {key!r} — expected the declared"
+                    f" capability path {declared!r}, a part section is"
+                    f" `[<capability>.<type>.<part-name>]` with type one of"
+                    f" {CONTENT_TYPES} (ADR-0031 §3)"
+                )
+            _walk_part_sections(value, capability_segments + [key], declared, out)
+
+
+def _validate_part_sections(
+    raw: dict, declared_capability: str
+) -> tuple[ContentPart, ...]:
+    found: list = []
+    for key, value in raw.items():
+        if key in IMPLEMENTATION_TOP_LEVEL_KEYS or not isinstance(value, dict):
+            continue
+        _walk_part_sections({key: value}, [], declared_capability, found)
+    if not found:
         raise _err(
-            "`[contents]` is required — named content parts typed"
-            f" {CONTENT_TYPES} (ADR-0031 §3; replaces `kind`)"
+            "no content-part documentation sections — expected at least one"
+            " `[capability.type.part-name]` section (ADR-0031 §3)"
         )
     parts: list[ContentPart] = []
-    for part_name, spec in contents.items():
-        if not isinstance(spec, dict):
-            raise _err(f"`[contents].{part_name}` must be a table")
-        type_ = spec.get("type")
-        if type_ not in CONTENT_TYPES:
-            raise _err(
-                f"`[contents].{part_name}.type` must be one of {CONTENT_TYPES}"
-                " (ADR-0031 §3)"
-            )
-        github = spec.get("github")
-        huggingface = spec.get("huggingface")
-        slug = spec.get("artificial-analysis")
-
-        facts: dict = {}
-        if type_ in ("inference-engine", "database", "open-source-product"):
-            if not isinstance(github, str) or not github.strip():
-                raise _err(
-                    f"`[contents].{part_name}.github` is required for a"
-                    f" `{type_}` part (ADR-0031 §3)"
-                )
-        elif type_ == "model":
-            if not isinstance(huggingface, str) or not huggingface.strip():
-                raise _err(
-                    f"`[contents].{part_name}.huggingface` is required for a"
-                    " `model` part (the weights URL, ADR-0031 §3)"
-                )
-            if not isinstance(slug, str) or not slug.strip():
-                raise _err(
-                    f"`[contents].{part_name}.artificial-analysis` is required"
-                    " for a `model` part (the AA slug — the join key for"
-                    " dynamic metrics, ADR-0031 §5)"
-                )
-            facts_raw = spec.get("facts", {})
-            if not isinstance(facts_raw, dict):
-                raise _err(f"`[contents].{part_name}.facts` must be a table")
-            for key, value in facts_raw.items():
-                if key not in MODEL_OBJECTIVE_FACTS:
-                    raise _err(
-                        f"`[contents].{part_name}.facts.{key}` is not an"
-                        " objective model fact — allowed:"
-                        f" {MODEL_OBJECTIVE_FACTS} (ADR-0031 §3: no quality claims)"
-                    )
-                if key != "quantization" and (
-                    not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0
-                ):
-                    raise _err(
-                        f"`[contents].{part_name}.facts.{key}` must be a"
-                        " non-negative number"
-                    )
-            facts = dict(facts_raw)
-        elif type_ == "storage-space":
-            quota = spec.get("default-quota-gb")
-            if quota is not None and (
-                not isinstance(quota, (int, float)) or isinstance(quota, bool) or quota < 0
-            ):
-                raise _err(
-                    f"`[contents].{part_name}.default-quota-gb` must be a"
-                    " non-negative number — a proposal; the user's install-time"
-                    " choice is the bound (ADR-0031 §3)"
-                )
-            if quota is not None:
-                facts["default-quota-gb"] = quota
-
-        parts.append(
-            ContentPart(
-                name=part_name,
-                type=type_,
-                github=github if isinstance(github, str) else None,
-                huggingface=huggingface if isinstance(huggingface, str) else None,
-                artificial_analysis=slug if isinstance(slug, str) else None,
-                facts=facts,
-            )
-        )
+    seen: set[str] = set()
+    for capability, type_, part_name, spec in found:
+        if part_name in seen:
+            raise _err(f"duplicate content-part declaration: {part_name!r}")
+        seen.add(part_name)
+        parts.append(_validate_part(part_name, type_, spec))
     return tuple(parts)
 
 
-def _validate_requirements(req: object) -> Requirements:
-    if not isinstance(req, dict):
+def _validate_part(part_name: str, type_: str, spec: dict) -> ContentPart:
+    where = f"[{'.'.join([type_, part_name])}]"
+
+    # cloud parts consume no machine hardware — loud BEFORE the generic
+    # unknown-key scan so the message teaches the rule (ADR-0031 §3)
+    if type_ in CLOUD_TYPES and "requirements" in spec:
         raise _err(
-            "`[requirements]` table is required — the minimum to install"
-            " AND run (ADR-0031 §3)"
+            f"`{where}` declares `[requirements]` — cloud parts consume no"
+            " machine hardware and declare no requirements (ADR-0031 §3)"
         )
+
+    allowed = {"description", "version"} | set(PART_TYPE_KEYS[type_])
+    if type_ in PART_TYPES_WITH_REQUIREMENTS:
+        allowed |= {"requirements"}
+    if type_ in ("local-model", "cloud-model"):
+        allowed |= {"facts"}
+    unknown = set(spec) - allowed
+    if unknown:
+        raise _err(
+            f"`{where}` has unknown key(s) {sorted(unknown)} — a `{type_}` part"
+            f" declares only: {', '.join(sorted(allowed))}"
+        )
+
+    def _req_str(key: str) -> str:
+        value = spec.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise _err(f"`{where}.{key}` must be a non-empty string")
+        return value
+
+    part = ContentPart(
+        name=part_name,
+        type=type_,
+        description=_req_str("description"),
+        version=_req_str("version"),
+    )
+
+    if type_ in ("inference-engine", "database", "open-source-app"):
+        part_github = spec.get("github")
+        if not isinstance(part_github, str) or not part_github.strip():
+            raise _err(f"`{where}.github` is required for a `{type_}` part (ADR-0031 §3)")
+        object.__setattr__(part, "github", part_github)
+
+    if type_ == "local-model":
+        hf = spec.get("huggingface")
+        if not isinstance(hf, str) or not hf.strip():
+            raise _err(
+                f"`{where}.huggingface` is required for a `local-model` part"
+                " (the weights URL, ADR-0031 §3)"
+            )
+        slug = spec.get("artificial-analysis")
+        if not isinstance(slug, str) or not slug.strip():
+            raise _err(
+                f"`{where}.artificial-analysis` is required for a `local-model`"
+                " part (the AA slug — the join key for dynamic metrics, ADR-0031 §5)"
+            )
+        object.__setattr__(part, "huggingface", hf)
+        object.__setattr__(part, "artificial_analysis", slug)
+        object.__setattr__(part, "facts", _validate_facts(spec.get("facts", {}), LOCAL_MODEL_FACTS, where))
+
+    elif type_ == "cloud-model":
+        for key in ("provider", "model", "artificial-analysis"):
+            value = spec.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise _err(f"`{where}.{key}` is required for a `cloud-model` part")
+        object.__setattr__(part, "provider", spec["provider"])
+        object.__setattr__(part, "model", spec["model"])
+        object.__setattr__(part, "artificial_analysis", spec["artificial-analysis"])
+        object.__setattr__(part, "privacy_tier", _validate_privacy(spec, where))
+        object.__setattr__(part, "facts", _validate_facts(spec.get("facts", {}), CLOUD_MODEL_FACTS, where))
+
+    elif type_ == "cloud-service":
+        for key in ("provider", "service"):
+            value = spec.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise _err(f"`{where}.{key}` is required for a `cloud-service` part")
+        object.__setattr__(part, "provider", spec["provider"])
+        object.__setattr__(part, "service", spec["service"])
+        object.__setattr__(part, "privacy_tier", _validate_privacy(spec, where))
+
+    elif type_ == "storage-space":
+        quota = spec.get("default-quota-gb")
+        if quota is not None and (
+            not isinstance(quota, (int, float)) or isinstance(quota, bool) or quota < 0
+        ):
+            raise _err(
+                f"`{where}.default-quota-gb` must be a non-negative number — a"
+                " proposal; the user's install-time choice is the bound (ADR-0031 §3)"
+            )
+        if quota is not None:
+            object.__setattr__(part, "default_quota_gb", float(quota))
+
+    if type_ in PART_TYPES_WITH_REQUIREMENTS:
+        object.__setattr__(
+            part,
+            "requirements",
+            _validate_requirements(
+                spec.get("requirements"), where=f"{where}.requirements", required=False
+            ),
+        )
+
+    return part
+
+
+def _validate_privacy(spec: dict, where: str) -> str:
+    tier = spec.get("privacy-tier")
+    if tier not in PRIVACY_TIERS:
+        raise _err(f"`{where}.privacy-tier` must be one of {PRIVACY_TIERS} (ADR-0006/0008)")
+    return tier
+
+
+def _validate_facts(facts: object, allowed: tuple[str, ...], where: str) -> dict:
+    if not isinstance(facts, dict):
+        raise _err(f"`{where}.facts` must be a table")
+    for key, value in facts.items():
+        if key not in allowed:
+            raise _err(
+                f"`{where}.facts.{key}` is not an objective model fact — allowed:"
+                f" {allowed} (ADR-0031 §3: no quality claims)"
+            )
+        if key != "quantization" and (
+            not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0
+        ):
+            raise _err(f"`{where}.facts.{key}` must be a non-negative number")
+    return dict(facts)
+
+
+# ------------------------------------------------------------- requirements
+
+
+def _validate_requirements(req: object, *, where: str, required: bool) -> Requirements:
+    if req is None:
+        if required:
+            raise _err(f"`{where}` table is required — the minimum to install AND run (ADR-0031 §3)")
+        return EMPTY_REQUIREMENTS
+    if not isinstance(req, dict):
+        raise _err(f"`{where}` must be a table")
     for key in ("disk-gb", "ram-gb"):
-        value = req.get(key)
+        value = req.get(key, 0.0)
         if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
-            raise _err(f"`[requirements].{key}` must be a non-negative number")
+            raise _err(f"`{where}.{key}` must be a non-negative number")
     vram = req.get("vram-gb", 0.0)
     if not isinstance(vram, (int, float)) or isinstance(vram, bool) or vram < 0:
-        raise _err("`[requirements].vram-gb` must be a non-negative number")
+        raise _err(f"`{where}.vram-gb` must be a non-negative number")
     for key in ("cpu", "gpu"):
         tech = req.get(key, {})
         if not isinstance(tech, dict) or not all(
             isinstance(k, str) and isinstance(v, bool) for k, v in tech.items()
         ):
             raise _err(
-                f"`[requirements].{key}` must be a table of booleans —"
-                " required technologies, yes/no per hardware capacity"
-                " (ADR-0005 §1)"
+                f"`{where}.{key}` must be a table of booleans — required"
+                " technologies, yes/no per hardware capacity (ADR-0005 §1)"
             )
     return Requirements(
-        disk_gb=float(req["disk-gb"]),
-        ram_gb=float(req["ram-gb"]),
+        disk_gb=float(req.get("disk-gb", 0.0)),
+        ram_gb=float(req.get("ram-gb", 0.0)),
         cpu_technologies=tuple(t for t, needed in req.get("cpu", {}).items() if needed),
         gpu_technologies=tuple(t for t, needed in req.get("gpu", {}).items() if needed),
         vram_gb=float(vram),
     )
+
+
+def aggregate_requirements(
+    own: Requirements, parts: tuple[ContentPart, ...]
+) -> Requirements:
+    """The implementation's requirements = **sum/union** of its own code
+    requirements and its parts' requirements (ADR-0031 §3): disk/ram/vram
+    add up (parts are co-resident at run), CPU/GPU technologies union in
+    first-declared order. Cloud parts contribute nothing (no requirements)."""
+    disk = own.disk_gb
+    ram = own.ram_gb
+    vram = own.vram_gb
+    cpu: list[str] = list(own.cpu_technologies)
+    gpu: list[str] = list(own.gpu_technologies)
+    for part in parts:
+        req = part.requirements
+        if req is None:
+            continue
+        disk += req.disk_gb
+        ram += req.ram_gb
+        vram += req.vram_gb
+        for tech in req.cpu_technologies:
+            if tech not in cpu:
+                cpu.append(tech)
+        for tech in req.gpu_technologies:
+            if tech not in gpu:
+                gpu.append(tech)
+    return Requirements(
+        disk_gb=disk,
+        ram_gb=ram,
+        cpu_technologies=tuple(cpu),
+        gpu_technologies=tuple(gpu),
+        vram_gb=vram,
+    )
+
+
+# ------------------------------------------------------------- dependencies
 
 
 def _validate_dependencies(deps: object) -> tuple[Dependency, ...]:

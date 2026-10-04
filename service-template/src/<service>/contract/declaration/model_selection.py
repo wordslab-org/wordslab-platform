@@ -20,7 +20,6 @@ core's job (ticket #294) — the template only orders what it is handed.
 from __future__ import annotations
 
 from .implementation_toml import Implementation
-
 # The model-selection goals (CONTEXT.md *Model selection goal*, amended by
 # ADR-0031 §5: `balanced` retired, `performance-per-dollar` replaces it,
 # `accuracy` → `performance`).
@@ -44,13 +43,14 @@ def compute_supported(
     §2: `{"disk_free_gb": float, "ram_free_gb": float, "vram_free_gb":
     float, "technologies": {feature: bool}}`).
 
-    A `local-weights` implementation is supported when its required CPU/GPU
+    A local implementation is supported when its required CPU/GPU
     technologies are all present and its install-and-run quantities fit the
     machine: disk, RAM, and VRAM (ADR-0005 §4's memory fit when running
     alone at minimum parameters; VRAM gates only implementations that
     declare a non-zero `vram-gb`). ALL are hard gates — a missing/unknown
     hardware quantity never silently passes (quantity fit is the hard gate,
-    ADR-0005 §4). A `cloud:*` implementation does not consume this machine
+    ADR-0005 §4). A cloud implementation (`is_cloud` — every content part
+    is a cloud part) does not consume this machine
     — always supported (the cloud-subscription check is the caller's, with
     its subscription list). Declaration order preserved.
     """
@@ -68,7 +68,7 @@ def compute_supported(
 
     supported: list[Implementation] = []
     for impl in implementations:
-        if impl.source.startswith("cloud:"):
+        if impl.is_cloud:
             supported.append(impl)
             continue
         req = impl.requirements

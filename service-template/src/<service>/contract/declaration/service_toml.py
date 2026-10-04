@@ -1,14 +1,21 @@
-"""The service declaration loader (ticket #74; ADR-0002 §5, ADR-0031 §2).
+"""The service declaration loader (ticket #74; ADR-0002 §5, ADR-0031 §2
+— v3).
 
 `service.toml` declares the service — **a set of capabilities**
-(ADR-0031 §1): identity (name/description/version), one **service-level
-`[requirements]`** figure (disk-gb + ram-gb for the service's own API + UI
-code execution — each capability implementation selected at install time
-adds its own requirements on top), and the **`[[capabilities]]`** list —
-per capability: name, description, version, `api` (the capability's API
-path prefix inside the service's single OpenAPI doc), `required` (an
-implementation MUST be provided) or optional, and `[capabilities.ui]`
-menu elements + entry points to integrate in the platform UI.
+(ADR-0031 §1). Layout: the service's own properties first, then one
+**documentation section per capability**, named
+`[<service-name>.<capability-name>]` — the full per-capability documentation
+the platform UI and the catalog render:
+
+- own properties: identity (`name`, `description`, `version`) and one
+  **service-level `[requirements]`** figure (disk-gb + ram-gb for the
+  service's own API + UI code execution — each capability implementation
+  selected at install time adds its own requirements on top).
+- capability sections: description, version, an **api description entry
+  point**, a **short description of the api functions**, an explanation of
+  the **versions history**, and **UI hooks** to integrate in the general
+  platform dashboard (menu elements + entry points), with a short
+  description of the UI and explanations of the UI versions history.
 
 **API families are NOT declared** — the capabilities' APIs implement
 ADR-0001's family contracts; their documentation is enough (ADR-0031 §2).
@@ -31,10 +38,21 @@ class ServiceDeclarationError(ValueError):
     """
 
 
+class MenuItem:
+    """One UI menu hook — a label + entry point the platform dashboard
+    integrates for the capability."""
+
+    def __init__(self, *, label: str, entry: str) -> None:
+        self.label = label
+        self.entry = entry
+
+
 class Capability:
-    """One declared capability — the stable shell's per-capability face
-    (ADR-0029 §4): identity, API path prefix, required/optional flag, and
-    the UI menu elements + entry points the platform UI integrates."""
+    """One declared capability — parsed from its documentation section
+    `[<service-name>.<capability-name>]`: identity, the api description
+    entry point, a short description of the api functions, the versions
+    history, required/optional, and the UI hooks (menu elements + entry
+    points + UI description + UI versions history)."""
 
     def __init__(
         self,
@@ -43,15 +61,23 @@ class Capability:
         description: str,
         version: str,
         api: str,
+        api_functions: str,
+        versions_history: str,
         required: bool,
-        ui: tuple[dict, ...],
+        ui_menu: tuple[MenuItem, ...],
+        ui_description: str,
+        ui_versions_history: str,
     ) -> None:
         self.name = name
         self.description = description
         self.version = version
         self.api = api
+        self.api_functions = api_functions
+        self.versions_history = versions_history
         self.required = required
-        self.ui = ui
+        self.ui_menu = ui_menu
+        self.ui_description = ui_description
+        self.ui_versions_history = ui_versions_history
 
 
 class Service:
@@ -100,18 +126,27 @@ def _check_capability_name(name: str) -> None:
         )
 
 
-SERVICE_TOP_LEVEL_KEYS = {"name", "description", "version", "capabilities", "requirements"}
+SERVICE_TOP_LEVEL_KEYS = {"name", "description", "version", "requirements"}
 
+CAPABILITY_SECTION_KEYS = {
+    "description",
+    "version",
+    "api",
+    "api-functions",
+    "versions-history",
+    "required",
+    "ui",
+}
 
-CAPABILITY_KEYS = {"name", "description", "version", "api", "required", "ui"}
+CAPABILITY_UI_KEYS = {"menu", "description", "versions-history"}
 
 
 def load_service_toml(path: str | Path) -> Service:
-    """Load and validate a `service.toml` (ADR-0031 §2's shape).
+    """Load and validate a `service.toml` (ADR-0031 §2's shape, v3).
 
     Validation is structural — the copy-to-start ritual's editing errors are
-    caught here, not at request time. Unknown top-level keys (typos, retired
-    keys like `families`) fail loudly: a declaration is a closed shape.
+    caught here, not at request time. Unknown keys (typos, retired keys like
+    `families`) fail loudly: a declaration is a closed shape.
     """
     path = Path(path)
     if not path.is_file():
@@ -120,20 +155,14 @@ def load_service_toml(path: str | Path) -> Service:
     with open(path, "rb") as fh:
         raw = tomllib.load(fh)
 
-    unknown = set(raw) - SERVICE_TOP_LEVEL_KEYS
-    if unknown:
-        known = ", ".join(sorted(SERVICE_TOP_LEVEL_KEYS))
-        if "families" in unknown:
-            raise ServiceDeclarationError(
-                "`families` is not declared anymore (ADR-0031 §2) — family"
-                " contracts are API-documentation facts; remove the key"
-            )
-        raise ServiceDeclarationError(
-            f"unknown top-level key(s) {sorted(unknown)} — service.toml"
-            f" declares only: {known} (typos fail loudly, ADR-0031 §2)"
-        )
+    name = raw.get("name")
+    description = raw.get("description")
+    version = raw.get("version")
+    if not isinstance(name, str) or not name.strip():
+        raise ServiceDeclarationError("`service.name` must be a non-empty string")
 
-    name = _require_str(raw, "name", "service")
+    _reject_unknown_top_level(raw, name)
+
     description = _require_str(raw, "description", "service")
     version = _require_str(raw, "version", "service")
 
@@ -151,70 +180,168 @@ def load_service_toml(path: str | Path) -> Service:
         for key in ("disk-gb", "ram-gb")
     }
 
-    caps_raw = raw.get("capabilities", [])
-    if not isinstance(caps_raw, list):
-        raise ServiceDeclarationError("`[[capabilities]]` must be a list of tables")
-    capabilities: list[Capability] = []
-    seen: set[str] = set()
-    for i, entry in enumerate(caps_raw):
-        where = f"[[capabilities]][{i}]"
-        if not isinstance(entry, dict):
-            raise ServiceDeclarationError(f"{where} is not a table")
-        unknown = set(entry) - CAPABILITY_KEYS
-        if unknown:
-            if "dependencies" in unknown:
-                raise ServiceDeclarationError(
-                    f"{where} declares `dependencies` — capability-level"
-                    " dependencies are not declared in service.toml;"
-                    " implementations declare their dependencies"
-                    " (ADR-0031 §2/§4)"
-                )
-            raise ServiceDeclarationError(
-                f"{where} has unknown key(s) {sorted(unknown)} — a capability"
-                f" declares only: {', '.join(sorted(CAPABILITY_KEYS))}"
-            )
-        cap_name = _require_str(entry, "name", where)
-        _check_capability_name(cap_name)
-        if cap_name in seen:
-            raise ServiceDeclarationError(f"duplicate capability declaration: {cap_name}")
-        seen.add(cap_name)
-        api = _require_str(entry, "api", where)
-        if not api.startswith("/"):
-            raise ServiceDeclarationError(
-                f"`{where}.api` must be the capability's API path prefix"
-                " (starting with `/`, e.g. `/v1/stt`)"
-            )
-        required = entry.get("required", False)
-        if not isinstance(required, bool):
-            raise ServiceDeclarationError(f"`{where}.required` must be true or false")
-        ui_raw = entry.get("ui", {}).get("menu", [])
-        if not isinstance(ui_raw, list):
-            raise ServiceDeclarationError(f"`{where}[ui].menu` must be a list of tables")
-        ui = []
-        for j, item in enumerate(ui_raw):
-            if not isinstance(item, dict):
-                raise ServiceDeclarationError(f"{where}[ui].menu[{j}] is not a table")
-            ui.append(
-                {
-                    "label": _require_str(item, "label", f"{where}[ui].menu[{j}]"),
-                    "entry": _require_str(item, "entry", f"{where}[ui].menu[{j}]"),
-                }
-            )
-        capabilities.append(
-            Capability(
-                name=cap_name,
-                description=_require_str(entry, "description", where),
-                version=_require_str(entry, "version", where),
-                api=api,
-                required=required,
-                ui=tuple(ui),
-            )
-        )
-
+    capabilities = _parse_capability_sections(raw, name)
     return Service(
         name=name,
         description=description,
         version=version,
         requirements=requirements,
-        capabilities=tuple(capabilities),
+        capabilities=capabilities,
+    )
+
+
+def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
+    """The closed-shape rule: only the own-property keys plus the
+    `[<service>.<capability>]` documentation sections are legal. A dict key
+    rooted at the service's own name is a documentation-section root — the
+    section walk (`_parse_capability_sections`) validates the rest."""
+    service_head = service_name.split(".")[0]
+    unknown = {
+        key
+        for key in set(raw) - SERVICE_TOP_LEVEL_KEYS
+        if not (isinstance(raw[key], dict) and key.split(".")[0] == service_head)
+    }
+    if not unknown:
+        return
+    if "families" in unknown:
+        raise ServiceDeclarationError(
+            "`families` is not declared anymore (ADR-0031 §2) — family"
+            " contracts are API-documentation facts; remove the key"
+        )
+    if "capabilities" in unknown:
+        raise ServiceDeclarationError(
+            "`capabilities` is superseded by the per-capability documentation"
+            f" sections `[<service-name>.<capability-name>]` (v3) — declare"
+            " each capability as its own section"
+        )
+    # a section for ANOTHER service's capability — wrong prefix
+    bad_sections = [
+        key for key in set(raw) - SERVICE_TOP_LEVEL_KEYS
+        if isinstance(raw[key], dict) and key.split(".")[0] != service_head
+    ]
+    if bad_sections:
+        raise ServiceDeclarationError(
+            f"unknown section(s) {sorted(bad_sections)} — capability"
+            f" documentation sections are named `[{service_name}.<capability-name>]`"
+            " (the service's own name is the prefix)"
+        )
+    raise ServiceDeclarationError(
+        f"unknown top-level key(s) {sorted(unknown)} — service.toml declares"
+        f" only: {', '.join(sorted(SERVICE_TOP_LEVEL_KEYS))} plus capability"
+        f" sections `[{service_name}.<capability-name>]` (typos fail loudly, ADR-0031 §2)"
+    )
+
+
+def _parse_capability_sections(raw: dict, service_name: str) -> tuple[Capability, ...]:
+    """Parse every `[<service-name>.<capability-name>]` documentation section.
+
+    Capability names may themselves be dotted (`audio.stt` → section
+    `[audio.audio.stt]`), so the walk descends the service-name root and
+    joins the remaining path segments into the capability name. A dict that
+    carries capability-section keys at a path IS the capability's spec —
+    the walk stops there (`[svc.a.ui]` is a's ui table, not a capability)."""
+    node: object = raw
+    for segment in service_name.split("."):
+        if not isinstance(node, dict) or segment not in node:
+            return ()  # no capability sections at all
+        node = node[segment]
+    if not isinstance(node, dict):
+        raise ServiceDeclarationError(
+            f"`[{service_name}]` must be a table — capability documentation"
+            " sections are named `[{service_name}.<capability-name>]`"
+        )
+
+    capabilities: list[Capability] = []
+    seen: set[str] = set()
+    _walk_capability_specs(node, service_name, [], seen, capabilities)
+    return tuple(capabilities)
+
+
+def _walk_capability_specs(
+    node: dict,
+    service_name: str,
+    path: list[str],
+    seen: set[str],
+    out: list[Capability],
+) -> None:
+    for key, entry in node.items():
+        if not isinstance(entry, dict):
+            continue
+        cap_path = path + [key]
+        if set(entry) & CAPABILITY_SECTION_KEYS:
+            # this dict is a capability spec — the walk stops here
+            cap_name = ".".join(cap_path)
+            _check_capability_name(cap_name)
+            if cap_name in seen:
+                raise ServiceDeclarationError(
+                    f"duplicate capability declaration: {cap_name}"
+                )
+            seen.add(cap_name)
+            out.append(
+                _parse_capability_section(
+                    entry, cap_name, f"{service_name}.{'.'.join(cap_path)}"
+                )
+            )
+        else:
+            _walk_capability_specs(entry, service_name, cap_path, seen, out)
+
+
+def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capability:
+    unknown = set(entry) - CAPABILITY_SECTION_KEYS
+    if unknown:
+        if "dependencies" in unknown:
+            raise ServiceDeclarationError(
+                f"`[{section}]` declares `dependencies` — capability-level"
+                " dependencies are not declared in service.toml; implementations"
+                " declare their dependencies (ADR-0031 §2/§4)"
+            )
+        raise ServiceDeclarationError(
+            f"`[{section}]` has unknown key(s) {sorted(unknown)} — a capability"
+            f" section declares only: {', '.join(sorted(CAPABILITY_SECTION_KEYS))}"
+        )
+
+    api = _require_str(entry, "api", f"[{section}]")
+    if not api.startswith("/"):
+        raise ServiceDeclarationError(
+            f"`[{section}].api` must be the capability's api description"
+            " entry point (starting with `/`, e.g. `/v1/stt`)"
+        )
+    required = entry.get("required", False)
+    if not isinstance(required, bool):
+        raise ServiceDeclarationError(f"`[{section}].required` must be true or false")
+
+    ui_raw = entry.get("ui", {})
+    if not isinstance(ui_raw, dict):
+        raise ServiceDeclarationError(f"`[{section}].ui` must be a table")
+    unknown_ui = set(ui_raw) - CAPABILITY_UI_KEYS
+    if unknown_ui:
+        raise ServiceDeclarationError(
+            f"`[{section}].ui` has unknown key(s) {sorted(unknown_ui)} — UI"
+            f" hooks declare only: {', '.join(sorted(CAPABILITY_UI_KEYS))}"
+        )
+    menu_raw = ui_raw.get("menu", [])
+    if not isinstance(menu_raw, list):
+        raise ServiceDeclarationError(f"`[{section}].ui.menu` must be a list of tables")
+    menu: list[MenuItem] = []
+    for j, item in enumerate(menu_raw):
+        if not isinstance(item, dict):
+            raise ServiceDeclarationError(f"`[{section}].ui.menu[{j}]` is not a table")
+        menu.append(
+            MenuItem(
+                label=_require_str(item, "label", f"[{section}].ui.menu[{j}]"),
+                entry=_require_str(item, "entry", f"[{section}].ui.menu[{j}]"),
+            )
+        )
+
+    return Capability(
+        name=cap_name,
+        description=_require_str(entry, "description", f"[{section}]"),
+        version=_require_str(entry, "version", f"[{section}]"),
+        api=api,
+        api_functions=_require_str(entry, "api-functions", f"[{section}]"),
+        versions_history=_require_str(entry, "versions-history", f"[{section}]"),
+        required=required,
+        ui_menu=tuple(menu),
+        ui_description=_require_str(ui_raw, "description", f"[{section}].ui"),
+        ui_versions_history=_require_str(ui_raw, "versions-history", f"[{section}].ui"),
     )

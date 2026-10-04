@@ -1,5 +1,5 @@
 """Declaration-surface tests (ticket #74; ADR-0002 §5, ADR-0018 §8,
-**ADR-0031 — declaration model v2**).
+**ADR-0031 — declaration model v2/v3**).
 
 The declaration surface is **data** — tests assert the parsed shape and the
 validation contract (a bad declaration fails a load with a precise error,
@@ -38,9 +38,12 @@ def write(tmp_path, name: str, content: str):
 
 
 # ---------------------------------------------------------------- service.toml
+#
+# Layout: own properties first, then per-capability documentation sections
+# [<service-name>.<capability-name>].
 
 
-def test_template_service_toml_loads_with_the_v2_shape(tmp_path):
+def test_template_service_toml_loads_with_the_v3_shape(tmp_path):
     path = write(
         tmp_path,
         "service.toml",
@@ -48,8 +51,6 @@ def test_template_service_toml_loads_with_the_v2_shape(tmp_path):
         name = "template-service"
         description = "The service template — copy-to-start skeleton."
         version = "0.1.0"
-
-        capabilities = []
 
         [requirements]
         disk-gb = 0.01
@@ -65,7 +66,7 @@ def test_template_service_toml_loads_with_the_v2_shape(tmp_path):
     assert svc.capabilities == ()
 
 
-def test_service_toml_declares_the_enriched_capability_list(tmp_path):
+def test_service_toml_declares_full_capability_documentation(tmp_path):
     path = write(
         tmp_path,
         "service.toml",
@@ -78,44 +79,56 @@ def test_service_toml_declares_the_enriched_capability_list(tmp_path):
         disk-gb = 0.1
         ram-gb = 0.2
 
-        [[capabilities]]
-        name = "audio.stt"
+        [audio.stt]
         description = "Batch speech-to-text."
         version = "0.1.0"
         api = "/v1/audio/transcriptions"
+        api-functions = "POST /v1/audio/transcriptions — transcribes an upload; GET /v1/audio/transcriptions/{id} — fetches one job."
+        versions-history = "0.1.0 — initial batch transcription."
         required = true
 
-        [capabilities.ui]
+        [audio.stt.ui]
+        description = "A transcription page with drag-and-drop upload."
+        versions-history = "0.1.0 — initial page."
         menu = [
             { label = "Transcribe", entry = "/stt" },
             { label = "Dictation", entry = "/dictation" },
         ]
 
-        [[capabilities]]
-        name = "audio.tts"
+        [audio.tts]
         description = "Batch text-to-speech."
         version = "0.1.0"
         api = "/v1/audio/speech"
+        api-functions = "POST /v1/audio/speech — synthesizes speech from text."
+        versions-history = "0.1.0 — initial synthesis."
+
+        [audio.tts.ui]
+        description = "No dedicated page — invoked from the dictation flow."
+        versions-history = "0.1.0 — initial."
         """,
     )
     svc = load_service_toml(path)
     assert len(svc.capabilities) == 2
     stt = svc.capabilities[0]
-    assert stt.name == "audio.stt"
+    assert stt.name == "stt"
     assert stt.api == "/v1/audio/transcriptions"
+    assert stt.api_functions.startswith("POST /v1/audio/transcriptions")
+    assert stt.versions_history == "0.1.0 — initial batch transcription."
     assert stt.required is True
-    assert stt.ui == (
-        {"label": "Transcribe", "entry": "/stt"},
-        {"label": "Dictation", "entry": "/dictation"},
-    )
+    assert [(m.label, m.entry) for m in stt.ui_menu] == [
+        ("Transcribe", "/stt"),
+        ("Dictation", "/dictation"),
+    ]
+    assert stt.ui_description == "A transcription page with drag-and-drop upload."
+    assert stt.ui_versions_history == "0.1.0 — initial page."
     tts = svc.capabilities[1]
     assert tts.required is False  # optional when omitted
-    assert tts.ui == ()
+    assert tts.ui_menu == ()
+    assert tts.ui_description  # UI documentation still required
+    assert tts.ui_versions_history
 
 
 def test_service_toml_rejects_the_retired_families_key(tmp_path):
-    """ADR-0031 §2: families are no longer declared — the key is a loud
-    editing error, not silently ignored."""
     path = write(
         tmp_path,
         "service.toml",
@@ -124,7 +137,6 @@ def test_service_toml_rejects_the_retired_families_key(tmp_path):
         description = "d"
         version = "1.0.0"
         families = ["llm-inference"]
-        capabilities = []
 
         [requirements]
         disk-gb = 0.1
@@ -135,16 +147,15 @@ def test_service_toml_rejects_the_retired_families_key(tmp_path):
         load_service_toml(path)
 
 
-def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
-    """A declaration is a closed shape — a typo (`desciption`) must fail at
-    load, not silently load empty (the template's own contract: a malformed
-    declaration fails at startup)."""
+def test_service_toml_rejects_the_retired_capabilities_list(tmp_path):
+    """v1's `capabilities` list is superseded by the documentation sections —
+    loud, not silently ignored."""
     path = write(
         tmp_path,
         "service.toml",
         """\
         name = "svc"
-        desciption = "typo"
+        description = "d"
         version = "1.0.0"
         capabilities = []
 
@@ -153,7 +164,54 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
         ram-gb = 0.1
         """,
     )
+    with pytest.raises(ServiceDeclarationError, match="superseded"):
+        load_service_toml(path)
+
+
+def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
+    path = write(
+        tmp_path,
+        "service.toml",
+        """\
+        name = "svc"
+        desciption = "typo"
+        version = "1.0.0"
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.1
+        """,
+    )
     with pytest.raises(ServiceDeclarationError, match="unknown top-level key"):
+        load_service_toml(path)
+
+
+def test_capability_section_must_be_prefixed_by_the_service_name(tmp_path):
+    path = write(
+        tmp_path,
+        "service.toml",
+        """\
+        name = "svc"
+        description = "d"
+        version = "1.0.0"
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.1
+
+        [other.cap]
+        description = "d"
+        version = "0.1.0"
+        api = "/v1/cap"
+        api-functions = "d"
+        versions-history = "d"
+
+        [other.cap.ui]
+        description = "d"
+        versions-history = "d"
+        """,
+    )
+    with pytest.raises(ServiceDeclarationError, match="the service's own name is the prefix"):
         load_service_toml(path)
 
 
@@ -165,8 +223,6 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             """
             name = "svc"
             version = "1.0.0"
-            capabilities = []
-
             [requirements]
             disk-gb = 0.1
             ram-gb = 0.1
@@ -179,8 +235,6 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             name = ""
             description = "d"
             version = "1.0.0"
-            capabilities = []
-
             [requirements]
             disk-gb = 0.1
             ram-gb = 0.1
@@ -193,8 +247,6 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             name = "svc"
             description = "d"
             version = "1.0.0"
-            capabilities = []
-
             [requirements]
             disk-gb = 0.1
             ram-gb = 0.1
@@ -208,32 +260,57 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             name = "svc"
             description = "d"
             version = "1.0.0"
-            capabilities = []
-
             [requirements]
             disk-gb = -1
             ram-gb = 0.1
             """,
             "non-negative",
         ),
+    ],
+)
+def test_service_toml_rejects_bad_own_properties(tmp_path, body, match):
+    path = write(tmp_path, "service.toml", body)
+    with pytest.raises(ServiceDeclarationError, match=match):
+        load_service_toml(path)
+
+
+def _capability_body(section: str, entry: str) -> str:
+    return f"""
+        name = "svc"
+        description = "d"
+        version = "1.0.0"
+
+        [requirements]
+        disk-gb = 0.1
+        ram-gb = 0.1
+
+        [{section}]
+        description = "d"
+        version = "0.1.0"
+        api = "/v1/a"
+        api-functions = "d"
+        versions-history = "d"
+        {entry}
+
+        [{section}.ui]
+        description = "d"
+        versions-history = "d"
+        """
+
+
+@pytest.mark.parametrize(
+    "body,match",
+    [
         # capability name not a lowercase dotted identifier
+        (_capability_body("svc.Canary", ""), "lowercase dotted"),
+        # capability-level dependencies: loud, not silently dropped
         (
-            """
-            name = "svc"
-            description = "d"
-            version = "1.0.0"
-            [requirements]
-            disk-gb = 0.1
-            ram-gb = 0.1
-            [[capabilities]]
-            name = "Canary.Echo"
-            description = "d"
-            version = "0.1.0"
-            api = "/v1/echo"
-            """,
-            "lowercase dotted",
+            _capability_body("svc.a", 'dependencies = [{ capability = "svc.b" }]'),
+            "implementations declare their dependencies",
         ),
-        # duplicate capability
+        # unknown key in a capability section
+        (_capability_body("svc.a", "rank = 1"), "unknown key"),
+        # api must be an entry-point path
         (
             """
             name = "svc"
@@ -242,94 +319,20 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             [requirements]
             disk-gb = 0.1
             ram-gb = 0.1
-            [[capabilities]]
-            name = "a.b"
-            description = "d"
-            version = "0.1.0"
-            api = "/v1/b"
-            [[capabilities]]
-            name = "a.b"
-            description = "d"
-            version = "0.1.0"
-            api = "/v1/b"
-            """,
-            "duplicate",
-        ),
-        # api must be a path prefix
-        (
-            """
-            name = "svc"
-            description = "d"
-            version = "1.0.0"
-            [requirements]
-            disk-gb = 0.1
-            ram-gb = 0.1
-            [[capabilities]]
-            name = "a.b"
+            [svc.a]
             description = "d"
             version = "0.1.0"
             api = "v1/echo"
+            api-functions = "d"
+            versions-history = "d"
+            [svc.a.ui]
+            description = "d"
+            versions-history = "d"
             """,
-            "API path prefix",
+            "api description",
         ),
         # required must be a bool
-        (
-            """
-            name = "svc"
-            description = "d"
-            version = "1.0.0"
-            [requirements]
-            disk-gb = 0.1
-            ram-gb = 0.1
-            [[capabilities]]
-            name = "a.b"
-            description = "d"
-            version = "0.1.0"
-            api = "/v1/b"
-            required = "yes"
-            """,
-            "required",
-        ),
-        # capability-level dependencies: loud, not silently dropped
-        (
-            """
-            name = "svc"
-            description = "d"
-            version = "1.0.0"
-
-            [requirements]
-            disk-gb = 0.1
-            ram-gb = 0.1
-
-            [[capabilities]]
-            name = "a.b"
-            description = "d"
-            version = "0.1.0"
-            api = "/v1/b"
-            dependencies = [{ capability = "c.d" }]
-            """,
-            "implementations declare their dependencies",
-        ),
-        # unknown key in a capability entry
-        (
-            """
-            name = "svc"
-            description = "d"
-            version = "1.0.0"
-
-            [requirements]
-            disk-gb = 0.1
-            ram-gb = 0.1
-
-            [[capabilities]]
-            name = "a.b"
-            description = "d"
-            version = "0.1.0"
-            api = "/v1/b"
-            rank = 1
-            """,
-            "unknown key",
-        ),
+        (_capability_body("svc.a", 'required = "yes"'), "required"),
         # ui menu entry missing
         (
             """
@@ -339,19 +342,41 @@ def test_service_toml_rejects_unknown_top_level_keys(tmp_path):
             [requirements]
             disk-gb = 0.1
             ram-gb = 0.1
-            [[capabilities]]
-            name = "a.b"
+            [svc.a]
             description = "d"
             version = "0.1.0"
-            api = "/v1/b"
-            [capabilities.ui]
+            api = "/v1/a"
+            api-functions = "d"
+            versions-history = "d"
+            [svc.a.ui]
+            description = "d"
+            versions-history = "d"
             menu = [{ label = "Broken" }]
             """,
             "entry",
         ),
+        # api-functions and versions-history are required documentation
+        (
+            """
+            name = "svc"
+            description = "d"
+            version = "1.0.0"
+            [requirements]
+            disk-gb = 0.1
+            ram-gb = 0.1
+            [svc.a]
+            description = "d"
+            version = "0.1.0"
+            api = "/v1/a"
+            [svc.a.ui]
+            description = "d"
+            versions-history = "d"
+            """,
+            "api-functions",
+        ),
     ],
 )
-def test_service_toml_rejects_bad_declarations(tmp_path, body, match):
+def test_capability_sections_reject_bad_declarations(tmp_path, body, match):
     path = write(tmp_path, "service.toml", body)
     with pytest.raises(ServiceDeclarationError, match=match):
         load_service_toml(path)
@@ -363,32 +388,35 @@ def test_service_toml_missing_file_raises_declaration_error(tmp_path):
 
 
 # ---------------------------------------------------------- implementation.toml
+#
+# Layout: own properties first, then per-part documentation sections
+# [<capability>.<content-part-type>.<content-part-name>] — each type may
+# appear several times.
 
 
-def valid_model_impl_toml() -> str:
+def valid_impl_toml() -> str:
     return """\
     capability = "llm.model"
-
-    # Top-level keys precede any `[table]` header — in TOML everything after
-    # a table header belongs to that table.
-    source = "local-weights"
     license = "Apache-2.0"
-    privacy-tier = "local"
 
     [identity]
     name = "qwen3-4b"
     version = "2026-05"
-    description = "A 4B LLM."
+    description = "A 4B LLM served locally."
 
-    [links]
-    release = "https://huggingface.co/Qwen/Qwen3-4B"
+    # the implementation's OWN code requirements
+    [requirements]
+    disk-gb = 0.2
+    ram-gb = 0.3
 
-    [contents.model]
-    type = "model"
+    # a local-model part — the source (weights URL) lives HERE now
+    [llm.model.local-model.qwen3-4b]
+    description = "The Qwen3 4B weights, quantized Q4_K_M."
+    version = "2026-05"
     huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
     artificial-analysis = "qwen-3-4b"
 
-    [contents.model.facts]
+    [llm.model.local-model.qwen3-4b.facts]
     disk-gb = 2.5
     parameters-active = 4.0
     parameters-total = 4.0
@@ -396,16 +424,13 @@ def valid_model_impl_toml() -> str:
     kv-cache-per-token = 0.00012
     quantization = "Q4_K_M"
 
-    [requirements]
-    disk-gb = 2.7
-    ram-gb = 0.5
+    [llm.model.local-model.qwen3-4b.requirements]
+    disk-gb = 2.5
+    ram-gb = 0.2
     vram-gb = 3.2
 
-    [requirements.cpu]
+    [llm.model.local-model.qwen3-4b.requirements.cpu]
     AVX2 = true
-
-    [requirements.gpu]
-    tensor-core = false
 
     [[dependencies]]
     capability = "llm.engine"
@@ -414,36 +439,88 @@ def valid_model_impl_toml() -> str:
     """
 
 
-def test_model_implementation_declares_contents_facts_and_dependency(tmp_path):
+LOCAL_MODEL_BLOCK = """\
+    [llm.model.local-model.qwen3-4b]
+    description = "The Qwen3 4B weights, quantized Q4_K_M."
+    version = "2026-05"
+    huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
+    artificial-analysis = "qwen-3-4b"
+
+    [llm.model.local-model.qwen3-4b.facts]
+    disk-gb = 2.5
+    parameters-active = 4.0
+    parameters-total = 4.0
+    vram-at-load-gb = 3.2
+    kv-cache-per-token = 0.00012
+    quantization = "Q4_K_M"
+
+    [llm.model.local-model.qwen3-4b.requirements]
+    disk-gb = 2.5
+    ram-gb = 0.2
+    vram-gb = 3.2
+
+    [llm.model.local-model.qwen3-4b.requirements.cpu]
+    AVX2 = true
+"""
+
+
+CLOUD_MODEL_BLOCK = """\
+    [llm.model.cloud-model.gpt-5-nano]
+    description = "OpenAI's smallest reasoning model, via the cloud gateway."
+    version = "2026-08"
+    provider = "openai"
+    model = "gpt-5-nano"
+    artificial-analysis = "gpt-5-nano"
+    privacy-tier = "cloud"
+
+    [llm.model.cloud-model.gpt-5-nano.facts]
+    parameters-active = 8.0
+    parameters-total = 12.0
+    quantization = "unknown"
+    """
+
+
+def _swap_local_model(text: str, new: str) -> str:
+    """Replace the local-model part block — fails loudly on fixture drift."""
+    assert LOCAL_MODEL_BLOCK in text, "fixture drift: local-model block not found"
+    return text.replace(LOCAL_MODEL_BLOCK, new)
+
+
+def test_implementation_own_properties_and_a_local_model_part(tmp_path):
     impl = load_implementation_toml(
-        write(tmp_path, "implementation.toml", valid_model_impl_toml())
+        write(tmp_path, "implementation.toml", valid_impl_toml())
     )
     assert isinstance(impl, Implementation)
     assert impl.capability == "llm.model"
-    assert (impl.name, impl.version, impl.description) == ("qwen3-4b", "2026-05", "A 4B LLM.")
-    assert impl.source == "local-weights"
+    assert (impl.name, impl.version, impl.description) == (
+        "qwen3-4b",
+        "2026-05",
+        "A 4B LLM served locally.",
+    )
     assert impl.license == "Apache-2.0"
-    assert impl.privacy_tier == "local"
-    assert impl.links["release"].startswith("https://")
+    assert impl.own_requirements.disk_gb == 0.2
+    assert impl.own_requirements.ram_gb == 0.3
 
-    # [contents] replaces kind — a named model part with per-type facts
+    # the part: source/URLs/facts on the part, not the implementation
     assert len(impl.contents) == 1
     part = impl.contents[0]
     assert isinstance(part, ContentPart)
-    assert (part.name, part.type) == ("model", "model")
+    assert (part.name, part.type) == ("qwen3-4b", "local-model")
     assert part.huggingface == "https://huggingface.co/Qwen/Qwen3-4B"
     assert part.artificial_analysis == "qwen-3-4b"
     assert part.facts["disk-gb"] == 2.5
     assert part.facts["quantization"] == "Q4_K_M"
+    assert part.requirements is not None
+    assert part.requirements.vram_gb == 3.2
+    assert part.requirements.cpu_technologies == ("AVX2",)
 
-    # [requirements] — install AND run
-    assert impl.requirements.disk_gb == 2.7
-    assert impl.requirements.ram_gb == 0.5
+    # aggregation: own + parts (sum/union, ADR-0031 §3)
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5)
+    assert impl.requirements.ram_gb == pytest.approx(0.3 + 0.2)
     assert impl.requirements.vram_gb == 3.2
     assert impl.requirements.cpu_technologies == ("AVX2",)
-    assert impl.requirements.gpu_technologies == ()  # tensor-core = false → not required
 
-    # generic dependency: on a capability (any implementation satisfies)
+    # generic dependency
     dep = impl.dependencies[0]
     assert isinstance(dep, Dependency)
     assert dep.capability == "llm.engine"
@@ -453,7 +530,7 @@ def test_model_implementation_declares_contents_facts_and_dependency(tmp_path):
 
 
 def test_dependency_on_a_specific_implementation(tmp_path):
-    body = valid_model_impl_toml().replace(
+    body = valid_impl_toml().replace(
         """\
     [[dependencies]]
     capability = "llm.engine"
@@ -473,198 +550,346 @@ def test_dependency_on_a_specific_implementation(tmp_path):
     assert dep.min_version == "0.12.0"
 
 
-def _swap_contents(text: str, *, old: str, new: str) -> str:
-    """Replace a `[contents]` block — fails loudly if the fixture drifted.
-
-    `old`/`new` are given at the fixture's own indentation (the fixture
-    text is indented; `write()` dedents it when the file is written).
-    """
-    assert old in text, "fixture drift: contents block not found"
-    return text.replace(old, new)
-
-
-def _drop_dependencies(text: str) -> str:
-    dep_block = """\
+def test_a_type_may_appear_several_times_and_parts_sum(tmp_path):
+    """IMPORTANT (maintainer): each content-part type can appear multiple
+    times — e.g. an implementation can use several models. Quantities sum
+    across every local part; storage-space contributes no requirements
+    (its quota is the user's choice, not a machine fit)."""
+    body = valid_impl_toml().replace(
+        """\
     [[dependencies]]
     capability = "llm.engine"
     min-version = "0.5.0"
     features = ["vision"]
-    """
-    assert dep_block in text, "fixture drift: dependencies block not found"
-    return text.replace(dep_block, "")
-
-
-def test_engine_implementation_declares_github_url(tmp_path):
-    body = _swap_contents(
-        valid_model_impl_toml(),
-        old="""\
-    [contents.model]
-    type = "model"
-    huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
-    artificial-analysis = "qwen-3-4b"
-
-    [contents.model.facts]
-    disk-gb = 2.5
-    parameters-active = 4.0
-    parameters-total = 4.0
-    vram-at-load-gb = 3.2
-    kv-cache-per-token = 0.00012
-    quantization = "Q4_K_M\"""",
-        new="""\
-    [contents.ollama]
-    type = "inference-engine"
-    github = "https://github.com/ollama/ollama\"""",
-    ).replace('capability = "llm.model"', 'capability = "llm.engine"')
-    body = _drop_dependencies(body)
-    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
-    assert impl.contents[0].type == "inference-engine"
-    assert impl.contents[0].github == "https://github.com/ollama/ollama"
-    assert impl.dependencies == ()
-
-
-def test_storage_space_part_proposes_a_quota(tmp_path):
-    body = _swap_contents(
-        valid_model_impl_toml(),
-        old="""\
-    [contents.model]
-    type = "model"
-    huggingface = "https://huggingface.co/Qwen/Qwen3-4B"
-    artificial-analysis = "qwen-3-4b"
-
-    [contents.model.facts]
-    disk-gb = 2.5
-    parameters-active = 4.0
-    parameters-total = 4.0
-    vram-at-load-gb = 3.2
-    kv-cache-per-token = 0.00012
-    quantization = "Q4_K_M\"""",
-        new="""\
-    [contents.corpus]
-    type = "storage-space"
-    default-quota-gb = 20.0""",
-    ).replace('capability = "llm.model"', 'capability = "document.store"')
-    body = _drop_dependencies(body)
-    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
-    part = impl.contents[0]
-    assert part.type == "storage-space"
-    assert part.facts["default-quota-gb"] == 20.0
-
-
-def test_an_implementation_may_bundle_several_content_parts(tmp_path):
-    body = valid_model_impl_toml().replace(
-        """\
-    [requirements]
-    disk-gb = 2.7
     """,
         """\
-    [contents.cache]
-    type = "storage-space"
-    default-quota-gb = 1.0
+    [llm.model.local-model.qwen3-0_6b]
+    description = "A smaller sibling for low-memory machines."
+    version = "2026-03"
+    huggingface = "https://huggingface.co/Qwen/Qwen3-0.6B"
+    artificial-analysis = "qwen-3-0-6b"
 
-    [requirements]
-    disk-gb = 2.7
+    [llm.model.local-model.qwen3-0_6b.facts]
+    disk-gb = 0.5
+    parameters-active = 0.6
+    parameters-total = 0.6
+    vram-at-load-gb = 0.6
+    kv-cache-per-token = 0.00003
+    quantization = "Q4_K_M"
+
+    [llm.model.local-model.qwen3-0_6b.requirements]
+    disk-gb = 0.6
+    ram-gb = 0.1
+    vram-gb = 0.6
+
+    [llm.model.storage-space.cache]
+    description = "Prompt/response cache storage."
+    version = "0.1.0"
+    default-quota-gb = 2.0
+
+    [[dependencies]]
+    capability = "llm.engine"
+    min-version = "0.5.0"
+    features = ["vision"]
     """,
     )
     impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
-    assert [p.type for p in impl.contents] == ["model", "storage-space"]
+    assert [p.type for p in impl.contents] == [
+        "local-model",
+        "local-model",
+        "storage-space",
+    ]
+    small = impl.contents[1]
+    assert small.huggingface == "https://huggingface.co/Qwen/Qwen3-0.6B"
+    storage = impl.contents[2]
+    assert storage.default_quota_gb == 2.0
+    assert storage.requirements is None
+    # sum across BOTH local-model parts + own
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5 + 0.6)
+    assert impl.requirements.ram_gb == pytest.approx(0.3 + 0.2 + 0.1)
+    assert impl.requirements.vram_gb == pytest.approx(3.2 + 0.6)
+    assert impl.is_cloud is False
+
+
+def test_cloud_parts_carry_privacy_tier_and_no_requirements(tmp_path):
+    body = _swap_local_model(valid_impl_toml(), CLOUD_MODEL_BLOCK)
+    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
+    part = impl.contents[0]
+    assert (part.type, part.name) == ("cloud-model", "gpt-5-nano")
+    assert part.provider == "openai"
+    assert part.model == "gpt-5-nano"
+    assert part.artificial_analysis == "gpt-5-nano"
+    assert part.privacy_tier == "cloud"
+    assert part.requirements is None  # cloud parts declare no requirements
+    # aggregation ignores cloud parts; only the own code remains
+    assert impl.requirements.disk_gb == 0.2
+    assert impl.is_cloud is True
+
+
+def test_a_cloud_service_part(tmp_path):
+    body = _swap_local_model(
+        valid_impl_toml(),
+        """\
+    [llm.model.cloud-service.openai-engine]
+    description = "OpenAI's chat-completions endpoint via the cloud gateway."
+    version = "2026-08"
+    provider = "openai"
+    service = "chat-completions"
+    privacy-tier = "cloud_no_data"
+
+    """ + LOCAL_MODEL_BLOCK,
+    )
+    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
+    svc_part = impl.contents[0]
+    assert (svc_part.type, svc_part.name) == ("cloud-service", "openai-engine")
+    assert svc_part.service == "chat-completions"
+    assert svc_part.privacy_tier == "cloud_no_data"
+    assert svc_part.requirements is None
+    assert impl.is_cloud is False  # a local-model part is still present
+
+
+def test_an_engine_part_declares_github_url(tmp_path):
+    body = (
+        valid_impl_toml()
+        .replace('capability = "llm.model"', 'capability = "llm.engine"')
+    )
+    body = body.replace(
+        LOCAL_MODEL_BLOCK,
+        """\
+    [llm.engine.inference-engine.ollama]
+    description = "The Ollama inference engine."
+    version = "0.12.0"
+    github = "https://github.com/ollama/ollama"
+
+    [llm.engine.inference-engine.ollama.requirements]
+    disk-gb = 1.5
+    ram-gb = 0.4
+    """,
+    ).replace(
+        """\
+    [[dependencies]]
+    capability = "llm.engine"
+    min-version = "0.5.0"
+    features = ["vision"]
+    """,
+        "",
+    )
+    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
+    part = impl.contents[0]
+    assert (part.type, part.name) == ("inference-engine", "ollama")
+    assert part.github == "https://github.com/ollama/ollama"
+    assert impl.dependencies == ()
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + 1.5)
+
+
+def test_a_database_part(tmp_path):
+    body = (
+        valid_impl_toml()
+        .replace('capability = "llm.model"', 'capability = "document.store"')
+        .replace(
+            LOCAL_MODEL_BLOCK,
+            """\
+    [document.store.database.sqlite-vec]
+    description = "SQLite with the sqlite-vec extension for vectors."
+    version = "0.1.6"
+    github = "https://github.com/asg017/sqlite-vec"
+
+    [document.store.database.sqlite-vec.requirements]
+    disk-gb = 0.05
+    ram-gb = 0.1
+    """,
+        )
+        .replace(
+            """\
+    [[dependencies]]
+    capability = "llm.engine"
+    min-version = "0.5.0"
+    features = ["vision"]
+    """,
+            "",
+        )
+    )
+    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
+    part = impl.contents[0]
+    assert (part.type, part.name) == ("database", "sqlite-vec")
+    assert part.github == "https://github.com/asg017/sqlite-vec"
+
+
+def test_an_open_source_app_part(tmp_path):
+    body = (
+        valid_impl_toml()
+        .replace('capability = "llm.model"', 'capability = "chat.ui"')
+        .replace(
+            LOCAL_MODEL_BLOCK,
+            """\
+    [chat.ui.open-source-app.open-webui]
+    description = "The vendored Open WebUI chat surface."
+    version = "0.6.0"
+    github = "https://github.com/open-webui/open-webui"
+
+    [chat.ui.open-source-app.open-webui.requirements]
+    disk-gb = 1.0
+    ram-gb = 0.5
+    """,
+        )
+        .replace(
+            """\
+    [[dependencies]]
+    capability = "llm.engine"
+    min-version = "0.5.0"
+    features = ["vision"]
+    """,
+            "",
+        )
+    )
+    impl = load_implementation_toml(write(tmp_path, "implementation.toml", body))
+    part = impl.contents[0]
+    assert (part.type, part.name) == ("open-source-app", "open-webui")
+    assert part.github == "https://github.com/open-webui/open-webui"
+
+
+def _prepend_own_property(text: str, line: str) -> str:
+    """Insert a top-level key BEFORE the first `[table]` header — after it,
+    TOML would swallow the key into the table (the ordering pitfall)."""
+    i = text.index("\n    [")
+    return text[:i] + "\n" + line + text[i:]
 
 
 @pytest.mark.parametrize(
     "mutation,match",
     [
         # retired keys are loud errors, not silently ignored
+        (lambda s: _prepend_own_property(s, 'kind = "model"'), "kind.*superseded"),
+        (lambda s: _prepend_own_property(s, "[ranks]\naccuracy = 1\n"), "ranks.*removed"),
         (
-            lambda s: s.replace(
-                'privacy-tier = "local"', 'privacy-tier = "local"\nkind = "model"'
-            ),
-            "kind.*superseded",
+            lambda s: _prepend_own_property(s, '[engine-dependency]\ncapability = "llm.engine"\n'),
+            "engine-dependency.*superseded",
         ),
-        (lambda s: s + "\n[ranks]\naccuracy = 1\n", "ranks.*removed"),
-        # unknown top-level key (typo) fails loudly — closed shape
+        # source moved to the parts
+        (lambda s: _prepend_own_property(s, 'source = "local-weights"'), "moved under the model parts"),
+        # privacy-tier moved to cloud parts
+        (lambda s: _prepend_own_property(s, 'privacy-tier = "local"'), "moved to the cloud parts"),
+        # stored supported/recommended are loud errors
+        (lambda s: _prepend_own_property(s, "supported = true"), "supported.*never stored"),
+        (lambda s: _prepend_own_property(s, "recommended = true"), "recommended.*never stored"),
+        # the v2 [contents] shape is retired
+        (
+            lambda s: _prepend_own_property(s, '[contents.model]\ntype = "model"\n'),
+            r"`\[contents\]` is superseded",
+        ),
+        # unknown top-level key (typo) fails loudly
         (
             lambda s: s.replace('license = "Apache-2.0"', 'licens = "Apache-2.0"'),
             "unknown top-level key",
-        ),
-        # stored supported/recommended are loud errors (ticket #74: "all
-        # loud load errors")
-        (
-            lambda s: s.replace('license = "Apache-2.0"', 'license = "Apache-2.0"\nsupported = true'),
-            "supported.*never stored",
-        ),
-        (
-            lambda s: s.replace('license = "Apache-2.0"', 'license = "Apache-2.0"\nrecommended = true'),
-            "recommended.*never stored",
         ),
         # capability reference must follow the declared grammar
         (
             lambda s: s.replace('capability = "llm.model"', 'capability = "LLM.Model"'),
             "lowercase dotted",
         ),
-        # a cloud ref needs both provider and model
+        # part section for a DIFFERENT capability — fails loudly (the shared
+        # root `llm` walks into `other` and rejects the unknown type)
         (
-            lambda s: s.replace('source = "local-weights"', 'source = "cloud:"'),
-            "both parts required",
+            lambda s: _prepend_own_property(
+                s, '[llm.other.local-model.x]\ndescription = "d"\nversion = "1"\n'
+            ),
+            "unknown content-part type",
         ),
+        # no part sections at all
         (
-            lambda s: s.replace('source = "local-weights"', 'source = "cloud:nous/"'),
-            "both parts required",
+            lambda s: s.replace(LOCAL_MODEL_BLOCK, ""),
+            "no content-part documentation sections",
         ),
+        # unknown part type
         (
             lambda s: s.replace(
-                """\
-    [[dependencies]]
-    capability = "llm.engine"
-    min-version = "0.5.0"
-    features = ["vision"]
-    """,
-                """\
-    [engine-dependency]
-    capability = "llm.engine"
-    min_version = "0.5.0"
-    """,
+                "[llm.model.local-model.qwen3-4b]", "[llm.model.widget.qwen3-4b]"
             ),
-            "engine-dependency.*superseded",
+            "widget",
         ),
-        # bad source / privacy / license
-        (
-            lambda s: s.replace('source = "local-weights"', 'source = "downloaded"'),
-            "source",
-        ),
-        (lambda s: s.replace('license = "Apache-2.0"', 'license = ""'), "license"),
-        (
-            lambda s: s.replace('privacy-tier = "local"', 'privacy-tier = "private"'),
-            "privacy-tier",
-        ),
-        # contents shape
-        (
-            lambda s: s.replace('    [contents.model]\n    type = "model"', '    [contents.model]\n    type = "widget"'),
-            "type.*must be one of",
-        ),
-        (
-            lambda s: s.replace('artificial-analysis = "qwen-3-4b"', "artificial-analysis = 42"),
-            "artificial-analysis",
-        ),
+        # model part without the weights URL
         (
             lambda s: s.replace(
-                'huggingface = "https://huggingface.co/Qwen/Qwen3-4B"', 'huggingface = ""'
+                'huggingface = "https://huggingface.co/Qwen/Qwen3-4B"', ""
             ),
-            "huggingface",
+            "huggingface.*required",
+        ),
+        # model part without the AA slug
+        (
+            lambda s: s.replace('artificial-analysis = "qwen-3-4b"', ""),
+            "artificial-analysis.*required",
         ),
         # no quality claims in model facts
         (
             lambda s: s.replace(
-                "[contents.model.facts]\n    disk-gb = 2.5",
-                "[contents.model.facts]\n    elo-score = 1200\n    disk-gb = 2.5",
+                "[llm.model.local-model.qwen3-4b.facts]",
+                "[llm.model.local-model.qwen3-4b.facts]\nelo-score = 1200",
             ),
             "objective model fact",
         ),
-        # requirements shape
+        # cloud parts declare no requirements
         (
-            lambda s: s.replace("[requirements]\n    disk-gb = 2.7", "[requirements]\n    disk-gb = -2.7"),
+            lambda s: _swap_local_model(
+                s,
+                """\
+    [llm.model.cloud-model.gpt-5-nano]
+    description = "d"
+    version = "1"
+    provider = "openai"
+    model = "gpt-5-nano"
+    artificial-analysis = "gpt-5-nano"
+    privacy-tier = "cloud"
+
+    [llm.model.cloud-model.gpt-5-nano.requirements]
+    disk-gb = 1.0
+    """,
+            ),
+            "cloud parts consume no machine",
+        ),
+        # cloud parts need a privacy tier
+        (
+            lambda s: _swap_local_model(
+                s,
+                """\
+    [llm.model.cloud-service.openai-engine]
+    description = "d"
+    version = "1"
+    provider = "openai"
+    service = "chat-completions"
+    """,
+            ),
+            "privacy-tier.*must be",
+        ),
+        # duplicate part name
+        (
+            lambda s: _prepend_own_property(
+                s,
+                '[llm.model.database.qwen3-4b]\ndescription = "d"\nversion = "1"\ngithub = "https://github.com/x/y"\n',
+            ),
+            "duplicate content-part",
+        ),
+        # a local part may not declare cloud properties
+        (
+            lambda s: s.replace(
+                'artificial-analysis = "qwen-3-4b"',
+                'artificial-analysis = "qwen-3-4b"\n    privacy-tier = "local"',
+            ),
+            "unknown key",
+        ),
+        # requirements must be non-negative
+        (
+            lambda s: s.replace(
+                "[llm.model.local-model.qwen3-4b.requirements]\n    disk-gb = 2.5",
+                "[llm.model.local-model.qwen3-4b.requirements]\n    disk-gb = -2.5",
+            ),
             "non-negative",
         ),
+        # technologies must be booleans
         (
-            lambda s: s.replace("[requirements.cpu]\n    AVX2 = true", "[requirements.cpu]\n    AVX2 = 1"),
+            lambda s: s.replace(
+                "[llm.model.local-model.qwen3-4b.requirements.cpu]\n    AVX2 = true",
+                "[llm.model.local-model.qwen3-4b.requirements.cpu]\n    AVX2 = 1",
+            ),
             "booleans",
         ),
         # dependency shape: exactly one of capability/implementation
@@ -684,10 +909,29 @@ def test_an_implementation_may_bundle_several_content_parts(tmp_path):
             ),
             "exactly one",
         ),
+        # missing identity
+        (
+            lambda s: s.replace(
+                """\
+    [identity]
+    name = "qwen3-4b"
+    version = "2026-05"
+    description = "A 4B LLM served locally."
+
+    # the implementation's OWN code requirements
+    """,
+                """\
+    # the implementation's OWN code requirements
+    """,
+            ),
+            "identity",
+        ),
+        # missing license
+        (lambda s: s.replace('license = "Apache-2.0"', 'license = ""'), "license"),
     ],
 )
 def test_implementation_toml_rejects_bad_declarations(tmp_path, mutation, match):
-    body = mutation(valid_model_impl_toml())
+    body = mutation(valid_impl_toml())
     with pytest.raises(ImplementationDeclarationError, match=match):
         load_implementation_toml(write(tmp_path, "implementation.toml", body))
 
@@ -697,13 +941,32 @@ def test_implementation_toml_missing_file_raises(tmp_path):
         load_implementation_toml(tmp_path / "implementation.toml")
 
 
+def test_the_parsed_object_is_the_install_configuration_data(tmp_path):
+    """ADR-0031 §3 (maintainer ruling): the implementation-specific install
+    function receives a typed python object representing the full contents
+    of the toml file — parsed parts included, no re-parsing."""
+    impl = load_implementation_toml(
+        write(tmp_path, "implementation.toml", valid_impl_toml())
+    )
+    assert isinstance(impl, Implementation)  # the typed object itself
+    assert all(isinstance(p, ContentPart) for p in impl.contents)
+    assert all(
+        isinstance(r, Requirements) for r in (impl.requirements, impl.own_requirements)
+    )
+    # every part carries its documentation + its own requirements — the
+    # per-part config the install function consumes
+    part = impl.contents[0]
+    assert part.description and part.version
+    assert isinstance(part.requirements, Requirements)
+
+
 # ------------------------------------------- read-time computation (ADR-0031 §5)
 
 
 def make_impl(
     name: str,
     *,
-    source: str = "local-weights",
+    cloud: bool = False,
     disk: float = 2.0,
     ram: float = 0.5,
     vram: float = 0.0,
@@ -712,30 +975,33 @@ def make_impl(
     gpu_tech: tuple[str, ...] = (),
 ) -> Implementation:
     """A parsed `Implementation` (what `load_implementation_toml` returns)."""
+    part = ContentPart(
+        name="m",
+        type="cloud-model" if cloud else "local-model",
+        description="d",
+        version="1",
+        huggingface=None if cloud else "https://huggingface.co/x",
+        artificial_analysis=slug,
+        provider="openai" if cloud else None,
+        model="gpt" if cloud else None,
+        privacy_tier="cloud" if cloud else None,
+    )
+    reqs = Requirements(
+        disk_gb=disk,
+        ram_gb=ram,
+        vram_gb=vram,
+        cpu_technologies=cpu_tech,
+        gpu_technologies=gpu_tech,
+    )
     return Implementation(
         capability="llm.model",
         name=name,
         version="1",
         description=name,
-        source=source,
         license="Apache-2.0",
-        privacy_tier="local",
-        links={},
-        contents=(
-            ContentPart(
-                name="model",
-                type="model",
-                huggingface="https://huggingface.co/x" if slug else None,
-                artificial_analysis=slug,
-            ),
-        ),
-        requirements=Requirements(
-            disk_gb=disk,
-            ram_gb=ram,
-            vram_gb=vram,
-            cpu_technologies=cpu_tech,
-            gpu_technologies=gpu_tech,
-        ),
+        own_requirements=reqs,
+        requirements=reqs,
+        contents=(part,),
         dependencies=(),
     )
 
@@ -779,21 +1045,24 @@ def test_ram_and_vram_fit_are_hard_gates_too():
 def test_unknown_hardware_fails_the_hard_gate_never_silently_passes():
     """ADR-0005 §4: quantity fit is the hard gate — a machine with unknown
     quantities supports only cloud implementations."""
-    impls = [make_impl("local m"), make_impl("c", source="cloud:nous/glm")]
+    impls = [make_impl("local m"), make_impl("c", cloud=True)]
     assert compute_supported(impls, {}) == [impls[1]]
     assert compute_supported(impls, {"disk_free_gb": None, "technologies": {}}) == [impls[1]]
     assert compute_supported(impls, {"disk_free_gb": "10", "technologies": {}}) == [impls[1]]
 
 
 def test_cloud_implementations_do_not_consume_this_machine():
-    impls = [make_impl("cloud one", source="cloud:nous/glm", disk=999.0)]
-    # disk_free 10 GB — a cloud ref never consumes this machine's disk
+    impls = [make_impl("cloud one", cloud=True, disk=999.0)]
+    # disk_free 10 GB — a cloud implementation never consumes this machine
     assert [i.name for i in compute_supported(impls, HARDWARE)] == ["cloud one"]
 
 
 def test_supported_and_ordering_chain_off_the_parsed_declaration():
     """The read-time path is loader → compute → order (no dict bridge)."""
-    impls = [make_impl("m1", disk=2.0, slug="m1"), make_impl("m2", disk=9.0, slug="m2")]
+    impls = [
+        make_impl("m1", disk=2.0, slug="m1"),
+        make_impl("m2", disk=9.0, slug="m2"),
+    ]
     supported = compute_supported(impls, HARDWARE)
     ordered = order_supported(supported, "size", metrics={})
     assert [i.name for i in ordered] == ["m1", "m2"]
@@ -833,21 +1102,22 @@ def test_performance_per_dollar_replaces_balanced():
     ]
     metrics = {
         "premium": {"performance": 1400, "cost": 5.0},   # 280 / $
-        "value": {"performance": 1200, "cost": 1.0},     # 1200 / $
-        "uc": {"performance": 1300},                      # cost unknown
+        "value": {"performance": 1200, "cost": 1.0},    # 1200 / $
+        "uc": {"performance": 1300},                     # cost unknown
     }
-    assert [i.name for i in order_supported(impls, "performance-per-dollar", metrics)] == [
-        "value", "premium", "unknown-cost",
-    ]
+    assert [
+        i.name for i in order_supported(impls, "performance-per-dollar", metrics)
+    ] == ["value", "premium", "unknown-cost"]
 
 
-def test_size_orders_by_the_declared_disk_not_dynamic_metrics():
+def test_size_orders_by_the_aggregate_declared_disk_not_dynamic_metrics():
     impls = [
         make_impl("big", disk=9.0, slug="big"),
         make_impl("small", disk=1.0, slug="small"),
     ]
-    # dynamic metrics irrelevant for size
-    assert [i.name for i in order_supported(impls, "size", metrics={})] == ["small", "big"]
+    assert [i.name for i in order_supported(impls, "size", metrics={})] == [
+        "small", "big",
+    ]
 
 
 def test_no_goal_no_hidden_ranking():
@@ -869,6 +1139,12 @@ def test_offline_fallback_all_unknown_orders_by_name_last_bucket():
 
 
 def test_declarations_carry_no_quality_claims_or_stored_flags():
-    text = valid_model_impl_toml().lower()
-    for banned in ("[ranks]", "benchmark-score", "supported =", "recommended =", "elo-score"):
+    text = valid_impl_toml().lower()
+    for banned in (
+        "[ranks]",
+        "benchmark-score",
+        "supported =",
+        "recommended =",
+        "elo-score",
+    ):
         assert banned not in text

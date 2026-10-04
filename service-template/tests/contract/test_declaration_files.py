@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from contract.declaration import load_implementation_toml, load_service_toml
 
 SERVICE_TEMPLATE = Path(__file__).resolve().parents[2]
@@ -34,14 +36,17 @@ def test_the_implementation_template_toml_is_valid():
         REPO_ROOT / "implementation-template" / "implementation.toml"
     )
     assert impl.capability == "llm.model"
-    assert impl.source == "local-weights"
     assert impl.license == "Apache-2.0"
-    assert impl.privacy_tier == "local"
     part = impl.contents[0]
-    assert part.type == "model"
+    assert part.type == "local-model"
+    assert part.name == "qwen3-4b"
     assert part.huggingface.startswith("https://huggingface.co/")
     assert part.artificial_analysis
-    assert impl.requirements.disk_gb >= part.facts["disk-gb"]
+    assert impl.own_requirements.disk_gb == 0.2
+    # aggregation: own + parts (sum/union)
+    assert impl.requirements.disk_gb == pytest.approx(0.2 + part.facts["disk-gb"])
+    assert impl.requirements.vram_gb == part.requirements.vram_gb
+    assert impl.is_cloud is False
     assert impl.dependencies[0].capability == "llm.engine"
 
 
