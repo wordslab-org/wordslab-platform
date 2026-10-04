@@ -79,10 +79,18 @@ meet inside the service repo.
    `Implementation` object** (the loader's parse result) as its
    configuration data — no re-parsing.
 
-5. **Keep only the family modules you implement** — remove every
-   `src/<your-service>/contract/families/<family>` module you do not
-   implement (the vendored suite's test-side manifest records which family
-   modules it exercises, #70).
+5. **Keep only the family blocks you exercise** — the vendored suite's
+   family conformance lives in `tests/contract/families/` as blocks named
+   `f<N>_<slug>/`, parameterized by the **test-side manifest**
+   `tests/contract/families/manifest.toml` (the maintainer ruling on #70:
+   families are NOT declared in `service.toml`, ADR-0031 §2 — your tests
+   declare which families they exercise, as explicit data next to the
+   tests, no probing, no magic). Edit the manifest's `families = [...]` to
+   list the ADR-0001 family numbers your service implements, keep those
+   blocks, delete the rest. A listed family with no block on disk — or an
+   unknown/malformed entry — fails the suite loudly; an unlisted block never
+   runs. A listed block is red until the family's surface is implemented —
+   that is the conformance gate, never bypassed.
 
 6. **Implement capabilities** — add your `capabilities/` modules (business
    logic, routes, UI pages) and register their routes via
@@ -130,7 +138,10 @@ declaration.
 
 ## What is not in these templates yet
 
-The vendored conformance suite (#70), the consent-flag template contract
-(#72), the stub patterns (#73), and the nine family modules (#76–#84) arrive
-as their own stage-0 tickets on top of this base. The installer contract for
-`install/` recipes is #65's concern.
+The vendored conformance suite (#70), the canary capability (#71), and the
+base-contract stub-factory (`tests/support/stubs.py`) are in; the
+consent-flag template contract (#72), the composition stub patterns —
+stub-engine and stub-collaborator resolution (#73) — and the nine family
+modules with their full conformance blocks (#76–#84) arrive as their own
+stage-0 tickets on top of this base. The installer contract for `install/`
+recipes is #65's concern.

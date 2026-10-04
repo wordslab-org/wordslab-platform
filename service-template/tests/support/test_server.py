@@ -13,22 +13,17 @@ Implementation Decisions).
 
 from __future__ import annotations
 
-import secrets
 from typing import Any
 
 from starlette.testclient import TestClient
 
 from app import create_app
+from .stubs import stub_api_key  # the stub-factory is the single source (ticket #70)
 
 # Paths the base contract leaves unauthenticated. `/health` must be
 # readable without a key: it is the monitoring/dashboard surface
 # (ADR-0001 item 6 — the dashboard reads /health for status colors).
 UNAUTHENTICATED_PATHS = frozenset({"/health"})
-
-
-def stub_api_key() -> str:
-    """A stub Bearer key for base-contract tests (spec #68, piece b)."""
-    return "sk-stub-" + secrets.token_hex(16)
 
 
 class InProcessService:

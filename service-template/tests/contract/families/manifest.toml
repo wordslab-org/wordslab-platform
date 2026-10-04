@@ -1,0 +1,12 @@
+# The conformance suite's family manifest — the test-side parameterization
+# data (ticket #70; the maintainer ruling: families are NOT declared in
+# `service.toml` — ADR-0031 §2 — the service's own tests declare which family
+# conformance blocks they exercise, as explicit data next to the tests, no
+# probing, no magic).
+#
+# Entries are ADR-0001 family NUMBERS as strings ("1".."9"); each selects one
+# `families/f<N>_<slug>/` conformance block. The copy-to-start ritual edits
+# this list (CONTRIBUTING.md step 5) alongside keeping/removing the family
+# modules. An entry with no matching directory fails the suite loudly — a
+# declared family must never be silently skipped.
+families = []
