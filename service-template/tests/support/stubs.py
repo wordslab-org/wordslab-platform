@@ -319,7 +319,6 @@ def model_record(
     status: str,
     downloaded: bool,
     size_gb: float = 1.0,
-    recommended: bool = True,
 ) -> dict:
     """One family-5 model record (ADR-0001 §Families.5) — the one encoding of
     the record shape, shared by the stub's default catalog and by tests that
@@ -327,7 +326,7 @@ def model_record(
     return {
         "id": model_id,
         "supported": True,
-        "recommended": recommended,
+        "recommended": True,
         "downloaded": downloaded,
         "size_gb": size_gb,
         "status": status,
@@ -453,19 +452,22 @@ class StubEngine:
         return dict(model)
 
     def prepare(self, model_id: str) -> dict:
-        """The prepare sequence (ADR-0001 §Families.5): unload the resident
-        model, download the target when absent, then ready it. The stub models
-        a single-resident engine, so every other `ready` model is unloaded, and
+        """The prepare sequence (ADR-0001 §Families.5): `downloading` first when
+        the target is absent, then unload the resident model, then load the
+        target and warm it up to `ready` — the ADR's "unloading previous model
+        → loading new model → warming up → ready". The stub models a
+        single-resident engine, so every other `ready` model is unloaded, and
         prepare readies the target from any state (the ADR's prepare is a
         re-attempt)."""
         self.calls.append({"operation": "prepare", "model": model_id})
         target = self._model(model_id)
-        for model in self.models:
-            if model is not target and model["status"] == "ready":
-                model["status"] = "available"
         if target["status"] == "absent":
             target["downloaded"] = True
-        target["status"] = "ready"
+            target["status"] = "available"  # downloading → available, first
+        for model in self.models:
+            if model is not target and model["status"] == "ready":
+                model["status"] = "available"  # unloading the previous model
+        target["status"] = "ready"  # loading → warming up → ready
         return dict(target)
 
     def _model(self, model_id: str) -> dict:
