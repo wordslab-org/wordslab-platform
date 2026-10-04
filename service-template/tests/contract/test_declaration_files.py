@@ -26,7 +26,12 @@ def test_the_service_template_own_service_toml_is_valid():
     assert svc.description
     assert svc.requirements["disk-gb"] > 0
     assert svc.requirements["ram-gb"] > 0
-    assert svc.capabilities == ()  # the canary arrives with #71
+    # The canary ships with the template (ticket #71) — the proof capability.
+    canary = svc.capabilities[0]
+    assert canary.name == "canary"
+    assert canary.api == "/v1/echo"
+    assert canary.required is False
+    assert canary.ui_menu[0].entry == "/echo"
 
 
 def test_the_implementation_template_toml_is_valid():

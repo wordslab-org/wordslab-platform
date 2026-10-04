@@ -137,3 +137,40 @@ def test_mcp_initialized_notification_is_accepted():
     with svc.authorized() as c:
         r = rpc(c, "notifications/initialized")
     assert r.status_code == 202
+
+
+# --- Slice 3: /echo — the human surface (FastHTML + vendored Alpine, no CDN).
+
+def test_echo_page_is_served():
+    svc = make_service()
+    with svc.authorized() as c:
+        r = c.get("/echo")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "Echo" in r.text
+
+
+def test_echo_page_drives_the_deterministic_surface_and_vendors_assets():
+    svc = make_service()
+    with svc.authorized() as c:
+        html = c.get("/echo").text
+    assert "/v1/echo" in html  # the page calls the same API, no duplicate logic
+    assert "/static/alpine.min.js" in html
+    assert "/static/pico.min.css" in html
+    assert "x-data" in html  # Alpine interactivity (Surreal never loaded)
+    assert "surreal" not in html.lower()
+    assert "htmx" not in html.lower()
+    lowered = html.lower()
+    assert "cdn." not in lowered and "://unpkg" not in lowered and "://jsdelivr" not in lowered
+
+
+def test_vendored_static_assets_are_served():
+    svc = make_service()
+    with svc.authorized() as c:
+        alpine = c.get("/static/alpine.min.js")
+        pico = c.get("/static/pico.min.css")
+        css = c.get("/static/service.css")
+    assert alpine.status_code == 200 and len(alpine.content) > 10_000
+    assert "alpine" in alpine.text[:2000].lower() or alpine.text.startswith("((")
+    assert pico.status_code == 200 and len(pico.content) > 10_000
+    assert css.status_code == 200 and ".echo-result" in css.text
