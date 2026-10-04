@@ -289,6 +289,18 @@ def _engine_service(make_service, **engine_kwargs):
     return make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
 
 
+def _model_record(model_id, *, status, downloaded, size_gb=1.0):
+    """One family-5 model record (ADR-0001 §Families.5) — the shared shape."""
+    return {
+        "id": model_id,
+        "supported": True,
+        "recommended": True,
+        "downloaded": downloaded,
+        "size_gb": size_gb,
+        "status": status,
+    }
+
+
 def test_the_stub_engine_serves_the_family_1_responses_shape(make_service):
     svc = _engine_service(make_service)
     with svc.authorized() as c:
@@ -345,16 +357,7 @@ def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
 
 
 def test_the_stub_engine_honours_a_custom_catalog_and_embedding_dim(make_service):
-    catalog = [
-        {
-            "id": "tiny",
-            "supported": True,
-            "recommended": False,
-            "downloaded": True,
-            "size_gb": 0.2,
-            "status": "available",
-        }
-    ]
+    catalog = [_model_record("tiny", status="available", downloaded=True, size_gb=0.2)]
     svc = _engine_service(make_service, model_name="tiny", models=catalog, embedding_dim=4)
     with svc.authorized() as c:
         models = c.get("/v1/models").json()["items"]
@@ -362,6 +365,47 @@ def test_the_stub_engine_honours_a_custom_catalog_and_embedding_dim(make_service
     assert [model["id"] for model in models] == ["tiny"]
     assert embedded["model"] == "tiny"  # model_name drives the default model
     assert len(embedded["data"][0]["embedding"]) == 4
+
+
+def test_the_stub_engine_transitions_a_model_through_its_lifecycle():
+    # The family-5 lifecycle engine seam (ADR-0001 §Families.5) — deterministic
+    # status transitions, in-process: the HTTP lifecycle surface is #80's
+    # family module, which calls these operations.
+    engine = StubEngine(models=[_model_record("tiny", status="absent", downloaded=False)])
+    assert engine.download("tiny")["status"] == "available"
+    assert engine.load("tiny")["status"] == "ready"
+    assert engine.unload("tiny")["status"] == "available"
+    assert engine.model_catalog() == [
+        _model_record("tiny", status="available", downloaded=True)
+    ]
+
+
+def test_the_stub_engine_prepare_sequences_to_ready():
+    # ADR-0001 §Families.5: prepare downloads when absent, unloads the other
+    # resident model, and leaves the target ready — deterministically.
+    def build():
+        return StubEngine(
+            models=[
+                _model_record("resident", status="ready", downloaded=True),
+                _model_record("target", status="absent", downloaded=False, size_gb=0.2),
+            ]
+        )
+
+    def state(engine):
+        return {model["id"]: model["status"] for model in engine.model_catalog()}
+
+    engine = build()
+    prepared = engine.prepare("target")
+    assert prepared["status"] == "ready"
+    assert prepared["downloaded"] is True
+    assert state(engine) == {"resident": "available", "target": "ready"}
+    # a fresh engine with the same catalog prepares identically (deterministic)
+    assert build().prepare("target") == prepared
+
+
+def test_the_stub_engine_lifecycle_rejects_an_unknown_model():
+    with pytest.raises(ValueError, match="no such model"):
+        StubEngine().load("no-such-model")
 
 
 def test_the_stub_engine_rejects_a_malformed_body(make_service):

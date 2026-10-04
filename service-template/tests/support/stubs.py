@@ -16,7 +16,8 @@ system — spec #68 Implementation Decisions):
   every request it serves (dispatch assertions without the real
   collaborator);
 - `StubEngine` — a fake engine behind the family-1/2/5 seam returning
-  deterministic canned model output, with a family-shaped HTTP surface
+  deterministic canned model output (family-1/2 inference, the family-5 model
+  catalog and its lifecycle operations), with a family-shaped HTTP surface
   (`/v1/responses`, `/v1/embeddings`, `/v1/models`) so a model-backed
   service's contract behavior is assertable without a real engine;
 - `StubRegistry` + `ResolvedReference` — the fake capability registry (the
@@ -314,8 +315,11 @@ class StubEngine:
 
     Deterministic and offline: every output is derived purely from the request
     (a stable hash for ids, whitespace for token counts, a hashed vector for
-    embeddings) — no engine, no network, no randomness. Wire its family-shaped
-    surface through the factory's `extra_routes`:
+    embeddings) — no engine, no network, no randomness. The family-5 lifecycle
+    operations (`download`/`load`/`unload`/`prepare`) are the in-process engine
+    seam a family-5 module calls — deterministic status transitions, no HTTP
+    routes (the lifecycle surface is that module's, #80). Wire the
+    family-shaped surface through the factory's `extra_routes`:
 
         engine = StubEngine()
         svc = InProcessService(extra_routes=engine.routes())
@@ -398,6 +402,63 @@ class StubEngine:
         """A family-5 model catalog (ADR-0001 §Families.5) — copies, so a
         caller cannot mutate the stub's state."""
         return [dict(model) for model in self.models]
+
+    # --- the family-5 model-lifecycle seam (ADR-0001 §Families.5) -----------
+    # The in-process lifecycle operations a family-5 module calls (the HTTP
+    # lifecycle surface — /v1/models/{id}/load, the job object — is that
+    # module's, #80). Each applies a deterministic status transition to the
+    # stub's catalog; an unknown model is a loud rejection.
+
+    def download(self, model_id: str) -> dict:
+        """`absent` → `available` (the download step; synchronous in the stub
+        — the job object is the family module's surface, not the engine's)."""
+        self.calls.append({"operation": "download", "model": model_id})
+        model = self._model(model_id)
+        if model["status"] == "absent":
+            model["downloaded"] = True
+            model["status"] = "available"
+        return dict(model)
+
+    def load(self, model_id: str) -> dict:
+        """`available`/`error` → `ready`."""
+        self.calls.append({"operation": "load", "model": model_id})
+        model = self._model(model_id)
+        if model["status"] in ("available", "error"):
+            model["status"] = "ready"
+        return dict(model)
+
+    def unload(self, model_id: str) -> dict:
+        """`ready` → `available`."""
+        self.calls.append({"operation": "unload", "model": model_id})
+        model = self._model(model_id)
+        if model["status"] == "ready":
+            model["status"] = "available"
+        return dict(model)
+
+    def prepare(self, model_id: str) -> dict:
+        """The full prepare sequence (ADR-0001 §Families.5): download when
+        absent, unload the other resident model, then load the target to
+        `ready`."""
+        self.calls.append({"operation": "prepare", "model": model_id})
+        target = self._model(model_id)
+        for model in self.models:
+            if model is not target and model["status"] == "ready":
+                model["status"] = "available"
+        if target["status"] == "absent":
+            target["downloaded"] = True
+        target["status"] = "ready"
+        return dict(target)
+
+    def _model(self, model_id: str) -> dict:
+        """The stub's live record for `model_id` (mutated in place by the
+        lifecycle operations); an unknown model is a loud rejection."""
+        for model in self.models:
+            if model["id"] == model_id:
+                return model
+        raise ValueError(
+            f"no such model {model_id!r} — not a lifecycle target "
+            "(ADR-0001 §Families.5)"
+        )
 
     # --- the family-shaped HTTP surface -------------------------------------
 
