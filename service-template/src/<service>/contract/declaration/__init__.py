@@ -34,6 +34,7 @@ from .learning_bar import (
     SkillRef,
     load_bar_doc,
     load_skill_md,
+    parse_learning_table,
     validate_learning,
 )
 from .model_selection import (
@@ -75,6 +76,7 @@ __all__ = [
     "load_service_toml",
     "load_skill_md",
     "order_supported",
+    "parse_learning_table",
     "validate_goal",
     "validate_learning",
 ]

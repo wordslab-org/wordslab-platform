@@ -41,7 +41,9 @@ DOC_FRONT_MATTER_KEYS = {
     "mcp-tools",
 }
 
-SKILL_FRONT_MATTER_KEYS = {"name", "description"}
+SKILL_FRONT_MATTER_KEYS = {"name", "description"}  # required keys — the
+# front-matter is otherwise OPEN (ADR-0008: frontmatter + instructions +
+# linked files; extra keys are the registry's metadata)
 
 LEARNING_KEYS = {"docs", "skill", "not-agent-operable"}
 
@@ -111,6 +113,25 @@ class SkillDoc:
 
 
 # ------------------------------------------------------------- the bar table
+
+
+def parse_learning_table(
+    raw: dict, *, root: Path, about_kind: str, about: str,
+    where: str, err,
+) -> LearningBar | None:
+    """Parse one declaration's `[learning]` table — the shape both loaders
+    share (service_toml and implementation_toml): absent → None; not a
+    table → loud; validated closed shape; artifacts loaded and
+    cross-checked (ADR-0024 §1, ADR-0031 §2/§3 as amended)."""
+    learning_raw = raw.get("learning")
+    if learning_raw is None:
+        return None
+    if not isinstance(learning_raw, dict):
+        raise err(f"`{where}` must be a table")
+    bar = validate_learning(learning_raw, where=where, err=err)
+    return load_learning_artifacts(
+        bar, root=root, about_kind=about_kind, about=about, where=where, err=err
+    )
 
 
 def validate_learning(raw: object, *, where: str, err) -> LearningBar:
@@ -337,6 +358,12 @@ def load_bar_doc(
         )
 
     h1, sections = _validate_body(body, where, path.name, err)
+    if h1[2:].strip() != title:
+        raise err(
+            f"`{where}` ({path.name}) H1 and front-matter title disagree:"
+            f" {h1[2:].strip()!r} vs {title!r} — human title and indexable"
+            " title agree (one source, ADR-0024 §1)"
+        )
 
     doc = BarDoc(
         title=title,
@@ -370,13 +397,10 @@ def load_skill_md(path: Path, *, err, where: str, name: str | None = None) -> Sk
         raise err(f"`{where}` declares skill file not found: {path}")
     text = path.read_text(encoding="utf-8")
     front, body = _split_front_matter(text, where, err)
-    unknown = (set(front.scalars) | set(front.lists)) - SKILL_FRONT_MATTER_KEYS
-    if unknown:
-        raise err(
-            f"`{where}` ({path.name}) has unknown front-matter key(s)"
-            f" {sorted(unknown)} — a SKILL.md front-matter declares only:"
-            f" {', '.join(sorted(SKILL_FRONT_MATTER_KEYS))} (closed shape)"
-        )
+    # an OPEN front-matter (ADR-0008: a skill is frontmatter + instructions
+    # + linked files): the bar requires the discoverable `name` +
+    # `description`; extra keys (version, linked files, ...) are the
+    # registry's metadata, not an error.
     skill_name = front.scalars.get("name")
     if not isinstance(skill_name, str) or not _SLUG_RE.fullmatch(skill_name):
         raise err(
@@ -455,10 +479,14 @@ def _split_front_matter(text: str, where: str, err):
         key, _, value = stripped.partition(":")
         key, value = key.strip(), value.strip()
         if value == "":
+            if key in front.lists or key in front.scalars:
+                raise err(f"`{where}` front-matter declares `{key}` twice")
             current_list = key
             front.lists[current_list] = []
             continue
         if value == "[]":
+            if key in front.lists or key in front.scalars:
+                raise err(f"`{where}` front-matter declares `{key}` twice")
             current_list = None
             front.lists[key] = []
             continue
@@ -477,15 +505,22 @@ def _validate_body(body: str, where: str, name: str, err):
     lines = body.splitlines()
     if not any(line.strip() for line in lines):
         raise err(f"`{where}` ({name}) has an empty body")
+    # fence-aware: a `## ` line inside a ``` fence is quoted content, not
+    # a section — otherwise a doc quoting Markdown rejects itself
+    sections, in_fence = [], False
+    for line in lines:
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.startswith("## "):
+            sections.append(line.strip()[3:].strip())
+    sections = tuple(sections)
     first = next(line for line in lines if line.strip())
     if not first.startswith("# "):
         raise err(
             f"`{where}` ({name}) body must open with a `# <title>` heading"
             " — structured Markdown, human title and indexable title agree"
         )
-    sections = tuple(
-        line.strip()[3:].strip() for line in lines if line.startswith("## ")
-    )
     if sections != CANONICAL_SECTIONS:
         raise err(
             f"`{where}` ({name}) body must follow the canonical section"

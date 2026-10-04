@@ -29,6 +29,7 @@ import textwrap
 import pytest
 
 from contract.declaration import (
+    CANONICAL_SECTIONS,
     DOC_LEVELS,
     BarDoc,
     DocRef,
@@ -69,7 +70,7 @@ def bar_doc_md(level: str, *, title: str = "Echo", capability: str = "canary",
     )
     if body is None:
         body = (
-            "# Echo\n\n"
+            f"# {title}\n\n"
             "## Summary\n\n"
             "Echo bounces text back through the service's three callable"
             " surfaces (API, MCP, UI).\n\n"
@@ -604,6 +605,18 @@ def test_skill_names_must_be_unique_within_the_service(tmp_path):
         (lambda text: text.replace("## See also\n", "## See also\n\n## Extra\n"), "canonical section schema exactly"),
         # the body opens with the human title
         (lambda text: text.replace("# Echo\n", ""), "must open with a `# <title>` heading"),
+        # a front-matter key declared twice fails loudly — no silent reset
+        (lambda text: text.replace("title: Echo\n", "title: Echo\nmcp-tools: []\n"), "declares `mcp-tools` twice"),
+        (
+            lambda text: text.replace(
+                "keywords:\n  - echo\n  - consent\n",
+                "keywords:\n  - echo\n\nkeywords:\n  - consent\n",
+            ),
+            "declares `keywords` twice",
+        ),
+        # the body opens with the human title — and it must AGREE with the
+        # indexable front-matter title (one source, ADR-0024 §1)
+        (lambda text: text.replace("# Echo\n", "# Something Else\n"), "H1 and front-matter title disagree"),
     ],
 )
 def test_doc_artifact_rejections(tmp_path, override, match):
@@ -615,11 +628,33 @@ def test_doc_artifact_rejections(tmp_path, override, match):
         load_service_toml(path)
 
 
+def test_a_fenced_code_block_heading_is_not_a_section(tmp_path):
+    """A `## ` line inside a ``` fence is content, not a section — the
+    schema scan must be fence-aware, or a doc quoting Markdown rejects
+    itself."""
+    level = "how-to-use"
+    fenced = bar_doc_md(level) + "\n```markdown\n## Example\nx = 1\n```\n"
+    path = write_service_root(tmp_path, doc_overrides={level: fenced})
+    svc = load_service_toml(path)
+    assert svc.capabilities[0].learning.parsed_docs[0].sections == CANONICAL_SECTIONS
+
+
+def test_a_skill_md_front_matter_may_carry_registry_metadata(tmp_path):
+    """ADR-0008: a skill is frontmatter + instructions + linked files — the
+    bar only requires the discoverable `name` + `description`; extra keys
+    (version, linked files, ...) are the registry's metadata, not an error."""
+    skill_md = SKILL_MD.replace(
+        "description: How an agent drives",
+        "version: 1\ndescription: How an agent drives",
+    )
+    path = write_service_root(tmp_path, skill_md=skill_md)
+    svc = load_service_toml(path)
+    assert svc.capabilities[0].learning.parsed_skill.name == "drive-canary"
+
+
 @pytest.mark.parametrize(
     "skill,match",
     [
-        # SKILL.md front-matter closed shape
-        (lambda text: text.replace("name: drive-canary", "name: drive-canary\nversion: 1"), "unknown front-matter key"),
         # description — the registry entry's one-line summary
         (
             lambda text: text.replace(

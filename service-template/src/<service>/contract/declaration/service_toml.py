@@ -40,11 +40,7 @@ from pathlib import Path
 
 import tomllib
 
-from .learning_bar import (
-    LearningBar,
-    load_learning_artifacts,
-    validate_learning,
-)
+from .learning_bar import LearningBar, parse_learning_table
 
 
 class ServiceDeclarationError(ValueError):
@@ -404,22 +400,14 @@ def _parse_capability_section(
             )
         )
 
-    learning_raw = entry.get("learning")
-    learning: LearningBar | None = None
-    if learning_raw is not None:
-        if not isinstance(learning_raw, dict):
-            raise ServiceDeclarationError(f"`[{section}].learning` must be a table")
-        bar = validate_learning(
-            learning_raw, where=f"[{section}].learning", err=ServiceDeclarationError
-        )
-        learning = load_learning_artifacts(
-            bar,
-            root=service_root,
-            about_kind="capability",
-            about=cap_name,
-            where=f"[{section}].learning",
-            err=ServiceDeclarationError,
-        )
+    learning = parse_learning_table(
+        entry,
+        root=service_root,
+        about_kind="capability",
+        about=cap_name,
+        where=f"[{section}].learning",
+        err=ServiceDeclarationError,
+    )
 
     return Capability(
         name=cap_name,

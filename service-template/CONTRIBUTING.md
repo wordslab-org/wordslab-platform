@@ -59,6 +59,9 @@ meet inside the service repo.
      front-matter `name`/`description` + instructions) or the explicit
      **`not-agent-operable` note** (the honest why for a capability that
      genuinely can't be agent-driven — never a fake skill, no theater).
+     Either way the key sits DIRECTLY under the `[learning]` header —
+     TOML nests a key written after a `[[....docs]]` header into that
+     table.
    The loader validates every declared artifact (it must exist and parse —
    a declared-but-fake artifact fails at load) and keeps a service bootable
    while the bar is being written: **the bar is mandatory to publish**

@@ -47,8 +47,11 @@ menu = [
 #     is its SKILL.md body;
 #   - the explicit "not agent-operable" note for a capability that
 #     genuinely can't be agent-driven (an honest note, never a fake
-#     skill — no theater):
-#     not-agent-operable = "..."
+#     skill — no theater). REPLACES the [....skill] table and sits
+#     DIRECTLY under the [....learning] header — TOML nests any key
+#     that comes after a [[....docs]] header into THAT table:
+#     # not-agent-operable = "A physical-machine panel driven by its
+#     #   own UI; an agent has no deterministic surface to drive."
 # Every declared artifact must exist and parse: structured Markdown with
 # the canonical front-matter (title, capability, level, keywords,
 # mcp-tools) and the canonical section schema (## Summary / ## Details /

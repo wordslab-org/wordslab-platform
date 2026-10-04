@@ -49,7 +49,7 @@ from pathlib import Path
 
 import tomllib
 
-from .learning_bar import LearningBar, load_learning_artifacts, validate_learning
+from .learning_bar import LearningBar, parse_learning_table
 
 PRIVACY_TIERS = ("local", "cloud_no_data", "cloud")
 
@@ -288,17 +288,10 @@ def load_implementation_toml(path: str | Path) -> Implementation:
 def _parse_learning(raw: dict, identity_name: str, root: Path) -> LearningBar | None:
     """The implementation's own learning/operability bar (ADR-0024 §1,
     ADR-0031 §3 as amended): own-properties block; the docs' front-matter
-    names the implementation; artifacts validated at load (no theater)."""
-    learning_raw = raw.get("learning")
-    if learning_raw is None:
-        return None
-    if not isinstance(learning_raw, dict):
-        raise _err("`[learning]` must be a table")
-    bar = validate_learning(
-        learning_raw, where="[learning]", err=ImplementationDeclarationError
-    )
-    return load_learning_artifacts(
-        bar,
+    names the implementation; artifacts validated at load (no theater).
+    The shared table shape lives in `parse_learning_table`."""
+    return parse_learning_table(
+        raw,
         root=root,
         about_kind="implementation",
         about=identity_name,

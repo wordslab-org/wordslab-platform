@@ -130,7 +130,7 @@ def test_the_service_template_ships_the_not_agent_operable_pattern(tmp_path):
     where declared (the shipped example documents it as a comment; the
     loader accepts it, tested on a fixture copy)."""
     text = (SERVICE_TEMPLATE / "service.toml").read_text()
-    assert "#     not-agent-operable = \"...\"" in text  # the commented pattern
+    assert "DIRECTLY under the [....learning] header" in text  # the commented pattern
     skill_block = """\
 [template-service.canary.learning.skill]
 name = "drive-canary"
