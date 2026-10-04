@@ -14,7 +14,19 @@ system — spec #68 Implementation Decisions):
 - `StubCollaborator` — a stub collaborator endpoint following the base
   contract, wired via `create_service_app(extra_routes=...)`, recording
   every request it serves (dispatch assertions without the real
-  collaborator; the composition-specific resolution patterns remain #73).
+  collaborator);
+- `StubEngine` — a fake engine behind the family-1/2/5 seam returning
+  deterministic canned model output (family-1/2 inference, the family-5 model
+  catalog and its lifecycle operations), with a family-shaped HTTP surface
+  (`/v1/responses`, `/v1/embeddings`, `/v1/models`) so a model-backed
+  service's contract behavior is assertable without a real engine;
+- `model_record(...)` — the one encoding of the family-5 model record shape,
+  shared by `StubEngine`'s default catalog and by tests that need a specific
+  catalog;
+- `StubRegistry` + `ResolvedReference` — the fake capability registry (the
+  name→URL resolver, ADR-0008 §7) that `call`/`model`/`agent` composition
+  references resolve against, each to the fake endpoint registered under its
+  stable name (typically a `StubCollaborator`'s path).
 
 Test-side only: production code never imports this module (spec #68). The
 response-shape checking is NOT duplicated here: the matchers reuse the
@@ -24,7 +36,10 @@ drift-detection and the family red gate share one implementation.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import secrets
+from dataclasses import dataclass
 from typing import Any
 
 from starlette.requests import Request
@@ -32,12 +47,18 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from contract.base.consent import MAY_USE, PRIVATE_SECRET
+from contract.base.errors import invalid_request
 from contract.base.health import CANNOT_SERVE_STATUSES, HEALTH_STATUSES
 from contract.base.health import resources as build_resources
+from contract.base.pagination import paginate
 from tests.contract.runner import failures
 
 __all__ = [
+    "COMPOSITION_PRIMITIVES",
+    "ResolvedReference",
     "StubCollaborator",
+    "StubEngine",
+    "StubRegistry",
     "stub_api_key",
     "stub_health_payload",
     "stub_health_violations",
@@ -231,3 +252,343 @@ def stub_consent_gate_violations(extracted: list, recorded: list) -> list[str]:
             )
     return problems
 
+
+# --- stub engine (spec #68 story 3; the family-1/2/5 seam) ------------------
+# A fake model-serving engine behind the family-1/2/5 seam (ADR-0001
+# §Families.1/2/5): deterministic canned model output, offline — no engine, no
+# network, no randomness the tests cannot reproduce (spec #68 Implementation
+# Decisions). A model-backed capability calls the engine's operations;
+# `routes()` exposes the same output as a family-shaped HTTP surface so the
+# engine is assertable over the one seam — and so a family conformance block
+# (#76–#84) can satisfy its stub-backed cases without a real engine. The stub
+# serves the family modules; it never implements them.
+
+# The composition primitive kinds a reference can carry (ADR-0007 §3): `call`
+# = a service capability, `model` = a raw model call, `agent` = run a native
+# agent to completion. The other primitives (`subworkflow`/`delay`/`event`/
+# `user_input`) are not service references, so they never reach the resolver.
+#
+# Of the three, `call` (a service capability) and `agent` (an agent entry) are
+# registry entries the name→URL resolver serves (ADR-0008 §2/§7); `model` is
+# NOT a registry entry — ADR-0008 §2 keeps models out ("models are never
+# entries"); a `model(...)` reference names an explicit implementation choice
+# (ADR-0007 §10) whose surface is the Responses API (ADR-0007 §5). The stub
+# resolves all three kinds uniformly so a composition test can assert dispatch
+# without the real collaborator (spec #68 story 4); the `model` primitive's
+# exact resolution path is an open question flagged on ticket #73.
+COMPOSITION_PRIMITIVES = ("call", "model", "agent")
+
+
+def _stable_token(value: object) -> str:
+    """A deterministic token derived from a value — the stub engine's ids are
+    reproducible, never random (spec #68 Implementation Decisions)."""
+    payload = json.dumps(
+        value, sort_keys=True, default=str, separators=(",", ":")
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()[:24]
+
+
+def _count_tokens(value: object) -> int:
+    """A deterministic token count (whitespace words). The family-1/2 `usage`
+    unit is the reference API's (tokens); the stub does not ship a tokenizer."""
+    return len(str(value).split())
+
+
+def _stub_vector(text: str, dim: int) -> list[float]:
+    """A deterministic pseudo-embedding for `text` — reproducible floats, no
+    model, no randomness."""
+    seed = int(_stable_token(text), 16)
+    return [round(((seed >> (i * 4)) & 0xF) / 15.0, 4) for i in range(dim)]
+
+
+async def _json_object(request: Request) -> dict:
+    """The request body as a JSON object; a malformed or non-object body is
+    the contract's 400 `invalid_request` (base item 4), never a 500."""
+    try:
+        parsed = await request.json()
+    except ValueError:
+        raise invalid_request("Expected a JSON object request body.") from None
+    if not isinstance(parsed, dict):
+        raise invalid_request("Expected a JSON object request body.")
+    return parsed
+
+
+def model_record(
+    model_id: str,
+    *,
+    status: str,
+    downloaded: bool,
+    size_gb: float = 1.0,
+) -> dict:
+    """One family-5 model record (ADR-0001 §Families.5) — the one encoding of
+    the record shape, shared by the stub's default catalog and by tests that
+    need a specific catalog."""
+    return {
+        "id": model_id,
+        "supported": True,
+        "recommended": True,
+        "downloaded": downloaded,
+        "size_gb": size_gb,
+        "status": status,
+    }
+
+
+class StubEngine:
+    """A fake engine behind the family-1/2/5 seam (spec #68 story 3).
+
+    Deterministic and offline: every output is derived purely from the request
+    (a stable hash for ids, whitespace for token counts, a hashed vector for
+    embeddings) — no engine, no network, no randomness. The family-5 lifecycle
+    operations (`download`/`load`/`unload`/`prepare`) are the in-process engine
+    seam a family-5 module calls — deterministic status transitions, no HTTP
+    routes, returning the terminal state: the lifecycle surface, the job
+    object, and its transient `downloading`/`loading`/`unloading` states are
+    that module's (#80). Wire the family-shaped surface through the factory's
+    `extra_routes`:
+
+        engine = StubEngine()
+        svc = InProcessService(extra_routes=engine.routes())
+    """
+
+    def __init__(
+        self,
+        *,
+        model_name: str = "stub-model",
+        models: list[dict] | None = None,
+        embedding_dim: int = 8,
+    ) -> None:
+        self.model_name = model_name
+        self.embedding_dim = embedding_dim
+        self.models = (
+            list(models)
+            if models is not None
+            else [model_record(model_name, status="ready", downloaded=True)]
+        )
+        self.calls: list[dict] = []
+
+    # --- the engine operations a model-backed capability calls ---------------
+
+    def responses(self, request: dict) -> dict:
+        """A family-1 Responses-API body (ADR-0001 §Families.1) — the canned
+        model output for `request`, deterministic in the request."""
+        self.calls.append({"operation": "responses", "request": request})
+        text = "stub-response:" + str(request.get("input", ""))
+        usage = {
+            "input_tokens": _count_tokens(request.get("input", "")),
+            "output_tokens": _count_tokens(text),
+        }
+        usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
+        return {
+            "id": "resp_" + _stable_token(request),
+            "object": "response",
+            "model": request.get("model", self.model_name),
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": text}],
+                }
+            ],
+            "usage": usage,
+        }
+
+    def embeddings(self, request: dict) -> dict:
+        """A family-2 embeddings body (ADR-0001 §Families.2) — deterministic
+        pseudo-embeddings, one per input."""
+        self.calls.append({"operation": "embeddings", "request": request})
+        inputs = request.get("input")
+        if isinstance(inputs, str):
+            inputs = [inputs]
+        inputs = inputs if isinstance(inputs, list) else []
+        return {
+            "object": "list",
+            "model": request.get("model", self.model_name),
+            "data": [
+                {
+                    "object": "embedding",
+                    "index": index,
+                    "embedding": _stub_vector(str(text), self.embedding_dim),
+                }
+                for index, text in enumerate(inputs)
+            ],
+            "usage": {"prompt_tokens": sum(_count_tokens(text) for text in inputs)},
+        }
+
+    def model_catalog(self) -> list[dict]:
+        """A family-5 model catalog (ADR-0001 §Families.5) — copies, so a
+        caller cannot mutate the stub's state."""
+        return [dict(model) for model in self.models]
+
+    # --- the family-5 model-lifecycle seam (ADR-0001 §Families.5) -----------
+    # The in-process lifecycle operations a family-5 module calls (the HTTP
+    # lifecycle surface — /v1/models/{id}/load, the job object — is that
+    # module's, #80). Each applies a deterministic status transition to the
+    # stub's catalog; an unknown model is a loud rejection.
+
+    def download(self, model_id: str) -> dict:
+        """`absent` → `available` (the download step; synchronous in the stub
+        — the job object is the family module's surface, not the engine's)."""
+        self.calls.append({"operation": "download", "model": model_id})
+        model = self._model(model_id)
+        if model["status"] == "absent":
+            model["downloaded"] = True
+            model["status"] = "available"
+        return dict(model)
+
+    def load(self, model_id: str) -> dict:
+        """`available`/`error` → `ready`."""
+        self.calls.append({"operation": "load", "model": model_id})
+        model = self._model(model_id)
+        if model["status"] in ("available", "error"):
+            model["status"] = "ready"
+        return dict(model)
+
+    def unload(self, model_id: str) -> dict:
+        """`ready` → `available`."""
+        self.calls.append({"operation": "unload", "model": model_id})
+        model = self._model(model_id)
+        if model["status"] == "ready":
+            model["status"] = "available"
+        return dict(model)
+
+    def prepare(self, model_id: str) -> dict:
+        """The prepare sequence (ADR-0001 §Families.5): `downloading` first when
+        the target is absent, then unload the resident model, then load the
+        target and warm it up to `ready` — the ADR's "unloading previous model
+        → loading new model → warming up → ready". The stub models a
+        single-resident engine, so every other `ready` model is unloaded, and
+        prepare readies the target from any state (the ADR's prepare is a
+        re-attempt)."""
+        self.calls.append({"operation": "prepare", "model": model_id})
+        target = self._model(model_id)
+        if target["status"] == "absent":
+            target["downloaded"] = True
+            target["status"] = "available"  # downloading → available, first
+        for model in self.models:
+            if model is not target and model["status"] == "ready":
+                model["status"] = "available"  # unloading the previous model
+        target["status"] = "ready"  # loading → warming up → ready
+        return dict(target)
+
+    def _model(self, model_id: str) -> dict:
+        """The stub's live record for `model_id` (mutated in place by the
+        lifecycle operations); an unknown model is a loud rejection."""
+        for model in self.models:
+            if model["id"] == model_id:
+                return model
+        raise ValueError(
+            f"no such model {model_id!r} — not a lifecycle target "
+            "(ADR-0001 §Families.5)"
+        )
+
+    # --- the family-shaped HTTP surface -------------------------------------
+
+    def routes(self) -> list[Route]:
+        """The engine's output as a family-shaped HTTP surface
+        (`/v1/responses`, `/v1/embeddings`, `/v1/models`) — wire via
+        `extra_routes`. This is the TEST-SIDE stand-in for a family module's
+        surface: a real service's family module (#76–#84) owns its own
+        surface and calls the engine's operations, so a service never wires
+        these routes alongside its own module."""
+
+        async def responses_endpoint(request: Request) -> JSONResponse:
+            return JSONResponse(self.responses(await _json_object(request)))
+
+        async def embeddings_endpoint(request: Request) -> JSONResponse:
+            return JSONResponse(self.embeddings(await _json_object(request)))
+
+        async def models_endpoint(request: Request) -> JSONResponse:
+            return paginate(request, self.model_catalog(), key_fn=lambda m: m["id"])
+
+        return [
+            Route("/v1/responses", responses_endpoint, methods=["POST"]),
+            Route("/v1/embeddings", embeddings_endpoint, methods=["POST"]),
+            Route("/v1/models", models_endpoint, methods=["GET"]),
+        ]
+
+
+# --- stub-collaborator resolution (spec #68 story 4; ADR-0008 §7/§8) --------
+# The fake capability registry: the name→URL resolver composition references
+# resolve against (ADR-0008 §7) — standing in for the leader core's registry in
+# tests. Names are reserved explicitly (no probing, no magic); a reference of
+# any composition-primitive kind resolves by stable name to a fake endpoint (a
+# `StubCollaborator`), which records the dispatched request. Deterministic and
+# offline: no core, no network.
+
+
+@dataclass(frozen=True)
+class ResolvedReference:
+    """One resolved composition reference: the primitive that made it, the
+    stable name it named, and the endpoint it resolves to (ADR-0008 §7)."""
+
+    primitive: str
+    name: str
+    endpoint: str
+
+
+def _validate_stable_name(name: str) -> None:
+    """A stable name is `<service>.<capability>` (or `<service>.<kind>.<name>`
+    for authored entries) — dot-separated, non-empty parts (ADR-0008 §8)."""
+    parts = name.split(".")
+    if len(parts) < 2 or any(not part for part in parts):
+        raise ValueError(
+            f"Invalid stable name {name!r}: expected <service>.<capability> "
+            "(ADR-0008 §8)."
+        )
+
+
+class StubRegistry:
+    """The fake capability registry — the name→URL resolver (ADR-0008 §7) that
+    `call`/`model`/`agent` composition references resolve against in tests.
+
+    Register a fake endpoint under a stable name, then resolve a reference of
+    any composition-primitive kind:
+
+        collab = StubCollaborator()
+        registry = StubRegistry()
+        registry.register("document.parse", collab.path)
+        reference = registry.resolve("call", "document.parse")
+        svc = InProcessService(extra_routes=[collab.route])
+        # ... dispatch `reference.endpoint` through the seam
+
+    Resolution is kind-agnostic (ADR-0008 §7: one registry, one name→URL
+    role) — the primitive is recorded on the reference, not used to select the
+    endpoint.
+    """
+
+    def __init__(self) -> None:
+        self._endpoints: dict[str, str] = {}
+
+    def register(self, name: str, endpoint: str) -> None:
+        """Reserve a stable name → endpoint. The endpoint is the entry's
+        resolving reference — opaque to the registry (ADR-0008 §1: "a
+        reference to the owning service"), so no path shape is imposed here;
+        in a test it is typically a `StubCollaborator`'s `/v1/...` route path.
+        A second claimant is refused: a name is reserved once (ADR-0008 §8)."""
+        _validate_stable_name(name)
+        if not isinstance(endpoint, str) or not endpoint:
+            raise ValueError(
+                "The endpoint is the entry's resolving reference (ADR-0008 §1)."
+            )
+        if name in self._endpoints:
+            raise ValueError(
+                f"The stable name {name!r} is already reserved — a second "
+                "claimant can never shadow it (ADR-0008 §8)."
+            )
+        self._endpoints[name] = endpoint
+
+    def resolve(self, primitive: str, name: str) -> ResolvedReference:
+        """Resolve a composition reference: validate the primitive kind
+        (ADR-0007 §3) and the stable name → its endpoint (ADR-0008 §7)."""
+        if primitive not in COMPOSITION_PRIMITIVES:
+            raise ValueError(
+                f"Unknown composition primitive {primitive!r}: expected one of "
+                f"{COMPOSITION_PRIMITIVES!r} (ADR-0007 §3)."
+            )
+        endpoint = self._endpoints.get(name)
+        if endpoint is None:
+            raise ValueError(
+                f"No capability is registered under the stable name {name!r} — "
+                "the reference does not resolve (ADR-0008 §7)."
+            )
+        return ResolvedReference(primitive, name, endpoint)

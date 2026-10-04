@@ -1,7 +1,11 @@
 """The stub-factory's own conformance (ticket #70 acceptance: "the
 stub-factory produces the documented stub shapes for base contract
 fixtures") — every stub exercised over the real HTTP seam (the one seam,
-spec #46 §Testing Decisions), never against internals.
+spec #46 §Testing Decisions), never against internals. The one exception is
+the engine's family-5 lifecycle seam (`download`/`load`/`unload`/`prepare`),
+in-process by design — the ruling on #73 scopes the HTTP lifecycle surface and
+its job object to the family-5 module (#80) — so those tests call the
+operations directly.
 
 The stub shapes are documented in `tests/support/stubs.py`; the independent
 source of truth for the *contract* shapes is ADR-0001 (cited per assertion).
@@ -11,14 +15,25 @@ import pytest
 
 from contract.base.consent import MAY_USE, PRIVATE_SECRET
 
+from tests.contract.runner import failures
 from tests.support.stubs import (
+    COMPOSITION_PRIMITIVES,
     StubCollaborator,
+    StubEngine,
+    StubRegistry,
+    model_record,
     stub_api_key,
     stub_401_violations,
     stub_health_payload,
     stub_health_violations,
 )
 from tests.support.test_server import InProcessService
+
+# The family-5 model status enum, verbatim from ADR-0001 family 5 (the same
+# enum the f5 conformance block pins).
+MODEL_STATUSES = frozenset(
+    {"absent", "downloading", "available", "loading", "ready", "unloading", "error"}
+)
 
 
 @pytest.fixture()
@@ -263,3 +278,211 @@ def test_the_consent_gate_matcher_flags_an_extracted_item_outside_the_may_use_st
         [{"text": "x", "consent": PRIVATE_SECRET}, {"text": "y"}], []
     )
     assert len(violations) == 2, violations
+
+
+# --- stub engine (spec #68 story 3; the family-1/2/5 seam) -------------------
+# The engine's deterministic canned output is asserted through a family-shaped
+# HTTP surface wired to it via the factory's `extra_routes` (the same seam as
+# every stage-0 ticket) — never against internals, and with NO family module
+# added (the family modules are #76–#84's deliverables; this stub serves them).
+
+
+def _engine_service(make_service, **engine_kwargs):
+    """A service with the stub engine's family-shaped surface wired in — the
+    construction every engine test shares."""
+    engine = StubEngine(**engine_kwargs)
+    return make_service(api_keys=["sk-correct"], extra_routes=engine.routes())
+
+
+def test_the_stub_engine_serves_the_family_1_responses_shape(make_service):
+    svc = _engine_service(make_service)
+    with svc.authorized() as c:
+        r = c.post("/v1/responses", json={"model": "stub-model", "input": "ping"})
+    assert r.status_code == 200
+    body = r.json()
+    # ADR-0001 family 1 — the Responses API by reference: `resp_` id, the
+    # `response` object, a typed `output` list, `usage` in tokens.
+    assert body["id"].startswith("resp_")
+    assert body["object"] == "response"
+    assert isinstance(body["output"], list)
+    assert body["usage"]["total_tokens"] > 0  # base item 8
+    assert failures(r) == []  # the base contract holds on the family seam
+
+
+def test_the_stub_engine_is_deterministic_and_offline():
+    # No randomness, no network: two fresh engines answer the same request
+    # identically, and a different request answers differently — canned output
+    # derived purely from the request (spec #68 Implementation Decisions).
+    request = {"model": "stub-model", "input": "ping"}
+    first = StubEngine().responses(dict(request))
+    second = StubEngine().responses(dict(request))
+    assert first == second
+    assert first["id"] != StubEngine().responses({"input": "pong"})["id"]
+
+
+def test_the_stub_engine_serves_the_family_5_model_catalog(make_service):
+    svc = _engine_service(make_service)
+    with svc.authorized() as c:
+        r = c.get("/v1/models")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) >= {"items", "next_cursor"}  # base item 5 envelope
+    assert body["items"], "the stub catalog is never empty"
+    for model in body["items"]:
+        # ADR-0001 family 5 — the model lifecycle record shape.
+        assert set(model) >= {
+            "id", "supported", "recommended", "downloaded", "size_gb", "status",
+        }
+        assert model["status"] in MODEL_STATUSES
+
+
+def test_the_stub_engine_serves_the_family_2_embeddings_shape(make_service):
+    svc = _engine_service(make_service)
+    with svc.authorized() as c:
+        r = c.post("/v1/embeddings", json={"model": "stub-model", "input": "ping"})
+    assert r.status_code == 200
+    body = r.json()
+    # ADR-0001 family 2 — embeddings by reference: the `list` object, per-input
+    # embedding records, `usage` in the reference API's native unit.
+    assert body["object"] == "list"
+    assert body["data"] and body["data"][0]["embedding"]
+    assert "usage" in body
+
+
+def test_the_stub_engine_honours_a_custom_catalog_and_embedding_dim(make_service):
+    catalog = [model_record("tiny", status="available", downloaded=True, size_gb=0.2)]
+    svc = _engine_service(make_service, model_name="tiny", models=catalog, embedding_dim=4)
+    with svc.authorized() as c:
+        models = c.get("/v1/models").json()["items"]
+        embedded = c.post("/v1/embeddings", json={"input": "ping"}).json()
+    assert [model["id"] for model in models] == ["tiny"]
+    assert embedded["model"] == "tiny"  # model_name drives the default model
+    assert len(embedded["data"][0]["embedding"]) == 4
+
+
+def test_the_stub_engine_transitions_a_model_through_its_lifecycle():
+    # The family-5 lifecycle engine seam (ADR-0001 §Families.5) — deterministic
+    # status transitions, in-process: the HTTP lifecycle surface is #80's
+    # family module, which calls these operations.
+    engine = StubEngine(models=[model_record("tiny", status="absent", downloaded=False)])
+    assert engine.download("tiny")["status"] == "available"
+    assert engine.load("tiny")["status"] == "ready"
+    assert engine.unload("tiny")["status"] == "available"
+    assert engine.model_catalog() == [
+        model_record("tiny", status="available", downloaded=True)
+    ]
+
+
+def test_the_stub_engine_prepare_sequences_to_ready():
+    # ADR-0001 §Families.5: prepare downloads when absent, unloads the other
+    # resident model, and leaves the target ready — deterministically.
+    def build():
+        return StubEngine(
+            models=[
+                model_record("resident", status="ready", downloaded=True),
+                model_record("target", status="absent", downloaded=False, size_gb=0.2),
+            ]
+        )
+
+    def state(engine):
+        return {model["id"]: model["status"] for model in engine.model_catalog()}
+
+    engine = build()
+    prepared = engine.prepare("target")
+    assert prepared["status"] == "ready"
+    assert prepared["downloaded"] is True
+    assert state(engine) == {"resident": "available", "target": "ready"}
+    # a fresh engine with the same catalog prepares identically (deterministic)
+    assert build().prepare("target") == prepared
+
+
+def test_the_stub_engine_lifecycle_rejects_an_unknown_model():
+    with pytest.raises(ValueError, match="no such model"):
+        StubEngine().load("no-such-model")
+
+
+def test_the_stub_engine_rejects_a_malformed_body(make_service):
+    # Malformed JSON is a CLIENT error (base item 4), never an unhandled 500.
+    svc = _engine_service(make_service)
+    with svc.authorized() as c:
+        r = c.post(
+            "/v1/responses",
+            content=b"not json",
+            headers={"Content-Type": "application/json"},
+        )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
+# --- stub-collaborator resolution (spec #68 story 4; ADR-0008 §7/§8) ---------
+# The fake capability registry: composition references of any primitive kind
+# (`call`/`model`/`agent`, ADR-0007 §3) resolve by stable name to a fake
+# endpoint (a `StubCollaborator`), which records the dispatched request.
+
+
+def test_the_stub_registry_resolves_a_call_reference_to_the_fake_endpoint(make_service):
+    collab = StubCollaborator()
+    registry = StubRegistry()
+    registry.register("document.parse", collab.path)
+    reference = registry.resolve("call", "document.parse")
+    assert reference.endpoint == collab.path
+    svc = make_service(api_keys=["sk-correct"], extra_routes=[collab.route])
+    with svc.authorized() as c:
+        r = c.post(reference.endpoint, json={"document": "bundle-1"})
+    assert r.status_code == 200
+    assert collab.requests[-1]["payload"] == {"document": "bundle-1"}
+
+
+def test_the_stub_registry_resolves_call_model_and_agent_references(make_service):
+    # ADR-0008 §7: one registry, one name→URL role — the three composition
+    # primitive kinds all resolve a stable name to the same fake endpoint, and
+    # each reference dispatches there (the endpoint records every one).
+    collab = StubCollaborator()
+    registry = StubRegistry()
+    registry.register("document.parse", collab.path)
+    svc = make_service(api_keys=["sk-correct"], extra_routes=[collab.route])
+    with svc.authorized() as c:
+        for primitive in COMPOSITION_PRIMITIVES:
+            reference = registry.resolve(primitive, "document.parse")
+            assert (reference.primitive, reference.name, reference.endpoint) == (
+                primitive,
+                "document.parse",
+                collab.path,
+            )
+            dispatched = c.post(reference.endpoint, json={"primitive": primitive})
+            assert dispatched.status_code == 200
+    assert [r["payload"]["primitive"] for r in collab.requests] == list(
+        COMPOSITION_PRIMITIVES
+    )
+
+
+def test_the_stub_registry_refuses_an_unknown_reference():
+    with pytest.raises(ValueError, match="does not resolve"):
+        StubRegistry().resolve("call", "document.parse")
+
+
+def test_the_stub_registry_refuses_an_unknown_composition_primitive():
+    registry = StubRegistry()
+    registry.register("document.parse", "/v1/document/parse")
+    with pytest.raises(ValueError, match="composition primitive"):
+        registry.resolve("subworkflow", "document.parse")
+
+
+def test_the_stub_registry_rejects_a_stable_name_collision():
+    # ADR-0008 §8: a second claimant can never shadow a reserved name.
+    registry = StubRegistry()
+    registry.register("document.parse", "/v1/document/parse")
+    with pytest.raises(ValueError, match="already reserved"):
+        registry.register("document.parse", "/v1/document/parse-2")
+
+
+def test_the_stub_registry_rejects_a_malformed_stable_name():
+    with pytest.raises(ValueError, match="stable name"):
+        StubRegistry().register("document", "/v1/document")
+
+
+def test_the_stub_registry_rejects_an_empty_endpoint():
+    # The entry's endpoint is its resolving reference (ADR-0008 §1) — never
+    # empty.
+    with pytest.raises(ValueError, match="resolving reference"):
+        StubRegistry().register("document.parse", "")
