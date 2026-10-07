@@ -55,17 +55,17 @@ def test_the_service_template_own_service_toml_is_valid():
 def test_the_placement_checker_declares_no_phantom_route():
     """The placement capability ships with the template (ticket #275) as a
     DATA surface: it mounts no route and contributes no OpenAPI fragment, so
-    its declared `api` entry point must be the service's own `/openapi.json`
-    — a `/v1/...` path that never appears in that document would promise a
-    routable capability that does not exist (ADR-0031 §2)."""
+    its declared `api` entry point must be the service's own API description
+    document `/openapi.json` (ADR-0031 §2 as amended by #275 — a capability
+    with no fragment has no path inside the document to name); a `/v1/...`
+    path here would promise a routable capability that does not exist."""
     svc = load_service_toml(SERVICE_TEMPLATE / "service.toml")
     placement = next(c for c in svc.capabilities if c.name == "placement")
     assert placement.api == "/openapi.json"
     assert placement.ui_menu == ()
     assert placement.required is False
 
-    # the whole document is still describable — the capability is documented
-    # in prose, which is where a data surface is described
+    # the capability is documented in prose — where a data surface is described
     assert "data surface" in placement.description.lower()
     assert "no route" in placement.description.lower()
 
