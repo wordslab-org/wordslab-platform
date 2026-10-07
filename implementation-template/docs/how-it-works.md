@@ -1,7 +1,5 @@
 ---
 title: Qwen3 4B — how it works
-implementation: qwen3-4b
-level: how-it-works
 keywords:
   - qwen3-4b
   - engine

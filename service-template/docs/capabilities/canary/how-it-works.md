@@ -1,7 +1,5 @@
 ---
 title: Echo — how it works
-capability: canary
-level: how-it-works
 keywords:
   - echo
   - canary

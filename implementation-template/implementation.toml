@@ -94,38 +94,3 @@ AVX2 = true
 capability = "llm.engine"
 min-version = "0.5.0"
 features = ["vision"]
-
-# The implementation's own learning/operability bar (ticket #75; ADR-0024
-# §1, ADR-0002 §7; declaration shape per ADR-0031 §3 as amended): the four
-# GRADED doc levels — one Markdown artifact per level (level + path,
-# relative to this file's directory) — plus exactly ONE of the
-# how-an-agent-drives-me skill (a registry `skill` entry, ADR-0008; the
-# docs' front-matter names THIS implementation) or the explicit
-# "not agent-operable" note (an honest note, never a fake skill —
-# no theater). Every declared artifact must exist and parse: structured
-# Markdown with the canonical front-matter (title, implementation, level,
-# keywords, mcp-tools) and the canonical section schema (## Summary /
-# ## Details / ## See also). Mandatory to publish for bundled/listed,
-# recommended-with-tracked-gaps for third-party (ADR-0018).
-
-[learning]
-
-[[learning.docs]]
-level = "how-to-use"
-path = "docs/how-to-use.md"
-
-[[learning.docs]]
-level = "how-it-works"
-path = "docs/how-it-works.md"
-
-[[learning.docs]]
-level = "study-in-depth"
-path = "docs/study-in-depth.md"
-
-[[learning.docs]]
-level = "going-further"
-path = "docs/going-further.md"
-
-[learning.skill]
-name = "drive-qwen3-4b"
-path = "skills/SKILL.md"

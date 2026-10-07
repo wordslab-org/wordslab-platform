@@ -1,21 +1,41 @@
-"""The learning/operability bar's declared artifacts (ticket #75; ADR-0024
-§1, ADR-0002 §7, **ADR-0031 §2/§3 — declaration shape v3, amended**).
+"""The learning/operability bar's artifacts — DISCOVERED BY LAYOUT
+(ticket #75; ADR-0024 §1, ADR-0002 §7; ADR-0031 §2/§3 as amended).
 
-The bar is **declared, auditable, not aspirational** (ADR-0024 §1): the
-declaration carries the four graded doc levels (each a distinct Markdown
-artifact with its `level` in the front-matter — never one flattened
-document) and exactly one of the **how-an-agent-drives-me `skill`** (a
-registry `skill` entry, ADR-0008) or the explicit **"not agent-operable"
-note** — a fake skill is theater, so both-declared and neither-declared
-fail loudly.
+The bar is **declared by the layout and audited at load**: no TOML
+sub-table lists the artifacts. The loader derives them from path + name
+conventions and validates what it finds:
 
-Every declared artifact must **exist and parse**: structured Markdown with
-the canonical front-matter (title, capability/implementation, level,
-keywords, MCP tool references) + the canonical section schema
-(`## Summary` / `## Details` / `## See also`, in this order — the schema is
-the one schema of the dual-consumed docs, ADR-0024 §1). A
-declared-but-malformed artifact is a fake artifact — loud rejection at
-load, same posture as the closed declaration shape.
+    docs/<level>.md            the graded docs — one file per level
+    skills/<slug>/SKILL.md     the how-an-agent-drives-me skill
+
+`<level>` is one of the four graded depths (how to use · how it works ·
+study in depth) — the FILENAME is the level, so a level can never drift
+from its declaration. The skill's DIRECTORY NAME is the registry slug (the
+authored entry is `<service>.skill.<slug>`, ADR-0008); its front-matter
+carries the one-line `description` the registry loads the skill by.
+
+The conventions, per subject (each `*_rel` is relative to the declaring
+directory):
+
+    service         docs/service/<level>.md
+                    skills/service/<slug>/SKILL.md
+    capability      docs/capabilities/<capability>/<level>.md
+                    skills/capabilities/<capability>/<slug>/SKILL.md
+    implementation  docs/<level>.md      (the implementation's own dir)
+                    skills/<slug>/SKILL.md
+
+**No skill in the expected directory means not-agent-operable** — the
+convention, not a declaration. Absence is honest (a fake skill is
+theater); the subject simply records no skill and `not_agent_operable`
+reads True.
+
+Every artifact FOUND must exist and parse: structured Markdown with the
+canonical front-matter (title, keywords — the doc is indexed for agents
+too — and optional MCP tool references) and the canonical section schema
+(`## Summary` / `## Details` / `## See also`, in this order). A malformed
+artifact is a fake artifact — loud rejection at load. Artifacts that are
+simply ABSENT are not errors: the bar is mandatory to publish (ADR-0018's
+tiers), not to boot, so they are recorded as `gaps`.
 
 This module is loader-agnostic: the loaders inject their own error class
 (`err`) so every rejection surfaces as a precise `*DeclarationError`
@@ -34,285 +54,157 @@ CANONICAL_SECTIONS = ("Summary", "Details", "See also")
 
 DOC_FRONT_MATTER_KEYS = {
     "title",
-    "capability",
-    "implementation",
-    "level",
     "keywords",
     "mcp-tools",
 }
 
 SKILL_FRONT_MATTER_KEYS = {"name", "description"}  # required keys — the
-# front-matter is otherwise OPEN (ADR-0008: frontmatter + instructions +
-# linked files; extra keys are the registry's metadata)
-
-LEARNING_KEYS = {"docs", "skill", "not-agent-operable"}
-
-DOC_REF_KEYS = {"level", "path"}
-
-SKILL_REF_KEYS = {"name", "path"}
+# front-matter is otherwise OPEN (ADR-0008: a skill is frontmatter +
+# instructions + linked files; extra keys are the registry's metadata)
 
 _SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
-
-@dataclass(frozen=True)
-class DocRef:
-    """One declared graded doc — its level + its path (relative to the
-    declaration's directory)."""
-
-    level: str
-    path: str
-
-
-@dataclass(frozen=True)
-class SkillRef:
-    """The declared how-an-agent-drives-me skill: the registry skill slug
-    (the authored entry is `<service>.skill.<name>`, ADR-0008) + the path
-    of its SKILL.md body."""
-
-    name: str
-    path: str
-
-
-@dataclass(frozen=True)
-class LearningBar:
-    """The parsed learning/operability bar declaration (ADR-0024 §1).
-
-    `docs` carries all four graded levels; exactly one of `skill` /
-    `not_agent_operable`. `parsed_docs`/`parsed_skill` are the validated
-    artifacts (the typed parse result — the consumers index and mount
-    through the registry, ADR-0008, without re-parsing)."""
-
-    docs: tuple[DocRef, ...]
-    skill: SkillRef | None
-    not_agent_operable: str | None
-    parsed_docs: tuple["BarDoc", ...] = ()
-    parsed_skill: "SkillDoc | None" = None
+DOCS_DIR = "docs"
+SKILLS_DIR = "skills"
+SKILL_FILE = "SKILL.md"
 
 
 @dataclass(frozen=True)
 class BarDoc:
-    """One parsed graded doc: the canonical front-matter + the section
-    headings (the canonical schema's, in file order)."""
+    """One discovered graded doc: its level (from the filename), the
+    canonical front-matter, the section headings (the canonical schema's, in
+    file order) and its path relative to the declaring directory."""
 
-    title: str
-    capability: str | None
-    implementation: str | None
     level: str
+    title: str
     keywords: tuple[str, ...]
     mcp_tools: tuple[str, ...]
     sections: tuple[str, ...]
+    path: Path
 
 
 @dataclass(frozen=True)
 class SkillDoc:
-    """One parsed SKILL.md — front-matter (name, description) + the
-    instruction body."""
+    """One discovered SKILL.md — the registry slug (its directory name), the
+    one-line prompt-facing `description` the registry loads it by, and its
+    path relative to the declaring directory."""
 
     name: str
     description: str
+    path: Path
 
 
-# ------------------------------------------------------------- the bar table
+@dataclass(frozen=True)
+class LearningBar:
+    """One subject's discovered learning/operability bar (ADR-0024 §1).
+
+    `docs` holds the graded docs that were FOUND (one per level at most);
+    `gaps` names the artifacts still missing (the bar is mandatory to
+    publish, not to boot). `skill` is None when no
+    `skills/<slug>/SKILL.md` exists — by convention that IS the
+    not-agent-operable case.
+    """
+
+    subject: str
+    docs: tuple[BarDoc, ...] = ()
+    skill: SkillDoc | None = None
+    gaps: tuple[str, ...] = ()
+
+    @property
+    def not_agent_operable(self) -> bool:
+        """No skill in the expected directory — the convention's honest
+        "an agent has no deterministic surface to drive this"."""
+        return self.skill is None
+
+    def level(self, level: str) -> BarDoc | None:
+        """The doc discovered at `level`, or None (a gap)."""
+        return next((doc for doc in self.docs if doc.level == level), None)
 
 
-def parse_learning_table(
-    raw: dict, *, root: Path, about_kind: str, about: str,
+# ------------------------------------------------------- discovery by layout
+
+
+def discover_learning_bar(
+    root: Path, *, docs_rel: Path, skills_rel: Path, subject: str,
     where: str, err,
-) -> LearningBar | None:
-    """Parse one declaration's `[learning]` table — the shape both loaders
-    share (service_toml and implementation_toml): absent → None; not a
-    table → loud; validated closed shape; artifacts loaded and
-    cross-checked (ADR-0024 §1, ADR-0031 §2/§3 as amended)."""
-    learning_raw = raw.get("learning")
-    if learning_raw is None:
-        return None
-    if not isinstance(learning_raw, dict):
-        raise err(f"`{where}` must be a table")
-    bar = validate_learning(learning_raw, where=where, err=err)
-    return load_learning_artifacts(
-        bar, root=root, about_kind=about_kind, about=about, where=where, err=err
-    )
+) -> LearningBar:
+    """Derive one subject's bar from the layout and audit every artifact
+    found (ADR-0024 §1 — the layout declares, the load audits).
 
-
-def validate_learning(raw: object, *, where: str, err) -> LearningBar:
-    """Validate one `learning` table's declared shape (closed shape, typos
-    fail loudly — the closed-shape scan runs BEFORE the per-field checks).
-    `err` is the caller's DeclarationError class."""
-    if not isinstance(raw, dict):
-        raise err(f"`{where}` must be a table")
-    unknown = set(raw) - LEARNING_KEYS
-    if unknown:
-        raise err(
-            f"`{where}` has unknown key(s) {sorted(unknown)} — the learning/"
-            f" operability bar declares only: {', '.join(sorted(LEARNING_KEYS))}"
-            " (ADR-0024 §1, closed shape, typos fail loudly)"
-        )
-
-    docs_raw = raw.get("docs")
-    if docs_raw is None:
-        raise err(
-            f"`{where}.docs` is required — the bar's documentation category:"
-            " the four graded levels (ADR-0024 §1), declared one entry per"
-            " level"
-        )
-    if not isinstance(docs_raw, list):
-        raise err(f"`{where}.docs` must be a list of tables (one per level)")
-    docs: list[DocRef] = []
-    seen_levels: set[str] = set()
-    for i, ref in enumerate(docs_raw):
-        ref_where = f"{where}.docs[{i}]"
-        if not isinstance(ref, dict):
-            raise err(f"`{ref_where}` is not a table")
-        unknown_ref = set(ref) - DOC_REF_KEYS
-        if unknown_ref:
-            raise err(
-                f"`{ref_where}` has unknown key(s) {sorted(unknown_ref)} — a"
-                f" doc entry declares only: {', '.join(sorted(DOC_REF_KEYS))}"
-                " (closed shape, typos fail loudly)"
+    `root` is the declaring directory (the service's or implementation's own
+    directory); `docs_rel` / `skills_rel` are the subject's conventional
+    subtrees relative to it.
+    """
+    root = Path(root)
+    docs: list[BarDoc] = []
+    gaps: list[str] = []
+    for level in DOC_LEVELS:
+        found = root / docs_rel / f"{level}.md"
+        if found.is_file():
+            docs.append(
+                load_bar_doc(
+                    found, err=err, level=level,
+                    where=f"{where} (convention {docs_rel}/{level}.md)",
+                )
             )
-        level = ref.get("level")
-        if level not in DOC_LEVELS:
-            raise err(
-                f"`{ref_where}.level` must be one of {DOC_LEVELS} — the bar"
-                " is graded by depth (ADR-0024 §1), one artifact per level"
-            )
-        if level in seen_levels:
-            raise err(
-                f"`{ref_where}` declares `{level}` twice — the bar is graded:"
-                " one artifact per level, four levels"
-            )
-        seen_levels.add(level)
-        docs.append(DocRef(level=level, path=_validate_rel_path(ref, "path", ref_where, err)))
+        else:
+            gaps.append(f"docs: {docs_rel}/{level}.md")
 
-    missing = [level for level in DOC_LEVELS if level not in seen_levels]
-    if missing:
-        raise err(
-            f"`{where}.docs` is missing level(s) {missing} — the bar is"
-            f" graded, not flattened: all four levels {DOC_LEVELS}"
-            " (ADR-0024 §1)"
-        )
-
-    skill_raw = raw.get("skill")
-    note = raw.get("not-agent-operable")
-    if skill_raw is not None and note is not None:
-        raise err(
-            f"`{where}` declares both `skill` and `not-agent-operable` — a"
-            " capability that genuinely can't be agent-driven records the"
-            " explicit note INSTEAD of a skill; a fake skill is theater"
-            " (ADR-0024 §1)"
-        )
-    if skill_raw is None and note is None:
-        raise err(
-            f"`{where}` declares neither `skill` nor `not-agent-operable` —"
-            " declare the how-an-agent-drives-me skill (a registry `skill`"
-            " entry, ADR-0008) or the explicit \"not agent-operable\" note"
-            " (no theater, ADR-0024 §1)"
-        )
-
-    skill: SkillRef | None = None
-    if skill_raw is not None:
-        if not isinstance(skill_raw, dict):
-            raise err(f"`{where}.skill` must be a table (name, path)")
-        unknown_skill = set(skill_raw) - SKILL_REF_KEYS
-        if unknown_skill:
-            raise err(
-                f"`{where}.skill` has unknown key(s) {sorted(unknown_skill)} —"
-                f" a skill entry declares only: {', '.join(sorted(SKILL_REF_KEYS))}"
-                " (closed shape, typos fail loudly)"
-            )
-        name = skill_raw.get("name")
-        if not isinstance(name, str) or not _SLUG_RE.fullmatch(name):
-            raise err(
-                f"`{where}.skill.name` must be a lowercase slug (a-z, digits,"
-                " hyphens) — the registry skill entry's user-chosen name; the"
-                " authored entry is `<service>.skill.<name>` (ADR-0008)"
-            )
-        skill = SkillRef(name=name, path=_validate_rel_path(skill_raw, "path", f"{where}.skill", err))
-
-    if note is not None:
-        if not isinstance(note, str) or not note.strip():
-            raise err(
-                f"`{where}.not-agent-operable` must be a non-empty string —"
-                " the honest note explaining WHY the capability can't be"
-                " agent-driven (no theater, ADR-0024 §1)"
-            )
+    skill = discover_skill(root, skills_rel=skills_rel, where=where, err=err)
+    if skill is None:
+        gaps.append(f"skill: {skills_rel}/<name>/{SKILL_FILE}")
 
     return LearningBar(
-        docs=tuple(docs),
-        skill=skill,
-        not_agent_operable=note if isinstance(note, str) else None,
+        subject=subject, docs=tuple(docs), skill=skill, gaps=tuple(gaps)
     )
 
 
-def _validate_rel_path(ref: dict, key: str, where: str, err) -> str:
-    value = ref.get(key)
-    if not isinstance(value, str) or not value.strip():
-        raise err(f"`{where}.{key}` must be a non-empty string")
-    rel = Path(value)
-    if rel.is_absolute() or ".." in rel.parts:
+def discover_skill(root: Path, *, skills_rel: Path, where: str, err) -> SkillDoc | None:
+    """The subject's how-an-agent-drives-me skill: the single
+    `skills_rel/<slug>/SKILL.md` under its skills subtree. None when the
+    subtree is absent or holds no skill — the not-agent-operable convention.
+    More than one is an ambiguity rejected loudly: a subject ships exactly
+    one skill."""
+    base = Path(root) / skills_rel
+    found = sorted(
+        child / SKILL_FILE
+        for child in (base.iterdir() if base.is_dir() else ())
+        if child.is_dir() and _SLUG_RE.fullmatch(child.name)
+        and (child / SKILL_FILE).is_file()
+    )
+    if not found:
+        return None
+    if len(found) > 1:
         raise err(
-            f"`{where}.{key}` must be a path relative to the declaration's"
-            f" directory — got {value!r}"
+            f"`{where}` ({skills_rel}) holds {len(found)} skills"
+            f" ({', '.join(p.parent.name for p in found)}) — a subject ships"
+            " exactly one how-an-agent-drives-me skill, its directory name is"
+            " the registry slug (ADR-0008)"
         )
-    return value
+    return load_skill_md(found[0], err=err, where=f"{where} ({skills_rel})")
 
 
 # ------------------------------------------------------- artifact validation
 
 
-def load_learning_artifacts(
-    bar: LearningBar,
-    *,
-    root: Path,
-    about_kind: str,
-    about: str,
-    where: str,
-    err,
-) -> LearningBar:
-    """Resolve every declared bar artifact against the declaration's
-    directory and validate it (declared files must exist and parse — a
-    declared-but-fake artifact fails at load, no theater). Cross-checks:
-    each doc's front-matter `level` matches its declared level and its
-    `capability`/`implementation` field names the declaring subject; the
-    skill's SKILL.md front-matter `name` matches the declared slug."""
-    parsed_docs: list[BarDoc] = []
-    for ref in bar.docs:
-        parsed_docs.append(
-            load_bar_doc(
-                root / ref.path,
-                err=err,
-                where=f"{where}.docs[{ref.level}]",
-                level=ref.level,
-                about_kind=about_kind,
-                about=about,
-            )
-        )
-    parsed_skill = None
-    if bar.skill is not None:
-        parsed_skill = load_skill_md(
-            root / bar.skill.path,
-            err=err,
-            where=f"{where}.skill",
-            name=bar.skill.name,
-        )
-    return LearningBar(
-        docs=bar.docs,
-        skill=bar.skill,
-        not_agent_operable=bar.not_agent_operable,
-        parsed_docs=tuple(parsed_docs),
-        parsed_skill=parsed_skill,
-    )
-
-
-def load_bar_doc(
-    path: Path, *, err, where: str, level: str | None = None,
-    about_kind: str | None = None, about: str | None = None,
-) -> BarDoc:
+def load_bar_doc(path: Path, *, err, where: str, level: str | None = None) -> BarDoc:
     """Load + validate one graded doc (structured Markdown, canonical
-    front-matter + section schema, ADR-0024 §1)."""
+    front-matter + section schema, ADR-0024 §1).
+
+    `level` is the level the doc was FOUND at (its filename) — the filename
+    IS the level, so a `level:` front-matter key would be a duplicate
+    declaration, not part of the canonical front-matter.
+    """
     path = Path(path)
     if not path.is_file():
-        raise err(f"`{where}` declares doc file not found: {path}")
+        raise err(f"`{where}` doc file not found: {path}")
+    doc_level = level if level is not None else path.stem
+    if doc_level not in DOC_LEVELS:
+        raise err(
+            f"`{where}` ({path.name}) is not a graded level — the bar is"
+            f" graded by depth {DOC_LEVELS}; the FILENAME is the level"
+            " (ADR-0024 §1)"
+        )
     text = path.read_text(encoding="utf-8")
     front, body = _split_front_matter(text, where, err)
 
@@ -320,28 +212,14 @@ def load_bar_doc(
     if unknown:
         raise err(
             f"`{where}` ({path.name}) has unknown front-matter key(s)"
-            f" {sorted(unknown)} — the canonical front-matter declares only:"
-            f" {', '.join(sorted(DOC_FRONT_MATTER_KEYS))} (ADR-0024 §1,"
-            " closed shape, typos fail loudly)"
+            f" {sorted(unknown)} — a graded doc's canonical front-matter"
+            f" declares only: {', '.join(sorted(DOC_FRONT_MATTER_KEYS))}"
+            " (ADR-0024 §1, closed shape, typos fail loudly)"
         )
 
-    capability = front.scalars.get("capability")
-    implementation = front.scalars.get("implementation")
-    if (capability is None) == (implementation is None):
-        raise err(
-            f"`{where}` ({path.name}) front-matter names what it documents —"
-            " exactly one of `capability` (a service capability's doc) or"
-            " `implementation` (an implementation's doc) (ADR-0024 §1)"
-        )
     title = front.scalars.get("title")
     if not isinstance(title, str) or not title.strip():
         raise err(f"`{where}` ({path.name}) front-matter `title` must be a non-empty string")
-    level_value = front.scalars.get("level")
-    if level_value not in DOC_LEVELS:
-        raise err(
-            f"`{where}` ({path.name}) front-matter `level` must be one of"
-            f" {DOC_LEVELS} — the bar is graded by depth (ADR-0024 §1)"
-        )
     keywords = front.lists.get("keywords")
     if not keywords or not all(isinstance(k, str) and k.strip() for k in keywords):
         raise err(
@@ -365,36 +243,24 @@ def load_bar_doc(
             " title agree (one source, ADR-0024 §1)"
         )
 
-    doc = BarDoc(
+    return BarDoc(
+        level=doc_level,
         title=title,
-        capability=capability,
-        implementation=implementation,
-        level=level_value,
         keywords=tuple(keywords),
         mcp_tools=tuple(mcp_tools),
         sections=sections,
+        path=path,
     )
-    if level is not None and doc.level != level:
-        raise err(
-            f"`{where}` ({path.name}) front-matter level {doc.level!r} does"
-            f" not match the declared level {level!r} — one artifact per"
-            " level, no drift between declaration and artifact"
-        )
-    if about_kind is not None and getattr(doc, about_kind) != about:
-        raise err(
-            f"`{where}` ({path.name}) front-matter `{about_kind}` is"
-            f" {getattr(doc, about_kind)!r} but the declaration declares"
-            f" {about!r} — the doc names what it documents (ADR-0024 §1)"
-        )
-    return doc
 
 
-def load_skill_md(path: Path, *, err, where: str, name: str | None = None) -> SkillDoc:
+def load_skill_md(path: Path, *, err, where: str) -> SkillDoc:
     """Load + validate the how-an-agent-drives-me skill body (a registry
-    `skill` entry's SKILL.md — frontmatter + instructions, ADR-0008)."""
+    `skill` entry's SKILL.md — frontmatter + instructions, ADR-0008). Its
+    directory name IS the registry slug; the front-matter carries the
+    one-line `description` the registry loads it by."""
     path = Path(path)
     if not path.is_file():
-        raise err(f"`{where}` declares skill file not found: {path}")
+        raise err(f"`{where}` skill file not found: {path}")
     text = path.read_text(encoding="utf-8")
     front, body = _split_front_matter(text, where, err)
     # an OPEN front-matter (ADR-0008: a skill is frontmatter + instructions
@@ -406,14 +272,16 @@ def load_skill_md(path: Path, *, err, where: str, name: str | None = None) -> Sk
         raise err(
             f"`{where}` ({path.name}) front-matter `name` must be a lowercase"
             " slug (a-z, digits, hyphens) — the registry skill entry's"
-            " user-chosen name (ADR-0008)"
+            " user-chosen name; the authored entry is"
+            " `<service>.skill.<name>` (ADR-0008)"
         )
     description = front.scalars.get("description")
     if not isinstance(description, str) or not description.strip():
         raise err(
             f"`{where}` ({path.name}) front-matter `description` must be a"
-            " non-empty string — the registry entry's one-line, prompt-facing"
-            " summary (ADR-0008)"
+            " non-empty string — the one-line, prompt-facing summary the"
+            " registry loads a skill by, so it can be discovered without"
+            " loading the body (ADR-0008)"
         )
     if not body.strip():
         raise err(
@@ -421,13 +289,14 @@ def load_skill_md(path: Path, *, err, where: str, name: str | None = None) -> Sk
             " instructions; a hollow body is a fake artifact (no theater,"
             " ADR-0024 §1)"
         )
-    if name is not None and skill_name != name:
+    if skill_name != path.parent.name:
         raise err(
             f"`{where}` ({path.name}) front-matter name {skill_name!r} does"
-            f" not match the declared skill name {name!r} — no drift between"
-            " declaration and artifact"
+            f" not match its directory name {path.parent.name!r} — the"
+            " directory name IS the registry slug (ADR-0008), no drift"
+            " between the layout and the artifact"
         )
-    return SkillDoc(name=skill_name, description=description)
+    return SkillDoc(name=skill_name, description=description, path=path)
 
 
 # ----------------------------------------------------------- markdown parsing

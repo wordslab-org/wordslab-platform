@@ -1,7 +1,5 @@
 ---
 title: Qwen3 4B — study in depth
-implementation: qwen3-4b
-level: study-in-depth
 keywords:
   - qwen3-4b
   - design

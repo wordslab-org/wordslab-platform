@@ -1,7 +1,5 @@
 ---
 title: Echo — how to use it
-capability: canary
-level: how-to-use
 keywords:
   - echo
   - canary

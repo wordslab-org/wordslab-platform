@@ -41,32 +41,38 @@ meet inside the service repo.
    must precede any `[table]` header — in TOML everything after a table
    header belongs to that table.
 
-   **The learning/operability bar** (ADR-0024 §1, ADR-0002 §7; declaration
-   shape per ADR-0031 §2 as amended): each capability section may carry a
-   `[<service>.<capability>.learning]` sub-table declaring
-   - the **four graded doc levels** — `[[<service>.<capability>.learning.docs]]`
-     with `level` (`how-to-use` · `how-it-works` · `study-in-depth` ·
-     `going-further` — all four, each exactly once; graded, not flattened)
-     and `path` (relative to `service.toml`) — each a distinct Markdown
-     artifact with the **canonical front-matter** (`title`, `capability`,
-     `level`, `keywords`, `mcp-tools`) and the **canonical section schema**
-     (`## Summary` / `## Details` / `## See also`, in this order) — one
-     source, dual-consumed by the human surface and the agent indexer;
-   - **exactly one of**: the **how-an-agent-drives-me skill**
-     (`[<service>.<capability>.learning.skill]` — `name`: the registry
-     skill slug, unique within the service; the authored registry entry is
-     `<service>.skill.<name>`, ADR-0008; `path`: its SKILL.md body —
-     front-matter `name`/`description` + instructions) or the explicit
-     **`not-agent-operable` note** (the honest why for a capability that
-     genuinely can't be agent-driven — never a fake skill, no theater).
-     Either way the key sits DIRECTLY under the `[learning]` header —
-     TOML nests a key written after a `[[....docs]]` header into that
-     table.
-   The loader validates every declared artifact (it must exist and parse —
-   a declared-but-fake artifact fails at load) and keeps a service bootable
-   while the bar is being written: **the bar is mandatory to publish**
-   (`bundled`/`listed`; tracked-gaps for `third-party`, ADR-0018), so
-   declare it for every capability you publish.
+   **The learning/operability bar** (ADR-0024 §1, ADR-0002 §7; declared by
+   layout per ADR-0031 §2 as amended) — **not declared in TOML**: keep the
+   files at the conventional paths and the loader discovers and audits them
+   at startup. Two subjects per service:
+
+   - the **service's own docs** at `docs/service/<level>.md` — the
+     capabilities overview + the UI doc (this service's own API + UI) — and
+     the service-level skill at `skills/service/<slug>/SKILL.md`;
+   - each **capability's docs** at `docs/capabilities/<capability>/<level>.md`
+     — the detail of that capability's API + UI — and its skill at
+     `skills/capabilities/<capability>/<slug>/SKILL.md`.
+
+   `<level>` is one of the four graded depths: `how-to-use` · `how-it-works` · `study-in-depth` · `going-further`. **The filename IS the level** — a doc
+   cannot drift from its declaration. Each doc is a Markdown file with the
+   **canonical front-matter** (`title`, `keywords`; optional `mcp-tools`)
+   and the **canonical section schema** (`## Summary` / `## Details` /
+   `## See also`, in this order) — one source, dual-consumed by the human
+   surface and the agent indexer.
+
+   The skill is `skills/.../<slug>/SKILL.md`: **the directory name IS the
+   registry slug** (the authored entry is `<service>.skill.<slug>`,
+   ADR-0008) and its front-matter carries `name` + a one-line `description`
+   (the prompt-facing summary the registry loads it by — extra
+   front-matter keys are the registry's metadata and are allowed).
+   **No skill directory under a subject's skills subtree IS the
+   not-agent-operable case** — the convention, no declaration, no fake
+   skill (no theater). Ship exactly one skill per subject.
+
+   Every artifact FOUND must parse (a malformed one fails the load); a
+   missing one is a **gap**, not an error — the bar is **mandatory to
+   publish** (`bundled`/`listed`; tracked gaps for `third-party`,
+   ADR-0018), not to boot.
 
 4. **Declare capability implementations** — copy
    `implementation-template/` per implementation (a service has NO
@@ -103,14 +109,13 @@ meet inside the service repo.
    put those keys in a declaration.
 
    **The implementation's own learning/operability bar** (ADR-0024 §1;
-   ADR-0031 §3 as amended): an own-properties `[learning]` table — the
-   same shape as the capability bar (step 3): the **four graded doc
-   levels** in `[[learning.docs]]` entries (paths relative to the
-   implementation directory; each artifact's canonical front-matter names
-   THIS implementation — `implementation: <name>` — not a capability) plus
-   **exactly one of** the how-an-agent-drives-me skill (`[learning.skill]`,
-   a registry `skill` entry, ADR-0008) or the explicit
-   `not-agent-operable` note. Validated by the same loader machinery.
+   ADR-0031 §3 as amended): same layout convention, no `[learning]` table —
+   the implementation's own directory holds `docs/<level>.md` (the three
+   graded depths; the filename IS the level) and, for the
+   how-an-agent-drives-me skill, `skills/<slug>/SKILL.md` (the directory
+   name IS the registry slug, the front-matter carries `name` + a one-line
+   `description`). **No `skills/<slug>/` directory IS the not-agent-operable
+   case.** Found artifacts are audited at load, missing ones are gaps.
 
    The implementation-specific install function receives the **typed
    `Implementation` object** (the loader's parse result) as its
@@ -149,13 +154,14 @@ folder contains:
   `[requirements]`, `[[dependencies]]`), then per-part documentation
   sections `[<capability>.<type>.<part-name>]` (each type may appear
   several times; per-type properties and per-part `[requirements]`; the
-  parts are the configuration data for the install function), plus the
-  own-properties `[learning]` bar table (ADR-0024 §1; ADR-0031 §3 as
-  amended — the four graded docs levels + the skill or the note).
-- **`docs/`** — the four graded bar docs (canonical front-matter + section
-  schema, ADR-0024 §1 / #75).
-- **`skills/SKILL.md`** — the how-an-agent-drives-me skill body
-  (a registry `skill` entry, ADR-0008).
+  parts are the configuration data for the install function). The bar is
+  discovered by layout, not declared: the four graded docs live at
+  `docs/<level>.md` and the skill at `skills/<slug>/SKILL.md` — no
+  `[learning]` table (ADR-0024 §1; ADR-0031 §3 as amended).
+- **`docs/`** — the three graded bar docs (canonical front-matter + section
+  schema; the filename IS the level, ADR-0024 §1 / #75).
+- **`skills/<slug>/SKILL.md`** — the how-an-agent-drives-me skill body; the
+  directory name IS the registry slug (ADR-0008).
 - **`install/`** — the installer's recipe (how the implementation is
   installed on the machine — weights to download, engine to install,
   service to configure). The exact installer contract is the install/

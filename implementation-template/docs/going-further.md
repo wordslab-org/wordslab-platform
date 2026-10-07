@@ -1,7 +1,5 @@
 ---
 title: Qwen3 4B — going further
-implementation: qwen3-4b
-level: going-further
 keywords:
   - qwen3-4b
   - implementations

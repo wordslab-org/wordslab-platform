@@ -9,7 +9,6 @@ a copied service or implementation can't start from a broken declaration.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -100,79 +99,63 @@ def test_no_supported_recommended_or_ranks_keys_in_template_declarations():
 # ------------------------------------------------------------- learning bar
 # (ticket #75 — the shipped skeletons are asserted, not grepped: the loaders
 # above already validate both declarations, so the bar's presence is real
-# data; these tests assert the SHAPE of what shipped.)
+# data; these tests assert the SHAPE of what shipped. The bar is discovered
+# by layout — the files ARE the declaration.)
 
 
-def test_the_service_template_bar_is_declared_and_discoverable():
+def test_the_service_template_bar_is_discovered_by_layout():
     svc = load_service_toml(SERVICE_TEMPLATE / "service.toml")
-    bar = svc.capabilities[0].learning  # the loader validated every artifact
-    assert bar is not None
-    # the four graded levels — one artifact per level (ADR-0024 §1)
+    # the SERVICE's own bar — its capabilities overview + UI docs
+    assert svc.learning.subject == svc.name
+    assert [d.level for d in svc.learning.docs] == list(DOC_LEVELS)
+    assert svc.learning.skill.name == "drive-svc"
+    assert svc.learning.gaps == ()
+
+    # the CANARY's bar — the detail of its API + UI
+    bar = svc.capabilities[0].learning
+    assert bar.subject == "canary"
     assert [d.level for d in bar.docs] == list(DOC_LEVELS)
-    for ref, doc in zip(bar.docs, bar.parsed_docs):
-        assert doc.level == ref.level
-        assert doc.capability == "canary"
-        assert doc.implementation is None
+    for doc in bar.docs:
         assert doc.title
         assert doc.keywords
-        assert isinstance(doc.mcp_tools, tuple)
+        assert doc.mcp_tools == ()
         assert doc.sections == CANONICAL_SECTIONS
-    # the how-an-agent-drives-me skill — declared AND discoverable on disk
-    assert bar.skill is not None
-    assert bar.not_agent_operable is None
-    assert bar.parsed_skill.name == bar.skill.name
-    assert bar.parsed_skill.description
-    assert (SERVICE_TEMPLATE / bar.skill.path).is_file()
+        assert doc.path.parent.name == "canary"
+    # the how-an-agent-drives-me skill — its directory IS the registry slug
+    assert bar.skill.name == "drive-canary"
+    assert bar.skill.path.parent.name == "drive-canary"
+    assert bar.skill.description
+    assert bar.not_agent_operable is False
 
 
-def test_the_service_template_ships_the_not_agent_operable_pattern(tmp_path):
-    """AC3: the note pattern is a first-class declared value — accepted
-    where declared (the shipped example documents it as a comment; the
-    loader accepts it, tested on a fixture copy)."""
-    text = (SERVICE_TEMPLATE / "service.toml").read_text()
-    assert "DIRECTLY under the [....learning] header" in text  # the commented pattern
-    skill_block = """\
-[template-service.canary.learning.skill]
-name = "drive-canary"
-path = "skills/canary/SKILL.md"
-"""
-    assert skill_block in text, "fixture drift"
-    # TOML ordering: the note sits directly under the [learning] header —
-    # after a [[docs]] header it would be swallowed into that table
-    header = "[template-service.canary.learning]\n"
-    assert header in text, "fixture drift"
-    note = text.replace(
-        header,
-        header
-        + 'not-agent-operable = "A physical-machine panel driven by its own UI;'
-        ' an agent has no deterministic surface to drive."\n',
-    ).replace(skill_block, "")
-    # the loader resolves paths relative to the declaration's directory —
-    # copy the shipped artifacts next to the fixture copy
-    shutil.copytree(SERVICE_TEMPLATE / "docs", tmp_path / "docs")
-    shutil.copytree(SERVICE_TEMPLATE / "skills", tmp_path / "skills")
-    path = tmp_path / "service.toml"
-    path.write_text(note)
-    svc = load_service_toml(path)
-    bar = svc.capabilities[0].learning
-    assert bar.skill is None
-    assert bar.not_agent_operable
-    assert len(bar.parsed_docs) == 4
+def test_the_template_ships_no_learning_table():
+    """The bar is discovered by layout, not declared — the shipped
+    declarations carry no `[learning]` table at all (the comment explaining
+    the conventions is a comment, not a key)."""
+    for path in (
+        SERVICE_TEMPLATE / "service.toml",
+        IMPLEMENTATION_TEMPLATE / "implementation.toml",
+    ):
+        if not path.is_file():
+            continue
+        keys = [
+            line.strip()
+            for line in path.read_text().splitlines()
+            if line.strip().startswith("[") and "learning" in line
+        ]
+        assert keys == [], f"{path.name} still declares {keys}"
 
 
 @requires_sibling_template
-def test_the_implementation_template_bar_is_declared_and_discoverable():
+def test_the_implementation_template_bar_is_discovered_by_layout():
     impl = load_implementation_toml(
         REPO_ROOT / "implementation-template" / "implementation.toml"
     )
     bar = impl.learning  # the loader validated every artifact
-    assert bar is not None
+    assert bar.subject == "qwen3-4b"
     assert [d.level for d in bar.docs] == list(DOC_LEVELS)
-    for ref, doc in zip(bar.docs, bar.parsed_docs):
-        assert doc.level == ref.level
-        assert doc.implementation == "qwen3-4b"
-        assert doc.capability is None
+    for doc in bar.docs:
         assert doc.sections == CANONICAL_SECTIONS
-    assert bar.skill is not None
-    assert bar.parsed_skill.name == bar.skill.name
-    assert (IMPLEMENTATION_TEMPLATE / bar.skill.path).is_file()
+    assert bar.skill.name == "drive-qwen3-4b"
+    assert bar.skill.description
+    assert bar.gaps == ()

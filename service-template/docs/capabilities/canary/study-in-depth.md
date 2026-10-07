@@ -1,7 +1,5 @@
 ---
 title: Echo — study in depth
-capability: canary
-level: study-in-depth
 keywords:
   - canary
   - conformance

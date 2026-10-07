@@ -1,7 +1,5 @@
 ---
 title: Echo — going further
-capability: canary
-level: going-further
 keywords:
   - canary
   - capabilities

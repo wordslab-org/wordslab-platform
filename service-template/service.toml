@@ -23,6 +23,27 @@ ram-gb = 0.05
 
 # The per-capability documentation sections. The canary is the template's
 # proof capability (ticket #71) — a real service replaces it with its own.
+#
+# The learning/operability bar is NOT declared here (ticket #75; ADR-0024
+# §1, ADR-0002 §7; shape per ADR-0031 §2 as amended): it is DISCOVERED BY
+# LAYOUT at load, and every artifact found is audited. The conventions:
+#
+#   docs/service/<level>.md              the service's own docs — the
+#                                        capabilities overview + the UI doc
+#   docs/capabilities/<cap>/<level>.md   the capability's docs — the detail
+#                                        of its API + UI
+#   skills/service/<slug>/SKILL.md       the service-level skill
+#   skills/capabilities/<cap>/<slug>/SKILL.md
+#
+# <level> is one of the four graded depths: how-to-use · how-it-works ·
+# study-in-depth. The FILENAME is the level; the skill's DIRECTORY NAME is
+# the registry slug (the authored entry is <service>.skill.<slug>, ADR-0008)
+# and its front-matter carries the one-line description the registry loads
+# it by. NO SKILL IN THE EXPECTED DIRECTORY IS the not-agent-operable case —
+# the honest convention, no declaration, no fake skill (no theater).
+# Mandatory to publish for bundled/listed, recommended-with-tracked-gaps for
+# third-party (ADR-0018); missing artifacts are gaps, not boot errors.
+
 [template-service.canary]
 description = "The template's proof capability — echo, wired to all three callable surfaces, carrying the consent-flag contract (ticket #72)."
 version = "0.2.0"
@@ -38,46 +59,3 @@ menu = [
   { label = "Echo", entry = "/echo" },
 ]
 
-# The capability's learning/operability bar (ticket #75; ADR-0024 §1,
-# ADR-0002 §7; declaration shape per ADR-0031 §2 as amended): the four
-# GRADED doc levels — one Markdown artifact per level (level + path,
-# relative to this file's directory) — plus exactly ONE of:
-#   - the how-an-agent-drives-me skill: a registry `skill` entry
-#     (ADR-0008); the authored entry is <service>.skill.<name>, the file
-#     is its SKILL.md body;
-#   - the explicit "not agent-operable" note for a capability that
-#     genuinely can't be agent-driven (an honest note, never a fake
-#     skill — no theater). REPLACES the [....skill] table and sits
-#     DIRECTLY under the [....learning] header — TOML nests any key
-#     that comes after a [[....docs]] header into THAT table:
-#     # not-agent-operable = "A physical-machine panel driven by its
-#     #   own UI; an agent has no deterministic surface to drive."
-# Every declared artifact must exist and parse: structured Markdown with
-# the canonical front-matter (title, capability, level, keywords,
-# mcp-tools) and the canonical section schema (## Summary / ## Details /
-# ## See also). Mandatory to publish for bundled/listed,
-# recommended-with-tracked-gaps for third-party (ADR-0018) — a capability
-# may omit [learning] while being written, but a DECLARED bar is
-# validated fully at load.
-
-[template-service.canary.learning]
-
-[[template-service.canary.learning.docs]]
-level = "how-to-use"
-path = "docs/canary/how-to-use.md"
-
-[[template-service.canary.learning.docs]]
-level = "how-it-works"
-path = "docs/canary/how-it-works.md"
-
-[[template-service.canary.learning.docs]]
-level = "study-in-depth"
-path = "docs/canary/study-in-depth.md"
-
-[[template-service.canary.learning.docs]]
-level = "going-further"
-path = "docs/canary/going-further.md"
-
-[template-service.canary.learning.skill]
-name = "drive-canary"
-path = "skills/canary/SKILL.md"

@@ -1,7 +1,5 @@
 ---
 title: Qwen3 4B — how to use it
-implementation: qwen3-4b
-level: how-to-use
 keywords:
   - qwen3-4b
   - local-model

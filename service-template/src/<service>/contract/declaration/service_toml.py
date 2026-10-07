@@ -22,16 +22,26 @@ ADR-0001's family contracts; their documentation is enough (ADR-0031 §2).
 **No capability-level dependencies** — the implementations declare their
 dependencies (`implementation_toml.py`), not the service.
 
-Each capability section may also declare its **learning/operability bar**
-(ticket #75; ADR-0024 §1, ADR-0002 §7, shape per ADR-0031 §2 as amended):
-a `[<service-name>.<capability-name>.learning]` sub-table carrying the four
-graded doc levels (one Markdown artifact per level, `level` + `path`) and
-exactly one of the how-an-agent-drives-me `skill` (a registry `skill`
-entry, ADR-0008) or the explicit "not agent-operable" note (no theater).
-Every declared artifact must exist and parse — a declared-but-fake artifact
-fails at load (`learning_bar.py`). The bar is mandatory to publish
-(ADR-0018's tiers), not to boot: a capability may omit `learning` while
-being written; a DECLARED bar is validated fully.
+Each capability section carries the capability's own documentation; the
+**learning/operability bar is DISCOVERED BY LAYOUT, not declared** (ticket
+#75; ADR-0024 §1, ADR-0002 §7; shape per ADR-0031 §2 as amended — the
+declaration carries no `...learning` sub-table). The service root's
+conventional subtrees are audited at load:
+
+    docs/service/<level>.md                the SERVICE's own docs — the
+                                          capabilities overview + the UI
+                                          doc (the service's own API + UI)
+    docs/capabilities/<cap>/<level>.md     the CAPABILITY's docs — the
+                                          detail of its API + UI
+    skills/service/<slug>/SKILL.md         the service-level skill
+    skills/capabilities/<cap>/<slug>/SKILL.md
+
+`<level>` is one of the four graded depths (`how-to-use` · `how-it-works`
+· `study-in-depth` — the filename is the level); no skill in the expected
+directory IS the not-agent-operable case (no declaration, no theater).
+Every artifact FOUND must exist and parse — a malformed one fails at load
+(`learning_bar.py`). Missing artifacts are `gaps`, not errors: the bar is
+mandatory to publish (ADR-0018's tiers), not to boot.
 """
 
 from __future__ import annotations
@@ -40,7 +50,7 @@ from pathlib import Path
 
 import tomllib
 
-from .learning_bar import LearningBar, parse_learning_table
+from .learning_bar import LearningBar, discover_learning_bar
 
 
 class ServiceDeclarationError(ValueError):
@@ -100,6 +110,8 @@ class Service:
 
     A service is a set of capabilities; it has no implementation of its own
     (ADR-0031 §1) — `requirements` covers its API + UI code execution only.
+    `learning` is the SERVICE's own discovered bar (its capabilities overview
+    + UI docs); each capability carries its own.
     """
 
     def __init__(
@@ -110,12 +122,14 @@ class Service:
         version: str,
         requirements: dict[str, float],
         capabilities: tuple[Capability, ...],
+        learning: LearningBar,
     ) -> None:
         self.name = name
         self.description = description
         self.version = version
         self.requirements = requirements
         self.capabilities = capabilities
+        self.learning = learning
 
 
 def _require_str(table: dict, key: str, where: str) -> str:
@@ -151,7 +165,6 @@ CAPABILITY_SECTION_KEYS = {
     "versions-history",
     "required",
     "ui",
-    "learning",
 }
 
 CAPABILITY_UI_KEYS = {"menu", "description", "versions-history"}
@@ -196,15 +209,37 @@ def load_service_toml(path: str | Path) -> Service:
         for key in ("disk-gb", "ram-gb")
     }
 
-    capabilities = _parse_capability_sections(raw, name, Path(path).parent)
-    _reject_duplicate_skill_names(capabilities, name)
+    # the learning/operability bar is DISCOVERED BY LAYOUT (ADR-0024 §1):
+    # the service's own subtree (its API + UI docs), then each capability's
+    # subtree (its API + UI detail); every artifact found is audited.
+    service_root = Path(path).parent
+    capabilities = _parse_capability_sections(raw, name, service_root)
+    service_learning = discover_learning_bar(
+        service_root,
+        docs_rel=Path("docs") / "service",
+        skills_rel=Path("skills") / "service",
+        subject=name,
+        where=f"`[{name}]`",
+        err=ServiceDeclarationError,
+    )
+    _reject_duplicate_skill_names(
+        service_learning,
+        _capability_bars(capabilities),
+        service_root,
+        name,
+    )
     return Service(
         name=name,
         description=description,
         version=version,
         requirements=requirements,
         capabilities=capabilities,
+        learning=service_learning,
     )
+
+
+def _capability_bars(capabilities: tuple[Capability, ...]) -> tuple[LearningBar, ...]:
+    return tuple(cap.learning for cap in capabilities if cap.learning is not None)
 
 
 def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
@@ -250,24 +285,31 @@ def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
 
 
 def _reject_duplicate_skill_names(
-    capabilities: tuple[Capability, ...], service_name: str
+    service_bar: LearningBar,
+    capability_bars: tuple[LearningBar, ...],
+    service_root: Path,
+    service_name: str,
 ) -> None:
     """The how-an-agent-drives-me skill is a registry `skill` entry whose
-    authored name is `<service>.skill.<slug>` (ADR-0008) — two capabilities
-    declaring the same slug collide at the name authority; reject at load."""
+    authored name is `<service>.skill.<slug>` (ADR-0008) — two subjects in
+    one service carrying the same slug collide at the name authority;
+    reject at load, across the service-level skill and every capability's."""
     seen: dict[str, str] = {}
-    for cap in capabilities:
-        if cap.learning is None or cap.learning.skill is None:
+    subjects = (("service", service_bar),) + tuple(
+        (bar.subject, bar) for bar in capability_bars
+    )
+    for subject, bar in subjects:
+        if bar.skill is None:
             continue
-        slug = cap.learning.skill.name
+        slug = bar.skill.name
         if slug in seen:
             raise ServiceDeclarationError(
-                f"capability `{cap.name}` declares skill {slug!r} — skill"
-                f" names must be unique within the service (the authored"
-                f" registry entry is `{service_name}.skill.{slug}`, already"
-                f" declared by `{seen[slug]}`; ADR-0008)"
+                f"`{subject}` declares skill {slug!r} — skill names must be"
+                f" unique within the service (the authored registry entry is"
+                f" `{service_name}.skill.{slug}`, already carried by"
+                f" `{seen[slug]}`; ADR-0008)"
             )
-        seen[slug] = cap.name
+        seen[slug] = subject
 
 
 def _parse_capability_sections(
@@ -400,12 +442,12 @@ def _parse_capability_section(
             )
         )
 
-    learning = parse_learning_table(
-        entry,
-        root=service_root,
-        about_kind="capability",
-        about=cap_name,
-        where=f"[{section}].learning",
+    learning = discover_learning_bar(
+        service_root,
+        docs_rel=Path("docs") / "capabilities" / cap_name,
+        skills_rel=Path("skills") / "capabilities" / cap_name,
+        subject=cap_name,
+        where=f"`[{section}]`",
         err=ServiceDeclarationError,
     )
 
