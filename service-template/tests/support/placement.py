@@ -47,6 +47,7 @@ from contract.placement import PlacementMap, load_placement_map
 from tests.support.stubs import StubCollaborator
 
 __all__ = [
+    "GUARDRAIL_SECTION",
     "GUARDRAIL_SITES",
     "HOME_STUBS",
     "PlacementReport",

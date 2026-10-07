@@ -72,13 +72,14 @@ menu = [
 # contract-checker that indexes ADR-0017's security model and asserts the
 # placement invariants. Its surface is DATA, not HTTP: the placement map is
 # the data, `load_placement_map` the seam, and `sweep_placement` the
-# sweeper-consumable entry point. It therefore mounts no route and
-# contributes NO fragment to the service's OpenAPI document, so its `api`
-# entry point is the service's own `/openapi.json` (ADR-0031 §2 defines
-# `api` as an entry point INSIDE that one document — a path that never
-# appears there cannot be one; the catalog entry + this documentation is
-# where the capability is described). It is driven in-process (see its
-# drive-placement skill), never over `/v1`.
+# sweeper-consumable entry point. It mounts no route and contributes NO
+# fragment to the service's OpenAPI document, so there is no capability path
+# to name — `api` names the service's own API description document
+# (`/openapi.json`, the base route the shell serves), which is where
+# capabilities are described and discovered (ADR-0031 §2: `api` is the
+# capability's API description entry point). A `/v1/...` path here would
+# promise a routable capability that never appears in the document. It is
+# driven in-process (see its drive-placement skill), never over `/v1`.
 [template-service.placement]
 description = "The control-placement map + the placement-invariant harness (ticket #275): every threat frame in ADR-0017 §1 resolves to ≥1 named control, every control resolves to exactly one owning home (no control homeless, no control duplicated), asserted deterministically and re-runnable by the sweeper. A DATA surface — it mounts no route; its map is the data and `sweep_placement` the entry point."
 version = "0.1.0"

@@ -20,7 +20,6 @@ TOML written via tmp_path. No HTTP seam — this is a data surface.
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
 
 import pytest
 

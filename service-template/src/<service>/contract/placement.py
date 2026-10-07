@@ -47,13 +47,17 @@ The loader validates **shape and references**:
   accompany it, e.g. ADR-0030's per-tool tiering, but ADR-0017 is always
   cited).
 
-It does **not** reject placement drift: a homeless control, or two controls
-sharing one home, are exactly the **placement** facts the harness exists to
-report (#275's own acceptance criterion — "a map with a homeless or
+It does **not** reject placement drift: a homeless control, or the same
+control landed in two places, are exactly the **placement** facts the harness
+exists to report (#275's own acceptance criterion — "a map with a homeless or
 double-homed control is caught by the harness"). Shape errors are load
 errors; placement drift is a harness finding. A *typo'd* home (a value
 outside `HOMES`) is neither: it is a shape error, because the map would
-otherwise place the control nowhere without saying so.
+otherwise place the control nowhere without saying so. (Two *distinct*
+controls sharing one home is not drift at all — a home legitimately hosts
+several, e.g. Connectors carries the door's audit, tier, approval and its
+guardrail hook; the harness checks a control's *identity*, and §8's layer per
+site.)
 
 ## What this map deliberately does not carry
 
@@ -97,9 +101,10 @@ DEFAULT_MAP_PATH = Path(__file__).resolve().with_name("placement_map.toml")
 #: The closed home vocabulary: **the single owning home of a control**. Each
 #: home names the platform service or layer ADR-0017's placement settles, with
 #: the ADR/chapter that defines it. A control names ONE home — where ADR-0017
-#: §8 settles a placement across two sites (the guardrail layer's hooks sit in
-#: the agent loop *and* at the outbound door), that is two controls, each with
-#: its own home, never one control with two entries.
+#: §8 places the guardrail layer across FOUR sites (the moderation model, the
+#: builtin transforms, and the two boundary hooks — the agent loop's and the
+#: outbound door's), that is four controls, each with its own home, never one
+#: control with several entries.
 HOMES: dict[str, str] = {
     "installer": (
         "the installer / bootstrap layer (ADR-0014) — the local-CA HTTPS "
@@ -431,5 +436,6 @@ __all__ = [
     "Frame",
     "PlacementMap",
     "PlacementMapError",
+    "adr_0017_sections",
     "load_placement_map",
 ]

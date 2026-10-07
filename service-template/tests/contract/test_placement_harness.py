@@ -15,9 +15,6 @@ scope fence: the stub harness / host-OS / LAN surfaces are #276's).
 
 from __future__ import annotations
 
-import textwrap
-from pathlib import Path
-
 import pytest
 
 from contract.placement import (
