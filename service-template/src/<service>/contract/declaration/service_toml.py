@@ -21,13 +21,47 @@ the platform UI and the catalog render:
 ADR-0001's family contracts; their documentation is enough (ADR-0031 §2).
 **No capability-level dependencies** — the implementations declare their
 dependencies (`implementation_toml.py`), not the service.
+
+Each capability section carries the capability's own documentation; the
+**learning/operability bar is DISCOVERED BY LAYOUT, not declared** (ticket
+#75; ADR-0024 §1, ADR-0002 §7; shape per ADR-0031 §2 as amended — the
+declaration carries no `...learning` sub-table). The service root's
+conventional subtrees are audited at load:
+
+    docs/service/<level>.md                the SERVICE's own docs — the
+                                          capabilities overview + the UI
+                                          doc (the service's own API + UI)
+    docs/capabilities/<cap>/<level>.md     the CAPABILITY's docs — the
+                                          detail of its API + UI
+    skills/service/<slug>/SKILL.md         the service-level skill
+    skills/capabilities/<cap>/<slug>/SKILL.md
+
+`<level>` is one of the four graded depths (`how-to-use` · `how-it-works`
+· `study-in-depth` · `going-further` — the filename is the level). **No
+skill in the expected directory is the honest record, and what it MEANS
+differs by level**: a CAPABILITY with none is genuinely not-agent-operable;
+a SERVICE with none has no skill *above* its capabilities (it stays
+agent-operable if any capability is); an IMPLEMENTATION with none adds
+nothing specific on top of the capability's skill. Every artifact FOUND
+must exist and parse — a malformed one fails at load (`learning_bar.py`).
+Missing artifacts are `gaps`, not errors: the bar is mandatory to publish
+(ADR-0018's tiers), not to boot. (A missing skill is a gap for a
+capability alone — the other two levels don't require one.)
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import tomllib
+
+from .learning_bar import (
+    CAPABILITY,
+    SERVICE,
+    LearningBar,
+    discover_learning_bar,
+)
 
 
 class ServiceDeclarationError(ValueError):
@@ -67,6 +101,7 @@ class Capability:
         ui_menu: tuple[MenuItem, ...],
         ui_description: str,
         ui_versions_history: str,
+        learning: LearningBar,
     ) -> None:
         self.name = name
         self.description = description
@@ -78,6 +113,7 @@ class Capability:
         self.ui_menu = ui_menu
         self.ui_description = ui_description
         self.ui_versions_history = ui_versions_history
+        self.learning = learning
 
 
 class Service:
@@ -85,6 +121,8 @@ class Service:
 
     A service is a set of capabilities; it has no implementation of its own
     (ADR-0031 §1) — `requirements` covers its API + UI code execution only.
+    `learning` is the SERVICE's own discovered bar (its capabilities overview
+    + UI docs); each capability carries its own.
     """
 
     def __init__(
@@ -95,12 +133,14 @@ class Service:
         version: str,
         requirements: dict[str, float],
         capabilities: tuple[Capability, ...],
+        learning: LearningBar,
     ) -> None:
         self.name = name
         self.description = description
         self.version = version
         self.requirements = requirements
         self.capabilities = capabilities
+        self.learning = learning
 
 
 def _require_str(table: dict, key: str, where: str) -> str:
@@ -180,14 +220,48 @@ def load_service_toml(path: str | Path) -> Service:
         for key in ("disk-gb", "ram-gb")
     }
 
-    capabilities = _parse_capability_sections(raw, name)
+    # the learning/operability bar is DISCOVERED BY LAYOUT (ADR-0024 §1):
+    # the service's own subtree (its API + UI docs), then each capability's
+    # subtree (its API + UI detail); every artifact found is audited.
+    service_root = Path(path).parent
+    capabilities = _parse_capability_sections(raw, name, service_root)
+    service_learning = discover_learning_bar(
+        service_root,
+        docs_rel=Path("docs") / "service",
+        skills_rel=Path("skills") / "service",
+        subject=name,
+        kind=SERVICE,
+        where=f"`[{name}]`",
+        err=ServiceDeclarationError,
+    )
+    # the service-level skill carries what no single capability covers; its
+    # ABSENCE only means "no skill above the capabilities", so the service's
+    # agent surface is what its capabilities provide (ADR-0024 §1).
+    service_learning = replace(
+        service_learning,
+        agent_operable_subjects=tuple(
+            cap.name
+            for cap in capabilities
+            if cap.learning.agent_operable
+        ),
+    )
+    _reject_duplicate_skill_names(
+        service_learning,
+        _capability_bars(capabilities),
+        name,
+    )
     return Service(
         name=name,
         description=description,
         version=version,
         requirements=requirements,
         capabilities=capabilities,
+        learning=service_learning,
     )
+
+
+def _capability_bars(capabilities: tuple[Capability, ...]) -> tuple[LearningBar, ...]:
+    return tuple(cap.learning for cap in capabilities)
 
 
 def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
@@ -232,7 +306,36 @@ def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
     )
 
 
-def _parse_capability_sections(raw: dict, service_name: str) -> tuple[Capability, ...]:
+def _reject_duplicate_skill_names(
+    service_bar: LearningBar,
+    capability_bars: tuple[LearningBar, ...],
+    service_name: str,
+) -> None:
+    """The how-an-agent-drives-me skill is a registry `skill` entry whose
+    authored name is `<service>.skill.<slug>` (ADR-0008) — two subjects in
+    one service carrying the same slug collide at the name authority;
+    reject at load, across the service-level skill and every capability's."""
+    seen: dict[str, str] = {}
+    subjects = (("service", service_bar),) + tuple(
+        (bar.subject, bar) for bar in capability_bars
+    )
+    for subject, bar in subjects:
+        if bar.skill is None:
+            continue
+        slug = bar.skill.name
+        if slug in seen:
+            raise ServiceDeclarationError(
+                f"`{subject}` declares skill {slug!r} — skill names must be"
+                f" unique within the service (the authored registry entry is"
+                f" `{service_name}.skill.{slug}`, already carried by"
+                f" `{seen[slug]}`; ADR-0008)"
+            )
+        seen[slug] = subject
+
+
+def _parse_capability_sections(
+    raw: dict, service_name: str, service_root: Path
+) -> tuple[Capability, ...]:
     """Parse every `[<service-name>.<capability-name>]` documentation section.
 
     Capability names may themselves be dotted (`audio.stt` → section
@@ -253,7 +356,7 @@ def _parse_capability_sections(raw: dict, service_name: str) -> tuple[Capability
 
     capabilities: list[Capability] = []
     seen: set[str] = set()
-    _walk_capability_specs(node, service_name, [], seen, capabilities)
+    _walk_capability_specs(node, service_name, [], seen, capabilities, service_root)
     return tuple(capabilities)
 
 
@@ -263,6 +366,7 @@ def _walk_capability_specs(
     path: list[str],
     seen: set[str],
     out: list[Capability],
+    service_root: Path,
 ) -> None:
     for key, entry in node.items():
         if not isinstance(entry, dict):
@@ -284,13 +388,14 @@ def _walk_capability_specs(
             seen.add(cap_name)
             out.append(
                 _parse_capability_section(
-                    entry, cap_name, f"{service_name}.{'.'.join(cap_path)}"
+                    entry, cap_name, f"{service_name}.{'.'.join(cap_path)}",
+                    service_root,
                 )
             )
         elif any(isinstance(v, dict) for v in entry.values()):
             # a path segment on the way to a deeper capability section
             # (dotted capability names, e.g. `[svc.audio.stt]`)
-            _walk_capability_specs(entry, service_name, cap_path, seen, out)
+            _walk_capability_specs(entry, service_name, cap_path, seen, out, service_root)
         else:
             # a leaf table carrying no capability documentation keys — a
             # mistyped section must not vanish silently
@@ -302,7 +407,9 @@ def _walk_capability_specs(
             )
 
 
-def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capability:
+def _parse_capability_section(
+    entry: dict, cap_name: str, section: str, service_root: Path
+) -> Capability:
     unknown = set(entry) - CAPABILITY_SECTION_KEYS
     if unknown:
         if "dependencies" in unknown:
@@ -356,6 +463,16 @@ def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capab
             )
         )
 
+    learning = discover_learning_bar(
+        service_root,
+        docs_rel=Path("docs") / "capabilities" / cap_name,
+        skills_rel=Path("skills") / "capabilities" / cap_name,
+        subject=cap_name,
+        kind=CAPABILITY,
+        where=f"`[{section}]`",
+        err=ServiceDeclarationError,
+    )
+
     return Capability(
         name=cap_name,
         description=_require_str(entry, "description", f"[{section}]"),
@@ -367,4 +484,5 @@ def _parse_capability_section(entry: dict, cap_name: str, section: str) -> Capab
         ui_menu=tuple(menu),
         ui_description=_require_str(ui_raw, "description", f"[{section}].ui"),
         ui_versions_history=_require_str(ui_raw, "versions-history", f"[{section}].ui"),
+        learning=learning,
     )

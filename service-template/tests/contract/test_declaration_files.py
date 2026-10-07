@@ -13,7 +13,12 @@ from pathlib import Path
 
 import pytest
 
-from contract.declaration import load_implementation_toml, load_service_toml
+from contract.declaration import (
+    CANONICAL_SECTIONS,
+    DOC_LEVELS,
+    load_implementation_toml,
+    load_service_toml,
+)
 
 SERVICE_TEMPLATE = Path(__file__).resolve().parents[2]
 REPO_ROOT = SERVICE_TEMPLATE.parent
@@ -89,3 +94,76 @@ def test_no_supported_recommended_or_ranks_keys_in_template_declarations():
                 for line in text.splitlines()
                 if not line.strip().startswith("#")
             )
+
+
+# ------------------------------------------------------------- learning bar
+# (ticket #75 — the shipped skeletons are asserted, not grepped: the loaders
+# above already validate both declarations, so the bar's presence is real
+# data; these tests assert the SHAPE of what shipped. The bar is discovered
+# by layout — the files ARE the declaration.)
+
+
+def test_the_service_template_bar_is_discovered_by_layout():
+    svc = load_service_toml(SERVICE_TEMPLATE / "service.toml")
+    # the SERVICE's own bar — its capabilities overview + UI docs
+    assert svc.learning.subject == svc.name
+    assert svc.learning.kind == "service"
+    assert [d.level for d in svc.learning.docs] == list(DOC_LEVELS)
+    assert svc.learning.skill.name == "drive-svc"
+    assert svc.learning.gaps == ()
+    # the shipped service-level skill covers what no capability does; the
+    # service is agent-operable, and the canary is agent-operable itself
+    assert svc.learning.agent_operable is True
+    assert svc.learning.not_agent_operable is False
+    assert svc.learning.agent_operable_subjects == ("canary",)
+
+    # the CANARY's bar — the detail of its API + UI
+    bar = svc.capabilities[0].learning
+    assert bar.subject == "canary"
+    assert bar.kind == "capability"
+    assert [d.level for d in bar.docs] == list(DOC_LEVELS)
+    for doc in bar.docs:
+        assert doc.title
+        assert doc.keywords
+        assert doc.mcp_tools == ()
+        assert doc.sections == CANONICAL_SECTIONS
+        assert doc.path.parent.name == "canary"
+    # the how-an-agent-drives-me skill — its directory IS the registry slug
+    assert bar.skill.name == "drive-canary"
+    assert bar.skill.path.parent.name == "drive-canary"
+    assert bar.skill.description
+    assert bar.not_agent_operable is False
+
+
+def test_the_template_ships_no_learning_table():
+    """The bar is discovered by layout, not declared — the shipped
+    declarations carry no `[learning]` table at all (the comment explaining
+    the conventions is a comment, not a key)."""
+    for path in (
+        SERVICE_TEMPLATE / "service.toml",
+        IMPLEMENTATION_TEMPLATE / "implementation.toml",
+    ):
+        if not path.is_file():
+            continue
+        keys = [
+            line.strip()
+            for line in path.read_text().splitlines()
+            if line.strip().startswith("[") and "learning" in line
+        ]
+        assert keys == [], f"{path.name} still declares {keys}"
+
+
+@requires_sibling_template
+def test_the_implementation_template_bar_is_discovered_by_layout():
+    impl = load_implementation_toml(
+        REPO_ROOT / "implementation-template" / "implementation.toml"
+    )
+    bar = impl.learning  # the loader validated every artifact
+    assert bar.subject == "qwen3-4b"
+    assert bar.kind == "implementation"
+    assert [d.level for d in bar.docs] == list(DOC_LEVELS)
+    for doc in bar.docs:
+        assert doc.sections == CANONICAL_SECTIONS
+    assert bar.skill.name == "drive-qwen3-4b"
+    assert bar.skill.description
+    assert bar.gaps == ()

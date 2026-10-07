@@ -10,6 +10,13 @@ to know that isn't a declaration fact.
   `service.toml`)
 - **Declaration:** `implementation.toml` (ADR-0031 §3/§4) — validated by the
   service template's `contract/declaration/load_implementation_toml`
+- **Learning bar:** discovered by layout, not declared — `docs/<level>.md`
+  (the four graded levels: how-to-use · how-it-works · study-in-depth ·
+  going-further) and
+  `skills/<slug>/SKILL.md` (the how-an-agent-drives-me skill; the directory
+  name IS the registry slug). The shipped files are starting points — replace
+  their bodies with this implementation's real content (ADR-0024 §1;
+  ADR-0031 §3 as amended — #75)
 - **Install recipe:** `install/` (the installer contract is the lifecycle
   spec's concern, #65)
 
