@@ -10,7 +10,7 @@ Every **service and implementation** carries a **required, auditable bar** of le
 - **Skills + MCPs** — MCP tools auto-generated from OpenAPI (with `@tool` overrides), plus a **how-an-agent-drives-me `skill`** (a registry `skill` entry). A genuinely-not-agent-drivable capability records an explicit **"not agent-operable"** note — no theater.
 - **Diagnostics tools** — to fix and optimize.
 
-The bar is **declared in the service template (ADR-0002)**, and its artifacts are indexed and mounted through the registry (ADR-0008). Publishing the bar is **mandatory to publish for `bundled`/`listed`, recommended-with-tracked-gaps for `third-party`** (ADR-0018's tiers); it applies to published things (ADR-0019).
+The bar is **declared in the service template (ADR-0002)** and **discovered by layout at load** (#75; ADR-0031 §2/§3 as amended — no `[learning]` tables), and its artifacts are indexed and mounted through the registry (ADR-0008). Publishing the bar is **mandatory to publish for `bundled`/`listed`, recommended-with-tracked-gaps for `third-party`** (ADR-0018's tiers); it applies to published things (ADR-0019).
 
 ## The continual learning assistant (ADR-0024 §2)
 

@@ -28,7 +28,7 @@ real service keeps the shell and replaces the capability set.
 3. **Read a capability's page** — the menu entry opens the capability's UI
    (here the Echo page); `service.toml`'s `[<service>.<capability>]` section
    carries its declared api entry point and versions history.
-4. **Find the deeper docs** — each capability carries its own three graded
+4. **Find the deeper docs** — each capability carries its own four graded
    levels (`docs/capabilities/<capability>/`); this level covers the
    service as a whole.
 

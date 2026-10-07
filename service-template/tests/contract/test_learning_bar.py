@@ -5,14 +5,16 @@ The learning/operability bar is **DISCOVERED BY LAYOUT and audited at load**
 lists the artifacts. Path + name conventions do the declaring, and the
 loader audits what it finds:
 
-- the **three graded doc levels** (how-to-use · how-it-works ·
-  study-in-depth) — one Markdown artifact per level, the FILENAME is the
-  level, so a level can never drift from its declaration;
+- the **four graded doc levels** (how-to-use · how-it-works ·
+  study-in-depth · going-further) — one Markdown artifact per level, the
+  FILENAME is the level, so a level can never drift from its declaration;
 - the **how-an-agent-drives-me skill** — `skills/<slug>/SKILL.md`, its
   directory name IS the registry slug (ADR-0008), its front-matter carrying
   the one-line `description` the registry loads it by;
-- **no skill in the expected directory IS the not-agent-operable case** —
-  the convention, not a declaration (no theater, ADR-0024 §1);
+- **no skill in the expected directory** is the honest record, and what it
+  MEANS differs by level (no theater, ADR-0024 §1) — a CAPABILITY with none
+  is not-agent-operable, a SERVICE with none has no skill *above* its
+  capabilities, an IMPLEMENTATION with none adds nothing specific;
 - every artifact FOUND exists and parses — a malformed artifact is a fake
   artifact (loud rejection at load); missing artifacts are `gaps`, not
   errors (the bar is mandatory to publish, ADR-0018, not to boot).
@@ -196,13 +198,17 @@ def test_the_service_level_bar_is_discovered_too(tmp_path):
 def test_a_subject_with_no_bar_loads_with_gaps(tmp_path):
     """The bar is mandatory to publish (ADR-0018's tiers), not to boot — a
     service still loads while the bar is being written; the missing artifacts
-    are recorded as gaps."""
+    are recorded as gaps. The missing SERVICE-level skill is NOT a gap: a
+    service-level skill is not required (maintainer, #75) — the service has
+    no agent-operable capability either, so it is honestly not agent-operable."""
     path = write_service_root(tmp_path, write_files=False)
     svc = load_service_toml(path)
     assert svc.learning.skill is None
+    assert svc.learning.kind == "service"
+    assert svc.learning.agent_operable_subjects == ()
     assert svc.learning.not_agent_operable is True
     assert sum(1 for g in svc.learning.gaps if g.startswith("docs:")) == 4
-    assert any(g.startswith("skill:") for g in svc.learning.gaps)
+    assert not any(g.startswith("skill:") for g in svc.learning.gaps)
     assert svc.capabilities[0].learning.docs == ()
 
 
@@ -364,12 +370,16 @@ def test_an_implementation_with_no_skill_adds_nothing_specific(tmp_path):
 
 
 def test_an_implementation_with_no_bar_loads_with_gaps(tmp_path):
+    """An implementation's missing skill is NOT a gap — it adds nothing
+    specific on top of the capability's skill (maintainer, #75) — so only
+    the four missing docs are recorded."""
     root = tmp_path / "qwen3-4b"
     root.mkdir()
     impl = load_implementation_toml(write_impl_root(root, write_files=False))
     assert impl.learning.docs == ()
     assert impl.learning.skill is None
-    assert len(impl.learning.gaps) == 5  # four docs + the skill
+    assert len(impl.learning.gaps) == 4  # the four docs — not the skill
+    assert not any(g.startswith("skill:") for g in impl.learning.gaps)
 
 
 # ------------------------------------------------------- loud-rejection rules
@@ -412,6 +422,11 @@ def test_an_implementation_with_no_bar_loads_with_gaps(tmp_path):
         ),
         # the H1 must AGREE with the indexable front-matter title
         (lambda text: text.replace("# Echo\n", "# Something Else\n"), "H1 and front-matter title disagree"),
+        # a nested YAML map silently flattens — reject the indented line
+        (
+            lambda text: text.replace("title: Echo\n", "title: Echo\nmetadata:\n  author: x\n"),
+            "is indented but is not a `- item` list entry",
+        ),
     ],
 )
 def test_doc_artifact_rejections(tmp_path, override, match):
@@ -495,6 +510,17 @@ def test_two_skills_under_one_subject_are_rejected(tmp_path):
     write(tmp_path, "skills/capabilities/canary/drive-other/SKILL.md",
           SKILL_MD.replace("drive-canary", "drive-other"))
     with pytest.raises(ServiceDeclarationError, match="holds 2 skills"):
+        load_service_toml(path)
+
+
+def test_a_mis_named_skill_directory_is_rejected(tmp_path):
+    """The directory name IS the registry slug (ADR-0008) — a skill directory
+    whose name is not a legal slug is rejected, not silently skipped (a
+    silently-skipped skill would be a bar artifact that never loads)."""
+    path = write_service_root(tmp_path)
+    write(tmp_path, "skills/capabilities/canary/Drive-Canary/SKILL.md",
+          SKILL_MD.replace("drive-canary", "Drive-Canary"))
+    with pytest.raises(ServiceDeclarationError, match="directory name IS the registry slug"):
         load_service_toml(path)
 
 

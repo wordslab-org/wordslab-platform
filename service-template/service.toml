@@ -35,7 +35,7 @@ ram-gb = 0.05
 #   skills/service/<slug>/SKILL.md       the service-level skill
 #   skills/capabilities/<cap>/<slug>/SKILL.md
 #
-# <level> is one of the graded depths: how-to-use · how-it-works ·
+# <level> is one of the four graded depths: how-to-use · how-it-works ·
 # study-in-depth · going-further. The FILENAME is the level; the skill's
 # DIRECTORY NAME is the registry slug (the authored entry is
 # <service>.skill.<slug>, ADR-0008) and its front-matter carries the

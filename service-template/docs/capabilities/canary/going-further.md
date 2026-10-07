@@ -20,10 +20,14 @@ learning bar — carries over.
   capability module (business logic, `routes()`, UI page, OpenAPI
   fragment); re-point the assembly file and the declaration.
 - **Declare it** — the `[<service>.<capability>]` section in
-  `service.toml` plus its own `[...learning]` bar: four graded docs (this
-  file's shape is the pattern — copy it and rewrite the body), and the
-  how-an-agent-drives-me skill (copy `skills/canary/SKILL.md` and rewrite
-  it; the skill's front-matter name must match the declared slug).
+  `service.toml`, carrying its description, version and api entry point.
+  The learning bar is then **discovered by layout, not declared**: four
+  graded docs at `docs/capabilities/<capability>/<level>.md` (this file's
+  shape is the pattern — copy it and rewrite the body) and the
+  how-an-agent-drives-me skill at
+  `skills/capabilities/<capability>/<slug>/SKILL.md` (copy the canary's
+  `drive-canary/SKILL.md` and rewrite it; its front-matter `name` must
+  match the directory name — the registry slug).
 - **Keep the suite green** — the vendored conformance suite re-runs on
   your capability's surface; the family blocks you declare are the red
   gate until implemented.

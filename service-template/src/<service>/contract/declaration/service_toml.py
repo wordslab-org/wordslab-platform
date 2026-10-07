@@ -37,11 +37,16 @@ conventional subtrees are audited at load:
     skills/capabilities/<cap>/<slug>/SKILL.md
 
 `<level>` is one of the four graded depths (`how-to-use` · `how-it-works`
-· `study-in-depth` — the filename is the level); no skill in the expected
-directory IS the not-agent-operable case (no declaration, no theater).
-Every artifact FOUND must exist and parse — a malformed one fails at load
-(`learning_bar.py`). Missing artifacts are `gaps`, not errors: the bar is
-mandatory to publish (ADR-0018's tiers), not to boot.
+· `study-in-depth` · `going-further` — the filename is the level). **No
+skill in the expected directory is the honest record, and what it MEANS
+differs by level**: a CAPABILITY with none is genuinely not-agent-operable;
+a SERVICE with none has no skill *above* its capabilities (it stays
+agent-operable if any capability is); an IMPLEMENTATION with none adds
+nothing specific on top of the capability's skill. Every artifact FOUND
+must exist and parse — a malformed one fails at load (`learning_bar.py`).
+Missing artifacts are `gaps`, not errors: the bar is mandatory to publish
+(ADR-0018's tiers), not to boot. (A missing skill is a gap for a
+capability alone — the other two levels don't require one.)
 """
 
 from __future__ import annotations
@@ -51,7 +56,12 @@ from pathlib import Path
 
 import tomllib
 
-from .learning_bar import LearningBar, discover_learning_bar
+from .learning_bar import (
+    CAPABILITY,
+    SERVICE,
+    LearningBar,
+    discover_learning_bar,
+)
 
 
 class ServiceDeclarationError(ValueError):
@@ -91,7 +101,7 @@ class Capability:
         ui_menu: tuple[MenuItem, ...],
         ui_description: str,
         ui_versions_history: str,
-        learning: LearningBar | None = None,
+        learning: LearningBar,
     ) -> None:
         self.name = name
         self.description = description
@@ -220,7 +230,7 @@ def load_service_toml(path: str | Path) -> Service:
         docs_rel=Path("docs") / "service",
         skills_rel=Path("skills") / "service",
         subject=name,
-        kind="service",
+        kind=SERVICE,
         where=f"`[{name}]`",
         err=ServiceDeclarationError,
     )
@@ -238,7 +248,6 @@ def load_service_toml(path: str | Path) -> Service:
     _reject_duplicate_skill_names(
         service_learning,
         _capability_bars(capabilities),
-        service_root,
         name,
     )
     return Service(
@@ -252,7 +261,7 @@ def load_service_toml(path: str | Path) -> Service:
 
 
 def _capability_bars(capabilities: tuple[Capability, ...]) -> tuple[LearningBar, ...]:
-    return tuple(cap.learning for cap in capabilities if cap.learning is not None)
+    return tuple(cap.learning for cap in capabilities)
 
 
 def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
@@ -300,7 +309,6 @@ def _reject_unknown_top_level(raw: dict, service_name: str) -> None:
 def _reject_duplicate_skill_names(
     service_bar: LearningBar,
     capability_bars: tuple[LearningBar, ...],
-    service_root: Path,
     service_name: str,
 ) -> None:
     """The how-an-agent-drives-me skill is a registry `skill` entry whose
@@ -460,7 +468,7 @@ def _parse_capability_section(
         docs_rel=Path("docs") / "capabilities" / cap_name,
         skills_rel=Path("skills") / "capabilities" / cap_name,
         subject=cap_name,
-        kind="capability",
+        kind=CAPABILITY,
         where=f"`[{section}]`",
         err=ServiceDeclarationError,
     )

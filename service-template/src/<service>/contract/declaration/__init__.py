@@ -26,7 +26,11 @@ from .implementation_toml import (
 )
 from .learning_bar import (
     CANONICAL_SECTIONS,
+    CAPABILITY,
     DOC_LEVELS,
+    IMPLEMENTATION,
+    KINDS,
+    SERVICE,
     BarDoc,
     LearningBar,
     SkillDoc,
@@ -51,8 +55,12 @@ from .service_toml import (
 
 __all__ = [
     "CANONICAL_SECTIONS",
+    "CAPABILITY",
     "DOC_LEVELS",
     "GOALS",
+    "IMPLEMENTATION",
+    "KINDS",
+    "SERVICE",
     "BarDoc",
     "Capability",
     "ContentPart",

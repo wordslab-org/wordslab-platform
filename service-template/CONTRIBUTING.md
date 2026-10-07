@@ -171,7 +171,7 @@ folder contains:
   discovered by layout, not declared: the four graded docs live at
   `docs/<level>.md` and the skill at `skills/<slug>/SKILL.md` — no
   `[learning]` table (ADR-0024 §1; ADR-0031 §3 as amended).
-- **`docs/`** — the three graded bar docs (canonical front-matter + section
+- **`docs/`** — the four graded bar docs (canonical front-matter + section
   schema; the filename IS the level, ADR-0024 §1 / #75).
 - **`skills/<slug>/SKILL.md`** — the how-an-agent-drives-me skill body; the
   directory name IS the registry slug (ADR-0008).

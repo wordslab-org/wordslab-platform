@@ -8,11 +8,12 @@ conventions and validates what it finds:
     docs/<level>.md            the graded docs — one file per level
     skills/<slug>/SKILL.md     the how-an-agent-drives-me skill
 
-`<level>` is one of the four graded depths (how to use · how it works ·
-study in depth) — the FILENAME is the level, so a level can never drift
-from its declaration. The skill's DIRECTORY NAME is the registry slug (the
-authored entry is `<service>.skill.<slug>`, ADR-0008); its front-matter
-carries the one-line `description` the registry loads the skill by.
+`<level>` is one of the four graded depths (`how-to-use` · `how-it-works` ·
+`study-in-depth` · `going-further`) — the FILENAME is the level, so a level
+can never drift from its declaration. The skill's DIRECTORY NAME is the
+registry slug (the authored entry is `<service>.skill.<slug>`, ADR-0008);
+its front-matter carries the one-line `description` the registry loads the
+skill by.
 
 The conventions, per subject (each `*_rel` is relative to the declaring
 directory):
@@ -68,9 +69,13 @@ SKILL_FRONT_MATTER_KEYS = {"name", "description"}  # required keys — the
 
 _SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
-DOCS_DIR = "docs"
-SKILLS_DIR = "skills"
 SKILL_FILE = "SKILL.md"
+
+# What a missing skill MEANS differs by subject kind (`LearningBar`).
+SERVICE = "service"
+CAPABILITY = "capability"
+IMPLEMENTATION = "implementation"
+KINDS = (SERVICE, CAPABILITY, IMPLEMENTATION)
 
 
 @dataclass(frozen=True)
@@ -120,7 +125,7 @@ class LearningBar:
     """
 
     subject: str
-    kind: str = "capability"
+    kind: str = CAPABILITY
     docs: tuple[BarDoc, ...] = ()
     skill: SkillDoc | None = None
     gaps: tuple[str, ...] = ()
@@ -144,9 +149,9 @@ class LearningBar:
         """
         if self.skill is not None:
             return False
-        if self.kind == "capability":
+        if self.kind == CAPABILITY:
             return True
-        if self.kind == "service":
+        if self.kind == SERVICE:
             return not self.agent_operable_subjects
         return False  # implementation — additive, never a gap in the surface
 
@@ -187,7 +192,13 @@ def discover_learning_bar(
             gaps.append(f"docs: {docs_rel}/{level}.md")
 
     skill = discover_skill(root, skills_rel=skills_rel, where=where, err=err)
-    if skill is None:
+    # the skill is not required at every level: a SERVICE with none has no
+    # skill ABOVE its capabilities and an IMPLEMENTATION with none adds
+    # nothing specific on top of the capability's — only a CAPABILITY's
+    # absence actually leaves an agent without a surface. So the `gaps`
+    # tuple (the publish gate) records the missing skill for a capability
+    # alone; the other two carry `skill=None` honestly (see `LearningBar`).
+    if skill is None and kind == CAPABILITY:
         gaps.append(f"skill: {skills_rel}/<name>/{SKILL_FILE}")
 
     return LearningBar(
@@ -199,16 +210,26 @@ def discover_learning_bar(
 def discover_skill(root: Path, *, skills_rel: Path, where: str, err) -> SkillDoc | None:
     """The subject's how-an-agent-drives-me skill: the single
     `skills_rel/<slug>/SKILL.md` under its skills subtree. None when the
-    subtree is absent or holds no skill — the not-agent-operable convention.
-    More than one is an ambiguity rejected loudly: a subject ships exactly
-    one skill."""
+    subtree is absent or holds no skill — the honest record (what that MEANS
+    differs by subject kind; see `LearningBar`). More than one is an
+    ambiguity rejected loudly: a subject ships exactly one skill. A skill
+    directory whose name is not a legal slug is rejected too — the directory
+    name IS the registry slug (ADR-0008), so a mis-named skill can neither
+    be loaded nor silently left unloaded."""
     base = Path(root) / skills_rel
-    found = sorted(
-        child / SKILL_FILE
-        for child in (base.iterdir() if base.is_dir() else ())
-        if child.is_dir() and _SLUG_RE.fullmatch(child.name)
-        and (child / SKILL_FILE).is_file()
-    )
+    found: list[Path] = []
+    for child in sorted(base.iterdir()) if base.is_dir() else ():
+        if not child.is_dir() or not (child / SKILL_FILE).is_file():
+            continue
+        if not _SLUG_RE.fullmatch(child.name):
+            raise err(
+                f"`{where}` ({skills_rel}) holds skill directory"
+                f" {child.name!r} — the directory name IS the registry slug"
+                " (lowercase a-z, digits, hyphens; ADR-0008); rename it to"
+                " the slug the skill is authored under (a mis-named skill"
+                " would silently never load, no theater)"
+            )
+        found.append(child / SKILL_FILE)
     if not found:
         return None
     if len(found) > 1:
@@ -367,6 +388,16 @@ def _split_front_matter(text: str, where: str, err):
         stripped = line.strip()
         if not stripped:
             continue
+        if line[:1].isspace() and not stripped.startswith("- "):
+            # a nested YAML map (`metadata:` then an indented `author: x`)
+            # would otherwise flatten into a top-level scalar and make a
+            # malformed front-matter look valid — reject it, the shape is flat
+            raise err(
+                f"`{where}` front-matter line {stripped!r} is indented but is"
+                " not a `- item` list entry — the front-matter is a FLAT"
+                " closed shape (no nested maps); a nested key would silently"
+                " flatten into a top-level scalar"
+            )
         if stripped.startswith("- "):
             if current_list is None:
                 raise err(

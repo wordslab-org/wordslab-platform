@@ -31,11 +31,14 @@ named `<capability>.<content-part-type>.<content-part-name>` (ADR-0031 §3):
 - **the learning/operability bar** (ticket #75; ADR-0024 §1, ADR-0002 §7,
   shape per ADR-0031 §3 as amended): **DISCOVERED BY LAYOUT, not declared** —
   no `[learning]` table. The implementation's own directory is audited:
-  `docs/<level>.md` (the four graded depths, the filename IS the level) and
+  `docs/<level>.md` (the four graded depths: how-to-use · how-it-works ·
+  study-in-depth · going-further; the filename IS the level) and
   `skills/<slug>/SKILL.md` (the how-an-agent-drives-me skill; its directory
-  name is the registry slug). No skill in the expected directory IS the
-  not-agent-operable case. Every artifact found must parse
-  (`learning_bar.py`); missing ones are `gaps`, not errors.
+  name is the registry slug). No skill in the expected directory is the
+  honest record — and for an IMPLEMENTATION it means **nothing specific in
+  addition to the capability's skill**, never a gap in the surface. Every
+  artifact found must parse (`learning_bar.py`); missing ones are `gaps`,
+  not errors.
 
 `supported`/`recommended` are **computed, never stored** (ADR-0002 §5,
 ADR-0005, ADR-0031 §5): no `[ranks]`, no quality claims — model ordering
@@ -49,7 +52,7 @@ from pathlib import Path
 
 import tomllib
 
-from .learning_bar import LearningBar, discover_learning_bar
+from .learning_bar import IMPLEMENTATION, LearningBar, discover_learning_bar
 
 PRIVACY_TIERS = ("local", "cloud_no_data", "cloud")
 
@@ -294,7 +297,7 @@ def _parse_learning(root: Path, subject: str) -> LearningBar:
         docs_rel=Path("docs"),
         skills_rel=Path("skills"),
         subject=subject,
-        kind="implementation",
+        kind=IMPLEMENTATION,
         where=f"`[{subject}]`",
         err=ImplementationDeclarationError,
     )
