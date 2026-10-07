@@ -10,8 +10,12 @@ the placement invariants against the map:
 1. **every threat frame of ADR-0017 §1 is backed** by at least one control;
 2. **every control has a home** — a control the model names but never places
    is homeless;
-3. **no control is re-implemented in two places** — every home carries
-   exactly one control;
+3. **no control is re-implemented in two places** — a control id landed in
+   two places, or ADR-0017 §8's guardrail layer landing twice on one of its
+   sites. (A home legitimately hosts several DISTINCT controls — Connectors
+   carries the door's audit, its tier, its approval and its guardrail hook —
+   so the invariant is about a control's identity and §8's layer, never a
+   count of controls per home.)
 4. every home a control names has a stub owning-capability surface.
 
 Test-side only: production code never imports this module (spec #68). The
@@ -35,7 +39,7 @@ not an integration with a sweeper that isn't there.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from contract.placement import PlacementMap, load_placement_map
@@ -120,18 +124,24 @@ def build_home_stubs() -> dict[str, StubCollaborator]:
     }
 
 
-#: The three sites ADR-0017 §8 settles for the guardrail layer — the
-#: Inference model + the Media transforms + the agent-loop/door hooks (spec
-#: #66's Testing Decisions). The duplication invariant checks the layer's
-#: sites, NOT the homes: the agent-loop hook and the container network policy
-#: share Chat + Agents, the door's audit/tier/approval and the door's
-#: guardrail hook share Connectors — every service has more than one control.
+#: The sites ADR-0017 §8 settles for the guardrail layer — the Inference
+#: moderation model + the Media builtin transforms + the two boundary policy
+#: hooks (the agent loop's inbound hook and the outbound door hook), exactly
+#: the four `guardrail-*` controls the map homes. The duplication invariant
+#: checks the layer's sites, NOT the homes: the agent-loop hook and the
+#: container network policy share Chat + Agents, the door's audit/tier/
+#: approval and the door's guardrail hook share Connectors — every service has
+#: more than one control.
 GUARDRAIL_SITES: dict[str, str] = {
     "inference": "the moderation model in Inference's classic-AI capability",
     "media-transformations": "the builtin transforms in Media transformations",
     "connectors": "the outbound policy hook at the door",
     "chat-and-agents": "the policy hook in the agent loop",
 }
+
+#: The ADR-0017 section that places the guardrail layer — the map's §8
+#: controls are the ones whose citation names it.
+GUARDRAIL_SECTION = "8"
 
 
 @dataclass(frozen=True)
@@ -170,16 +180,17 @@ class PlacementReport:
 def placement_findings(
     placement_map: PlacementMap,
     *,
-    stubs: dict | None = None,
+    surfaces: dict | None = None,
 ) -> list[str]:
     """The placement findings for `placement_map` — empty when the invariants
     hold.
 
-    `stubs` is the set of stood-up owning-capability surfaces (defaults to the
-    harness's own `build_home_stubs()`); a control whose home has no surface is
-    a finding, so the map and the stub set can never drift apart silently.
+    `surfaces` is the set of stood-up owning-capability surfaces, keyed by
+    home (defaults to the harness's own `HOME_STUBS`); a control whose home
+    has no surface is a finding, so the map and the stub set can never drift
+    apart silently.
     """
-    stubs = HOME_STUBS if stubs is None else stubs
+    surfaces = HOME_STUBS if surfaces is None else surfaces
     findings: list[str] = []
 
     # (1) every threat frame of ADR-0017 §1 is backed by ≥1 control.
@@ -201,7 +212,7 @@ def placement_findings(
             )
             continue
         # (4) the home has a stood-up surface.
-        if control.home not in stubs:
+        if control.home not in surfaces:
             findings.append(
                 f"control `{control.id}`'s home `{control.home}` has no stub"
                 " owning-capability surface — the map names a home the harness"
@@ -241,10 +252,11 @@ def placement_findings(
 
 def _guardrails_by_site(placement_map: PlacementMap) -> dict[str, list[str]]:
     """ADR-0017 §8's guardrail controls grouped by the site each is homed in
-    (a control is a §8 control when it cites that section)."""
+    (a control is a §8 control when its citation NAMES that section — read
+    from the parsed citation, never a substring probe of the prose)."""
     by_site: dict[str, list[str]] = {}
     for control in placement_map.controls:
-        if "§8" in control.adr and control.home in GUARDRAIL_SITES:
+        if GUARDRAIL_SECTION in control.sections and control.home in GUARDRAIL_SITES:
             by_site.setdefault(control.home, []).append(control.id)
     return by_site
 
@@ -262,7 +274,7 @@ def sweep_placement(map_path: str | Path | None = None) -> PlacementReport:
     placement_map = load_placement_map(map_path)
     stubs = build_home_stubs()
     return PlacementReport(
-        findings=tuple(placement_findings(placement_map, stubs=stubs)),
+        findings=tuple(placement_findings(placement_map, surfaces=stubs)),
         frames=tuple(f.id for f in placement_map.frames),
         controls=tuple(c.id for c in placement_map.controls),
         homes=tuple(sorted({c.home for c in placement_map.controls if c.home})),

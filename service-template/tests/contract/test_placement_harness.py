@@ -28,6 +28,7 @@ from contract.placement import (
 )
 
 from tests.support.placement import (
+    GUARDRAIL_SECTION,
     HOME_STUBS,
     PlacementReport,
     build_home_stubs,
@@ -37,49 +38,14 @@ from tests.support.placement import (
 from tests.support.stubs import StubCollaborator
 from tests.support.test_server import InProcessService
 
-# ------------------------------------------------------------- fixture parts
-
-FRAME_ALPHA = """\
-[[frames]]
-id = "alpha"
-adr = "ADR-0017 §1.1 (compromised/malicious agent or harness)"
-"""
-
-FRAME_BETA = """\
-[[frames]]
-id = "beta"
-adr = "ADR-0017 §1.2 (accidental data leakage)"
-"""
-
-CONTROL_ONE = """\
-[[controls]]
-id = "control-one"
-adr = "ADR-0017 §2"
-home = "core"
-seam = "the keys/secrets capabilities"
-backs = ["alpha"]
-"""
-
-CONTROL_TWO = """\
-[[controls]]
-id = "control-two"
-adr = "ADR-0017 §7"
-home = "connectors"
-seam = "the audited door"
-backs = ["beta"]
-"""
-
-
-def write_map(tmp_path, content: str) -> Path:
-    path = tmp_path / "placement_map.toml"
-    path.write_text(textwrap.dedent(content))
-    return path
-
-
-def good_map(tmp_path) -> Path:
-    """A green map: two frames, each backed, one control per home."""
-    return write_map(tmp_path, FRAME_ALPHA + FRAME_BETA + CONTROL_ONE + CONTROL_TWO)
-
+from tests.support.placement_fixtures import (
+    CONTROL_ONE,
+    CONTROL_TWO,
+    FRAME_ALPHA,
+    FRAME_BETA,
+    good_map,
+    write_map,
+)
 
 # --------------------------------------------------- the invariants, green
 
@@ -174,11 +140,37 @@ def test_a_control_whose_home_has_no_surface_is_caught(tmp_path):
     placement_map = load_placement_map(good_map(tmp_path))
     report = PlacementReport(
         findings=tuple(
-            placement_findings(placement_map, stubs={"core": build_home_stubs()["core"]})
+            placement_findings(placement_map, surfaces={"core": build_home_stubs()["core"]})
         ),
     )
     assert report.green is False
     assert any("connectors" in f and "no stub" in f for f in report.findings)
+
+
+def test_the_guardrail_site_grouping_reads_named_sections_not_substrings():
+    """§8 membership is READ from the parsed citation (`Control.sections`),
+    never a substring probe of the prose: a citation naming a different ADR's
+    §8, or ADR-0017 §80, must not be mistaken for the guardrail section. The
+    regex is anchored on `ADR-0017 §N`, so a co-cited ADR-0004 §8 is not ours
+    and `§80` is its own (unmatched) token."""
+    from contract.placement import Control, adr_0017_sections
+
+    assert adr_0017_sections("ADR-0017 §8") == ("8",)
+    # only sections WRITTEN against ADR-0017 count: §7.5 shares §7's number
+    # only when re-prefixed, so a run like §7.1/§7.5 yields one §7
+    assert adr_0017_sections("ADR-0017 §7.1/§7.5; ADR-0030") == ("7",)
+    assert adr_0017_sections("ADR-0017 §7; ADR-0017 §7") == ("7", "7")
+    # a DIFFERENT ADR's §8 is not ADR-0017's section — the co-citation trap
+    assert adr_0017_sections("ADR-0017 §5; ADR-0004 §8") == ("5",)
+    assert adr_0017_sections("ADR-0004 §8") == ()
+    # a different section NUMBER is not §8: `§80` parses as its own token, so
+    # it never matches the guardrail section ("8" != "80")
+    assert adr_0017_sections("ADR-0017 §80") == ("80",)
+    assert GUARDRAIL_SECTION not in adr_0017_sections("ADR-0017 §80")
+
+    # and it is a property of the parsed entry, on both frames and controls
+    control = Control(id="x", adr="ADR-0017 §8", home="inference", seam="s")
+    assert control.sections == ("8",)
 
 
 def test_the_sweep_is_consumable_by_the_sweeper(tmp_path):

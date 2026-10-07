@@ -126,6 +126,19 @@ FRAME_KEYS = {"id", "adr", "boundary"}
 CONTROL_KEYS = {"id", "adr", "home", "seam", "backs"}
 
 _SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+_SECTION_RE = re.compile(r"ADR-0017\s+§(\d+)")
+
+
+def adr_0017_sections(citation: str) -> tuple[str, ...]:
+    """The ADR-0017 `§N` sections a citation names, in written order.
+
+    Citations are prose (`ADR-0017 §2; ADR-0014 (the mount mechanics…)`), so
+    membership is READ from the citation — one parser, shared by the loader's
+    sweep (`cited_sections`) and the harness's section grouping. Only sections
+    written against ADR-0017 count: a co-cited ADR's own `§N` (e.g. ADR-0004
+    §12) is that ADR's, not this one's.
+    """
+    return tuple(_SECTION_RE.findall(citation))
 
 
 class PlacementMapError(ValueError):
@@ -147,6 +160,11 @@ class Frame:
     adr: str
     boundary: bool = False
 
+    @property
+    def sections(self) -> tuple[str, ...]:
+        """The ADR-0017 sections this citation names (its own `§N` tokens)."""
+        return adr_0017_sections(self.adr)
+
 
 @dataclass(frozen=True)
 class Control:
@@ -161,6 +179,13 @@ class Control:
     home: str
     seam: str
     backs: tuple[str, ...] = ()
+
+    @property
+    def sections(self) -> tuple[str, ...]:
+        """The ADR-0017 sections this citation names (its own `§N` tokens) —
+        the fact the harness reads to tell which section a control lives
+        under, never a substring probe of the citation prose."""
+        return adr_0017_sections(self.adr)
 
 
 @dataclass(frozen=True)
@@ -204,18 +229,14 @@ class PlacementMap:
     def cited_sections(self) -> tuple[str, ...]:
         """The ADR-0017 sections cited across the map (frames and controls
         alike), by their top-level `§N` — the sweep that proves no control
-        section of the ADR is silently unplaced. Only sections written against
-        ADR-0017 count: a co-cited ADR's own section (e.g. ADR-0004 §12) is
-        not an ADR-0017 section. §6 states the platform does NOT intercept the
-        harness, and §1 carries the frames themselves, so a control's `adr`
-        must not name either inline — the map cites the section a control
-        LIVES under."""
+        section of the ADR is silently unplaced. §6 states the platform does
+        NOT intercept the harness, and §1 carries the frames themselves, so a
+        control's `adr` must not name either: the map cites the section a
+        control LIVES under (the harness reads the same `sections` fact)."""
         sections: set[str] = set()
         for entry in (self.frames, self.controls):
             for item in entry:
-                sections.update(
-                    re.findall(r"ADR-0017\s+§(\d+)", item.adr)
-                )
+                sections.update(item.sections)
         return tuple(sorted(sections, key=int))
 
 
@@ -280,7 +301,6 @@ def _parse_frames(entries: list) -> tuple[Frame, ...]:
     seen: set[str] = set()
     for index, entry in enumerate(entries):
         where = f"frames[{index}]"
-        _require_table(entry, where)
         unknown = set(entry) - FRAME_KEYS
         if unknown:
             raise PlacementMapError(
@@ -314,7 +334,6 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
     controls: list[Control] = []
     for index, entry in enumerate(entries):
         where = f"controls[{index}]"
-        _require_table(entry, where)
         unknown = set(entry) - CONTROL_KEYS
         if unknown:
             raise PlacementMapError(
@@ -373,14 +392,6 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 
 
 # ------------------------------------------------------------ check helpers
-
-
-def _require_table(entry: object, where: str) -> None:
-    if not isinstance(entry, dict):
-        raise PlacementMapError(
-            f"`{where}` is not a table — frames and controls are arrays of"
-            " tables (`[[frames]]` / `[[controls]]`)"
-        )
 
 
 def _require_str(table: dict, key: str, where: str) -> str:

@@ -35,56 +35,14 @@ from contract.placement import (
     load_placement_map,
 )
 
-# ------------------------------------------------------------- fixture parts
-#
-# Built from NAMED part constants (never chained `.replace()` calls: a no-op
-# replace silently tests the unmutated fixture). Each mutation swaps a whole
-# block, so a rejection case can never quietly become a happy path.
-
-FRAME_ALPHA = """\
-[[frames]]
-id = "alpha"
-adr = "ADR-0017 §1.1 (compromised/malicious agent or harness)"
-"""
-
-FRAME_BETA = """\
-[[frames]]
-id = "beta"
-adr = "ADR-0017 §1.2 (accidental data leakage)"
-"""
-
-CONTROL_ONE = """\
-[[controls]]
-id = "control-one"
-adr = "ADR-0017 §2"
-home = "core"
-seam = "the keys/secrets capabilities"
-backs = ["alpha"]
-"""
-
-CONTROL_TWO = """\
-[[controls]]
-id = "control-two"
-adr = "ADR-0017 §7"
-home = "connectors"
-seam = "the audited door"
-backs = ["beta"]
-"""
-
-
-def map_document(*, frames: str = FRAME_ALPHA + FRAME_BETA,
-                 controls: str = CONTROL_ONE + CONTROL_TWO) -> str:
-    """A placement map document from whole named blocks."""
-    return frames + "\n" + controls
-
-
-def write_map(tmp_path, content: str | None = None) -> Path:
-    """Write a map document to a tmp_path fixture and return its path."""
-    content = map_document() if content is None else content
-    path = tmp_path / "placement_map.toml"
-    path.write_text(textwrap.dedent(content))
-    return path
-
+from tests.support.placement_fixtures import (
+    FRAME_ALPHA,
+    FRAME_BETA,
+    CONTROL_ONE,
+    CONTROL_TWO,
+    map_document,
+    write_map,
+)
 
 # --------------------------------------------------------------- the loader
 
@@ -214,6 +172,16 @@ def test_asking_for_an_undeclared_frame_or_control_is_loud(tmp_path):
         # every citation names ADR-0017 — the single source
         (map_document(controls=CONTROL_ONE.replace("ADR-0017 §2", "ADR-0016")),
          "every entry cites"),
+        # a frame's `boundary` flag is a boolean, never a truthy string
+        (
+            map_document(frames=FRAME_ALPHA + '\nboundary = "yes"\n'),
+            "boundary.* must be true or false",
+        ),
+        # `backs` is an array of threat-frame ids
+        (map_document(controls=CONTROL_ONE.replace('backs = ["alpha"]', "backs = 3")),
+         r"backs.* must be an array"),
+        (map_document(controls=CONTROL_ONE.replace('backs = ["alpha"]', 'backs = [1]')),
+         r"backs.* must be an array"),
         # frames are required — a map without them is not a model
         (map_document(frames=""), "`frames` must be a non-empty array"),
         (map_document(controls=""), "`controls` must be a non-empty array"),

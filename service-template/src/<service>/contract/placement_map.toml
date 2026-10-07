@@ -57,14 +57,14 @@ adr = "ADR-0017 §1.5 (the platform must not reach into host OS files)"
 id = "host-filesystem-isolation"
 adr = "ADR-0017 §2; ADR-0014 (the mount mechanics; #14 sets the stance)"
 home = "installer"
-seam = "the default-deny WSL mount stance (#63's runbook checkpoints); the mount crossing is the ONLY path across the boundary"
+seam = "the WSL mount stance, checked at the installer runbook's checkpoints (#63)"
 backs = ["host-os-files-unreachable", "compromised-agent-or-harness"]
 
 [[controls]]
 id = "os-container-isolation"
 adr = "ADR-0017 §2 (OS-container isolation; a control the platform itself holds — §6 lists the filesystem boundary among the backstops around the harness)"
 home = "chat-and-agents"
-seam = "the session-container boundary (ADR-0007 §8; #48): agent session containers, per-workspace-session harness images, MAF's in-process STATELESS loop"
+seam = "the session-container boundary (ADR-0007 §8; #48)"
 backs = ["compromised-agent-or-harness"]
 
 # --- §3 TLS stance --------------------------------------------------------
@@ -73,7 +73,7 @@ backs = ["compromised-agent-or-harness"]
 id = "browser-facing-https"
 adr = "ADR-0017 §3.1; ADR-0004 §9 (the local CA for the front door)"
 home = "installer"
-seam = "the local-CA HTTPS surfaces (#63); TLS at the front door / over the overlay / on every outbound internet crossing"
+seam = "the local-CA HTTPS surfaces, front door and overlay (#63; ADR-0004 §9)"
 backs = ["trusted-lan-untrusted-internet"]
 
 [[controls]]
@@ -89,7 +89,7 @@ backs = ["trusted-lan-untrusted-internet"]
 id = "secrets-at-rest-obfuscation"
 adr = "ADR-0017 §4; ADR-0021 (the at-rest copies survive a leader rebuild), ADR-0006 §5 (the #19 rotation machinery is the actual control)"
 home = "core"
-seam = "the `keys` / `secrets` capabilities (ADR-0003; #62) — the master copy on the leader and the distributed copies on workers alike"
+seam = "the `keys` / `secrets` capabilities (ADR-0003; #62), leader and worker copies alike"
 backs = ["host-os-malware"]
 
 # --- §5 Container network policy -----------------------------------------
@@ -98,7 +98,7 @@ backs = ["host-os-malware"]
 id = "container-network-policy"
 adr = "ADR-0017 §5 (the backstop for harness tool calls; the platform itself holds it — §6)"
 home = "chat-and-agents"
-seam = "the per-workspace-session container's network policy (#48): default-allow-but-scoped-to-need, no unrestricted host/LAN, enforced even when the harness approves the call"
+seam = "the per-workspace-session container's network policy (#48)"
 backs = ["compromised-agent-or-harness", "trusted-lan-untrusted-internet"]
 
 # --- §7 Connectors audited door ------------------------------------------
@@ -107,49 +107,53 @@ backs = ["compromised-agent-or-harness", "trusted-lan-untrusted-internet"]
 id = "connector-audit-logging"
 adr = "ADR-0017 §7.1/§7.5; ADR-0030 (the per-tool tier)"
 home = "connectors"
-seam = "the door itself (`connectors.audit`, ADR-0030 §2.5) — every call logged + attributable via action-context; the trail view is the dashboard's (#64)"
+seam = "the door itself (`connectors.audit`, ADR-0030 §2.5; #50/#55); the trail view is the dashboard's (#64)"
 backs = ["accidental-data-leakage", "compromised-agent-or-harness"]
 
 [[controls]]
 id = "connector-consequence-tier"
 adr = "ADR-0017 §7.2 (per-tool per ADR-0030 §3.1 — declared explicitly, no default)"
 home = "connectors"
-seam = "the per-tool consequence tier on every connector tool (#50/#55): read-only logged-only, send/mutate gated"
+seam = "the per-tool consequence tier on every connector tool (#50/#55; ADR-0030 §3.1)"
 backs = ["accidental-data-leakage", "compromised-agent-or-harness"]
 
 [[controls]]
 id = "connector-caller-scoped-approval"
 adr = "ADR-0017 §7.3; ADR-0030 §3.2 (per connector; caller-identity-scoped, never platform-wide)"
 home = "connectors"
-seam = "the approval grant riding the action-context (user + service chain), checked against THAT caller (#50/#55)"
+seam = "the approval grant riding the action-context, checked against the caller (#50/#55)"
 backs = ["accidental-data-leakage", "compromised-agent-or-harness"]
 
 [[controls]]
 id = "harness-native-outside-the-door"
 adr = "ADR-0017 §7.4"
 home = "connectors"
-seam = "the door's audit boundary — a harness's own package/network activity is the agent doing its job, bounded by the container network policy (§5), NOT funneled through the door"
+seam = "the door's audit boundary — harness-native outbound is not funneled through the door (#50/#55)"
 backs = ["compromised-agent-or-harness"]
 
 # --- §8 Guardrails (data-safety) -----------------------------------------
-# ADR-0017 §8's placement names TWO homes; that is two controls, each with its
-# own single home, never one control with two. The Inference model capability
-# is the cheap classification surface that BOTH boundaries call (ADR-0029's
-# classic-AI capability); the door-side hook and the loop-side hook are where
-# §8's two boundary policy hooks live.
+# ADR-0017 §8's placement names the layer's sites — Inference's moderation
+# model capability, Media transformations' builtin transforms, and the two
+# boundary policy hooks (the agent loop's inbound hook, the outbound door
+# hook). That is FOUR controls, EACH with its own single home — never one
+# control with two homes. The Inference model capability is the cheap
+# classification surface the two boundaries call (ADR-0029's classic-AI
+# capability); the door-side and loop-side hooks are where §8's two boundary
+# policies live. (The `guardrail-*` ids below are what the harness's §8 site
+# invariant groups by home.)
 
 [[controls]]
 id = "guardrail-classification"
 adr = "ADR-0017 §8; ADR-0029 (Inference's classic-AI model capability)"
 home = "inference"
-seam = "Inference's classic-AI model capability (ADR-0029 §2 — `ml.model`, whose `ml.engine` implementations are the trained classifier / entity-extraction / small-LLM runtimes the default layer mixes); the cheap default layer on by default, the heavy Shieldstral-class tier optional"
+seam = "Inference's classic-AI model capability (ADR-0029 §2 — `ml.model`; #47)"
 backs = ["accidental-data-leakage", "compromised-agent-or-harness"]
 
 [[controls]]
 id = "guardrail-media-transforms"
 adr = "ADR-0017 §8 (builtin transforms — Media transformations)"
 home = "media-transformations"
-seam = "the builtin transforms (ADR-0017 §8; `docs/architecture/30-services/43` lists `guardrails`, `moderation`, `entity detection` among them; #58)"
+seam = "the builtin transforms (see `docs/architecture/30-services/43`; #58)"
 backs = ["accidental-data-leakage"]
 
 [[controls]]
@@ -163,7 +167,7 @@ backs = ["accidental-data-leakage"]
 id = "guardrail-inbound-loop-hook"
 adr = "ADR-0017 §8 (the inbound boundary; the agent service loop)"
 home = "chat-and-agents"
-seam = "the policy hook in the agent loop (#48) — the inbound prompt-injection boundary"
+seam = "the policy hook in the agent loop (#48)"
 backs = ["compromised-agent-or-harness"]
 
 # --- §9 Update authenticity ----------------------------------------------
@@ -172,12 +176,12 @@ backs = ["compromised-agent-or-harness"]
 id = "own-code-update-authenticity"
 adr = "ADR-0017 §9.1 (signed packages + checksum against an embedded platform key); ADR-0016 (the metadata/check step)"
 home = "lifecycle"
-seam = "the metadata/check step of the update flow (ADR-0016 §5; #65; carried by the core's `install`/`catalog` capabilities)"
+seam = "the metadata/check step of the update flow (ADR-0016 §5; #65)"
 backs = ["compromised-agent-or-harness"]
 
 [[controls]]
 id = "external-package-supply-chain-gate"
 adr = "ADR-0017 §9.2 (the audited supply-chain gate); ADR-0004 §12 (the standing 1-week wait); ADR-0016 (the metadata/check step)"
 home = "lifecycle"
-seam = "the metadata/check step of the update flow (ADR-0016 §5; #65) — the external-OSS packages are never embedded in the platform's own packages"
+seam = "the metadata/check step of the update flow (ADR-0016 §5; #65)"
 backs = ["compromised-agent-or-harness"]

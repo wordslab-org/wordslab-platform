@@ -70,17 +70,20 @@ menu = [
 
 # The control-placement capability (ticket #275) — the template-level
 # contract-checker that indexes ADR-0017's security model and asserts the
-# placement invariants. It is a DATA surface (a loader + an invariant
-# harness), not an HTTP surface: the placement map is the data,
-# `load_placement_map` the seam, and `sweep_placement` the sweeper-consumable
-# entry point. `api` still names a `/v1` entry point — every capability
-# section carries one (ADR-0031 §2) — but this capability mounts no route; it
-# is driven in-process (see its drive-placement skill).
+# placement invariants. Its surface is DATA, not HTTP: the placement map is
+# the data, `load_placement_map` the seam, and `sweep_placement` the
+# sweeper-consumable entry point. It therefore mounts no route and
+# contributes NO fragment to the service's OpenAPI document, so its `api`
+# entry point is the service's own `/openapi.json` (ADR-0031 §2 defines
+# `api` as an entry point INSIDE that one document — a path that never
+# appears there cannot be one; the catalog entry + this documentation is
+# where the capability is described). It is driven in-process (see its
+# drive-placement skill), never over `/v1`.
 [template-service.placement]
-description = "The control-placement map + the placement-invariant harness (ticket #275): every threat frame in ADR-0017 §1 resolves to ≥1 named control, every control resolves to exactly one owning home (no control homeless, no control duplicated), asserted deterministically and re-runnable by the sweeper."
+description = "The control-placement map + the placement-invariant harness (ticket #275): every threat frame in ADR-0017 §1 resolves to ≥1 named control, every control resolves to exactly one owning home (no control homeless, no control duplicated), asserted deterministically and re-runnable by the sweeper. A DATA surface — it mounts no route; its map is the data and `sweep_placement` the entry point."
 version = "0.1.0"
-api = "/v1/placement"
-api-functions = "A data surface, not an HTTP surface: load_placement_map() returns the parsed, validated map (every threat frame → the controls backing it → each control's single home); the invariant harness (sweep_placement) stands up a stub owning-capability surface per home and reports placement findings. The map is data with a closed shape — it is NOT a declaration key, and it cites ADR-0017 rather than restating a control's internals (#66's no-double-testing rule)."
+api = "/openapi.json"
+api-functions = "A data surface, not an HTTP surface (it contributes no OpenAPI fragment): load_placement_map() returns the parsed, validated map (every threat frame → the controls backing it → each control's single home); the invariant harness (sweep_placement) stands up a stub owning-capability surface per home and reports placement findings. The map is data with a closed shape — it is NOT a declaration key, and it cites ADR-0017 rather than restating a control's internals (#66's no-double-testing rule)."
 versions-history = "0.1.0 — the map + the harness (ticket #275)."
 required = false
 

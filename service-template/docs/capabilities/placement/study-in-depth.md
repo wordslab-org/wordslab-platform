@@ -43,17 +43,17 @@ counts as a control) and the boundary between *that* a control is placed and
    for the same reason: it states the platform does *not* intercept the
    harness and enumerates backstops that are placed under their own
    sections, so it names no control of its own.
-3. **One control, one home — including where §8 settles two sites.**
+3. **One control, one home — including where §8 settles several sites.**
    ADR-0017 §8 places the guardrail layer across sites (the moderation model
    in Inference's classic-AI capability, builtin transforms in Media
    transformations, policy hooks in the agent loop and at the outbound
    door). That is *several controls, each with its own home* — never one
    control with two entries. So "no control is re-implemented in two places"
    is checked two ways: a control id landed twice, and §8's guardrail layer
-   landing twice on one of its sites. A service legitimately hosts several
-   *distinct* controls (Connectors hosts the door's audit, tier, approval
-   and its guardrail hook), which is why the invariant is about a control's
-   identity and the guardrail layer, not about counting homes.
+   landing twice on one of its four sites. A service legitimately hosts
+   several *distinct* controls (Connectors hosts the door's audit, tier,
+   approval and its guardrail hook), which is why the invariant is about a
+   control's identity and the guardrail layer, not about counting homes.
 4. **Placement, not mechanism — no double-testing.** The harness asserts
    *that* each control is placed and which frames it backs; it never asserts
    *how* a control behaves. The stubs stand in for the owning services at
