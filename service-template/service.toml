@@ -68,3 +68,29 @@ menu = [
   { label = "Echo", entry = "/echo" },
 ]
 
+# The control-placement capability (ticket #275) — the template-level
+# contract-checker that indexes ADR-0017's security model and asserts the
+# placement invariants. Its surface is DATA, not HTTP: the placement map is
+# the data, `load_placement_map` the seam, and `sweep_placement` the
+# sweeper-consumable entry point. It mounts no route and contributes NO
+# fragment to the service's OpenAPI document, so there is no capability path
+# to name — `api` names the service's own API description document
+# (`/openapi.json`, the base route the shell serves), which is where
+# capabilities are described and discovered (ADR-0031 §2: `api` is the
+# capability's API description entry point). A `/v1/...` path here would
+# promise a routable capability that never appears in the document. It is
+# driven in-process (see its drive-placement skill), never over `/v1`.
+[template-service.placement]
+description = "The control-placement map + the placement-invariant harness (ticket #275): every threat frame in ADR-0017 §1 resolves to ≥1 named control, every control resolves to exactly one owning home (no control homeless, no control duplicated), asserted deterministically and re-runnable by the sweeper. A DATA surface — it mounts no route; its map is the data and `sweep_placement` the entry point."
+version = "0.1.0"
+api = "/openapi.json"
+api-functions = "A data surface, not an HTTP surface (it contributes no OpenAPI fragment): load_placement_map() returns the parsed, validated map (every threat frame → the controls backing it → each control's single home); the invariant harness (sweep_placement) stands up a stub owning-capability surface per home and reports placement findings. The map is data with a closed shape — it is NOT a declaration key, and it cites ADR-0017 rather than restating a control's internals (#66's no-double-testing rule)."
+versions-history = "0.1.0 — the map + the harness (ticket #275)."
+required = false
+
+[template-service.placement.ui]
+description = "No UI: the checker is consumed by the test-harness sweeper (#68/#85) and by the security verification lanes (#276–#283), never by the dashboard."
+versions-history = "0.1.0 — no UI surface (ticket #275)."
+menu = []
+
+

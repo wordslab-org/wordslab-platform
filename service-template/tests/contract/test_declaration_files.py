@@ -52,6 +52,24 @@ def test_the_service_template_own_service_toml_is_valid():
     assert canary.ui_menu[0].entry == "/echo"
 
 
+def test_the_placement_checker_declares_no_phantom_route():
+    """The placement capability ships with the template (ticket #275) as a
+    DATA surface: it mounts no route and contributes no OpenAPI fragment, so
+    its declared `api` entry point must be the service's own API description
+    document `/openapi.json` (ADR-0031 §2 as amended by #275 — a capability
+    with no fragment has no path inside the document to name); a `/v1/...`
+    path here would promise a routable capability that does not exist."""
+    svc = load_service_toml(SERVICE_TEMPLATE / "service.toml")
+    placement = next(c for c in svc.capabilities if c.name == "placement")
+    assert placement.api == "/openapi.json"
+    assert placement.ui_menu == ()
+    assert placement.required is False
+
+    # the capability is documented in prose — where a data surface is described
+    assert "data surface" in placement.description.lower()
+    assert "no route" in placement.description.lower()
+
+
 @requires_sibling_template
 def test_the_implementation_template_toml_is_valid():
     """The copy-per-implementation skeleton validates through the same
@@ -115,7 +133,7 @@ def test_the_service_template_bar_is_discovered_by_layout():
     # service is agent-operable, and the canary is agent-operable itself
     assert svc.learning.agent_operable is True
     assert svc.learning.not_agent_operable is False
-    assert svc.learning.agent_operable_subjects == ("canary",)
+    assert svc.learning.agent_operable_subjects == ("canary", "placement")
 
     # the CANARY's bar — the detail of its API + UI
     bar = svc.capabilities[0].learning
