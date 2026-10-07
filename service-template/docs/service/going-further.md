@@ -29,7 +29,13 @@ ship. This level collects the directions that leave the template behind.
 3. **Exercise family conformance** — list the ADR-0001 family numbers your
    service implements in `tests/contract/families/manifest.toml` and keep
    those blocks; the suite is red until the family's surface is implemented.
-4. **Publish it** — publishing as `bundled`/`listed` requires the learning
+4. **Keep the placement checker** — the template ships the control-placement
+   map (`contract/placement_map.toml`) and its invariant harness; it indexes
+   ADR-0017's security model and travels with the copy, so the platform's
+   placement claim is re-verified per service as each lands. A service that
+   places a security control adds it to the **map** (citing the ADR), never
+   as private code.
+5. **Publish it** — publishing as `bundled`/`listed` requires the learning
    bar (ADR-0018's tiers); before that, gaps are only recorded. The copy
    ritual, the declaration rules and the contract's base items are all in
    `CONTRIBUTING.md`.
@@ -38,4 +44,5 @@ ship. This level collects the directions that leave the template behind.
 
 - `CONTRIBUTING.md` — the full copy-to-start ritual and the inherited rules.
 - ADR-0002 (the service template) · ADR-0018 (publishing tiers) ·
+  ADR-0017 (the security model the placement map indexes) ·
   ADR-0001 (the family contracts).

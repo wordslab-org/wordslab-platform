@@ -41,6 +41,16 @@ meet inside the service repo.
    must precede any `[table]` header — in TOML everything after a table
    header belongs to that table.
 
+   A **template-level contract-checker** is declared the same way: a
+   capability whose surface is **data, not HTTP** (the template ships the
+   **control-placement map + invariant harness**, ticket #275 — the map at
+   `contract/placement_map.toml`, the loader at `contract/placement.py`, the
+   harness at `tests/support/placement.py`). It still carries the full
+   `[<service>.<capability>]` section — `api` names its entry point by
+   convention, `ui.menu` ships empty (it has no UI) — so it is visible in the
+   catalog and carries the same learning bar as any capability. Never restate
+   the model it indexes: the map cites ADR-0017 and stays an index.
+
    **The learning/operability bar** (ADR-0024 §1, ADR-0002 §7; declared by
    layout per ADR-0031 §2 as amended) — **not declared in TOML**: keep the
    files at the conventional paths and the loader discovers and audits them

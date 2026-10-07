@@ -14,8 +14,9 @@ mcp-tools: []
 The template service is the copy-to-start skeleton of a wordslab service: a
 set of capabilities exposed through the platform dashboard, all three
 callable surfaces (API, agent MCP, UI), and this learning bar. Today it
-ships one capability, `canary` (the Echo proof capability, ticket #71); a
-real service keeps the shell and replaces the capability set.
+ships two capabilities, `canary` (the Echo proof capability, ticket #71) and
+`placement` (the control-placement checker, ticket #275); a real service
+keeps the shell and replaces the capability set.
 
 ## Details
 
@@ -35,6 +36,8 @@ real service keeps the shell and replaces the capability set.
 ## See also
 
 - `docs/capabilities/canary/` — the canary capability's own graded docs.
+- `docs/capabilities/placement/` — the control-placement checker (a data
+  capability: the security model's index + its invariant harness).
 - `service.toml` — the declaration: own properties, then one section per
   capability.
 - ADR-0002 (the service template) · ADR-0031 (the declaration shape) ·

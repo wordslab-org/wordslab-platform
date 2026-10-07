@@ -26,7 +26,11 @@ skill, discovered by layout). This page explains how those pieces fit.
    service can't boot half-declared.
 2. **The contract is vendored, never edited** — `contract/base/` carries the
    family conformance and the shell's helpers; the copy-to-start ritual
-   copies it and leaves it alone (ADR-0002 §The template.1).
+   copies it and leaves it alone (ADR-0002 §The template.1). Alongside it,
+   `contract/declaration/` loads the declarations and `contract/placement.py`
+   loads the **control-placement map** — the template-level checker that
+   indexes ADR-0017's security model (its invariant harness lives test-side,
+   `tests/support/placement.py`).
 3. **Capabilities register routes** — `create_service_app(extra_routes=...)`
    mounts the capability's `/v1/...` routes on the shared app; the MCP
    surface is auto-generated from the same OpenAPI spec, so it can't drift.
@@ -38,6 +42,9 @@ skill, discovered by layout). This page explains how those pieces fit.
 ## See also
 
 - `CONTRIBUTING.md` — the copy-to-start ritual, step by step.
+- `docs/capabilities/placement/how-it-works.md` — the vendored
+  contract-checker's own mechanics.
 - `docs/capabilities/canary/how-it-works.md` — the same story one level down.
 - ADR-0031 §2 (the declaration shape) · ADR-0001 (the family contracts) ·
-  ADR-0002 (the template).
+  ADR-0002 (the template) · ADR-0017 (the security model the placement map
+  indexes).

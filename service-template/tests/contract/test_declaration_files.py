@@ -115,7 +115,7 @@ def test_the_service_template_bar_is_discovered_by_layout():
     # service is agent-operable, and the canary is agent-operable itself
     assert svc.learning.agent_operable is True
     assert svc.learning.not_agent_operable is False
-    assert svc.learning.agent_operable_subjects == ("canary",)
+    assert svc.learning.agent_operable_subjects == ("canary", "placement")
 
     # the CANARY's bar — the detail of its API + UI
     bar = svc.capabilities[0].learning
