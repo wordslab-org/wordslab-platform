@@ -24,10 +24,14 @@ directory):
     implementation  docs/<level>.md      (the implementation's own dir)
                     skills/<slug>/SKILL.md
 
-**No skill in the expected directory means not-agent-operable** — the
-convention, not a declaration. Absence is honest (a fake skill is
-theater); the subject simply records no skill and `not_agent_operable`
-reads True.
+**No skill in the expected directory** is the convention's honest record —
+but what it MEANS differs by level, deliberately:
+a **capability** without a skill is not-agent-operable (no deterministic
+surface to drive); a **service** without one has no skill *above* its
+capabilities and stays agent-operable if any capability is (the
+service-level skill covers only what no single capability does); an
+**implementation** without one adds nothing specific on top of the
+capability's skill — nothing is missing.
 
 Every artifact FOUND must exist and parse: structured Markdown with the
 canonical front-matter (title, keywords — the doc is indexed for agents
@@ -101,20 +105,50 @@ class LearningBar:
     `docs` holds the graded docs that were FOUND (one per level at most);
     `gaps` names the artifacts still missing (the bar is mandatory to
     publish, not to boot). `skill` is None when no
-    `skills/<slug>/SKILL.md` exists — by convention that IS the
-    not-agent-operable case.
+    `skills/<slug>/SKILL.md` exists — and what that MEANS depends on the
+    subject's level, which is exactly the difference between the three:
+
+    - a **service** with no skill is not agent-operable **as a whole** — but
+      it stays agent-operable where its capabilities are: the service-level
+      skill only carries what no single capability covers, so its absence
+      means "no skill above the capabilities", not "no agent surface at
+      all". `agent_operable_subjects` holds the capabilities that are;
+    - a **capability** with no skill is genuinely **not agent-operable** —
+      there is no deterministic surface to drive;
+    - an **implementation** with no skill adds **nothing specific** on top
+      of the capability's skill — the capability's instructions cover it.
     """
 
     subject: str
+    kind: str = "capability"
     docs: tuple[BarDoc, ...] = ()
     skill: SkillDoc | None = None
     gaps: tuple[str, ...] = ()
+    agent_operable_subjects: tuple[str, ...] = ()
+
+    @property
+    def agent_operable(self) -> bool:
+        """An agent surface exists: an own skill, or (for a service) at
+        least one agent-operable capability beneath it."""
+        return self.skill is not None or bool(self.agent_operable_subjects)
 
     @property
     def not_agent_operable(self) -> bool:
-        """No skill in the expected directory — the convention's honest
-        "an agent has no deterministic surface to drive this"."""
-        return self.skill is None
+        """The subject genuinely has no agent surface.
+
+        Only ever True for a **capability** (no deterministic surface to
+        drive) or for a **service** whose capabilities are all
+        not-agent-operable and which ships no service-level skill. For an
+        implementation it is always False: the capability's skill covers it,
+        so nothing is missing.
+        """
+        if self.skill is not None:
+            return False
+        if self.kind == "capability":
+            return True
+        if self.kind == "service":
+            return not self.agent_operable_subjects
+        return False  # implementation — additive, never a gap in the surface
 
     def level(self, level: str) -> BarDoc | None:
         """The doc discovered at `level`, or None (a gap)."""
@@ -126,14 +160,16 @@ class LearningBar:
 
 def discover_learning_bar(
     root: Path, *, docs_rel: Path, skills_rel: Path, subject: str,
-    where: str, err,
+    kind: str, where: str, err,
 ) -> LearningBar:
     """Derive one subject's bar from the layout and audit every artifact
     found (ADR-0024 §1 — the layout declares, the load audits).
 
     `root` is the declaring directory (the service's or implementation's own
     directory); `docs_rel` / `skills_rel` are the subject's conventional
-    subtrees relative to it.
+    subtrees relative to it; `kind` is `service` | `capability` |
+    `implementation` (it decides what a MISSING skill means — see
+    `LearningBar`).
     """
     root = Path(root)
     docs: list[BarDoc] = []
@@ -155,7 +191,8 @@ def discover_learning_bar(
         gaps.append(f"skill: {skills_rel}/<name>/{SKILL_FILE}")
 
     return LearningBar(
-        subject=subject, docs=tuple(docs), skill=skill, gaps=tuple(gaps)
+        subject=subject, kind=kind, docs=tuple(docs), skill=skill,
+        gaps=tuple(gaps),
     )
 
 

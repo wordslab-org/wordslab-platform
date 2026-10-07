@@ -208,14 +208,63 @@ def test_a_subject_with_no_bar_loads_with_gaps(tmp_path):
 
 def test_no_skill_directory_is_the_not_agent_operable_case(tmp_path):
     """By convention: no skill in the expected directory IS the
-    not-agent-operable case — no declaration, no fake skill (no theater)."""
+    not-agent-operable case for a CAPABILITY — no declaration, no fake skill
+    (no theater)."""
     path = write_service_root(tmp_path, skill_md=None)
     svc = load_service_toml(path)
     bar = svc.capabilities[0].learning
     assert bar.skill is None
+    assert bar.kind == "capability"
     assert bar.not_agent_operable is True
+    assert bar.agent_operable is False
     assert len(bar.docs) == 4  # the docs are still discovered + audited
     assert any(g.startswith("skill:") for g in bar.gaps)
+
+
+def test_the_three_levels_read_a_missing_skill_differently(tmp_path):
+    """The SAME absence means three different things (ADR-0024 §1):
+
+    - service, no service-level skill but an agent-operable capability →
+      still agent-operable overall (the capability's skill covers it);
+    - capability, no skill → genuinely not agent-operable;
+    - implementation, no skill → nothing specific in addition; never a gap
+      in the surface (False).
+    """
+    # (a) capability skill present → the service is agent-operable overall
+    path = write_service_root(tmp_path)
+    svc = load_service_toml(path)
+    assert svc.learning.skill is None  # no service-level skill shipped
+    assert svc.learning.kind == "service"
+    assert svc.learning.agent_operable_subjects == ("canary",)
+    assert svc.learning.agent_operable is True
+    assert svc.learning.not_agent_operable is False
+
+
+def test_a_service_with_no_agent_operable_capability_is_not_agent_operable(tmp_path):
+    """A service shipping no service-level skill AND whose capabilities are
+    all not-agent-operable is not agent-operable as a whole."""
+    path = write_service_root(tmp_path, skill_md=None)
+    svc = load_service_toml(path)
+    assert svc.learning.agent_operable_subjects == ()
+    assert svc.learning.agent_operable is False
+    assert svc.learning.not_agent_operable is True
+
+
+def test_a_service_level_skill_makes_the_service_agent_operable_on_its_own(tmp_path):
+    """The service-level skill carries what no single capability covers — a
+    service with one is agent-operable even with no agent-operable
+    capability beneath it."""
+    path = write_service_root(tmp_path, skill_md=None)
+    for level in DOC_LEVELS:
+        write(tmp_path, f"docs/service/{level}.md",
+              bar_doc_md(level, title="The service"))
+    write(tmp_path, "skills/service/drive-svc/SKILL.md",
+          SKILL_MD.replace("drive-canary", "drive-svc"))
+    svc = load_service_toml(path)
+    assert svc.learning.skill.name == "drive-svc"
+    assert svc.learning.agent_operable is True
+    assert svc.learning.not_agent_operable is False
+    assert svc.capabilities[0].learning.not_agent_operable is True  # it still is
 
 
 # ------------------------------------------------------------ implementation
@@ -300,12 +349,17 @@ def test_the_implementation_bar_is_discovered_by_layout(tmp_path):
     assert impl.requirements.disk_gb == pytest.approx(0.2 + 2.5)
 
 
-def test_an_implementation_with_no_skill_is_not_agent_operable(tmp_path):
+def test_an_implementation_with_no_skill_adds_nothing_specific(tmp_path):
+    """An implementation is ADDITIVE: no skill means nothing specific on top
+    of the capability's skill — never a gap in the agent surface, so
+    `not_agent_operable` is False (unlike a capability's)."""
     root = tmp_path / "qwen3-4b"
     root.mkdir()
     impl = load_implementation_toml(write_impl_root(root, skill_md=None))
+    assert impl.learning.kind == "implementation"
     assert impl.learning.skill is None
-    assert impl.learning.not_agent_operable is True
+    assert impl.learning.agent_operable is False  # no own skill…
+    assert impl.learning.not_agent_operable is False  # …but nothing missing
     assert len(impl.learning.docs) == 4
 
 

@@ -294,6 +294,7 @@ def _parse_learning(root: Path, subject: str) -> LearningBar:
         docs_rel=Path("docs"),
         skills_rel=Path("skills"),
         subject=subject,
+        kind="implementation",
         where=f"`[{subject}]`",
         err=ImplementationDeclarationError,
     )

@@ -64,10 +64,21 @@ meet inside the service repo.
    registry slug** (the authored entry is `<service>.skill.<slug>`,
    ADR-0008) and its front-matter carries `name` + a one-line `description`
    (the prompt-facing summary the registry loads it by — extra
-   front-matter keys are the registry's metadata and are allowed).
-   **No skill directory under a subject's skills subtree IS the
-   not-agent-operable case** — the convention, no declaration, no fake
-   skill (no theater). Ship exactly one skill per subject.
+   front-matter keys are the registry's metadata and are allowed). Ship at
+   most one skill per subject.
+
+   **A missing skill means something different at each level** — keep the
+   three straight:
+   - **capability, no skill** → genuinely **not agent-operable**; there is
+     no deterministic surface to drive it (no declaration, no fake skill —
+     no theater);
+   - **service, no skill** → no skill *above* the capabilities. The
+     service-level skill exists only for what no single capability covers,
+     so the service stays agent-operable if any of its capabilities is; it
+     is not agent-operable as a whole only when every capability is too;
+   - **implementation, no skill** → **nothing specific on top of** the
+     capability's skill; the capability's instructions cover it, so nothing
+     is missing (never a gap in the surface).
 
    Every artifact FOUND must parse (a malformed one fails the load); a
    missing one is a **gap**, not an error — the bar is **mandatory to
@@ -110,12 +121,14 @@ meet inside the service repo.
 
    **The implementation's own learning/operability bar** (ADR-0024 §1;
    ADR-0031 §3 as amended): same layout convention, no `[learning]` table —
-   the implementation's own directory holds `docs/<level>.md` (the three
-   graded depths; the filename IS the level) and, for the
-   how-an-agent-drives-me skill, `skills/<slug>/SKILL.md` (the directory
-   name IS the registry slug, the front-matter carries `name` + a one-line
-   `description`). **No `skills/<slug>/` directory IS the not-agent-operable
-   case.** Found artifacts are audited at load, missing ones are gaps.
+   the implementation's own directory holds `docs/<level>.md` (the graded
+   depths; the filename IS the level) and, for the how-an-agent-drives-me
+   skill, `skills/<slug>/SKILL.md` (the directory name IS the registry slug,
+   the front-matter carries `name` + a one-line `description`). The
+   implementation's skill is **additive**: with no `skills/<slug>/` directory
+   it simply adds nothing specific on top of the capability's skill (the
+   capability's instructions cover it) — unlike a capability, nothing is
+   missing. Found artifacts are audited at load, missing ones are gaps.
 
    The implementation-specific install function receives the **typed
    `Implementation` object** (the loader's parse result) as its

@@ -107,13 +107,20 @@ def test_the_service_template_bar_is_discovered_by_layout():
     svc = load_service_toml(SERVICE_TEMPLATE / "service.toml")
     # the SERVICE's own bar — its capabilities overview + UI docs
     assert svc.learning.subject == svc.name
+    assert svc.learning.kind == "service"
     assert [d.level for d in svc.learning.docs] == list(DOC_LEVELS)
     assert svc.learning.skill.name == "drive-svc"
     assert svc.learning.gaps == ()
+    # the shipped service-level skill covers what no capability does; the
+    # service is agent-operable, and the canary is agent-operable itself
+    assert svc.learning.agent_operable is True
+    assert svc.learning.not_agent_operable is False
+    assert svc.learning.agent_operable_subjects == ("canary",)
 
     # the CANARY's bar — the detail of its API + UI
     bar = svc.capabilities[0].learning
     assert bar.subject == "canary"
+    assert bar.kind == "capability"
     assert [d.level for d in bar.docs] == list(DOC_LEVELS)
     for doc in bar.docs:
         assert doc.title
@@ -153,6 +160,7 @@ def test_the_implementation_template_bar_is_discovered_by_layout():
     )
     bar = impl.learning  # the loader validated every artifact
     assert bar.subject == "qwen3-4b"
+    assert bar.kind == "implementation"
     assert [d.level for d in bar.docs] == list(DOC_LEVELS)
     for doc in bar.docs:
         assert doc.sections == CANONICAL_SECTIONS

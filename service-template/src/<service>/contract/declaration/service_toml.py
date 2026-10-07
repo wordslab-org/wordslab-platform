@@ -46,6 +46,7 @@ mandatory to publish (ADR-0018's tiers), not to boot.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import tomllib
@@ -219,8 +220,20 @@ def load_service_toml(path: str | Path) -> Service:
         docs_rel=Path("docs") / "service",
         skills_rel=Path("skills") / "service",
         subject=name,
+        kind="service",
         where=f"`[{name}]`",
         err=ServiceDeclarationError,
+    )
+    # the service-level skill carries what no single capability covers; its
+    # ABSENCE only means "no skill above the capabilities", so the service's
+    # agent surface is what its capabilities provide (ADR-0024 §1).
+    service_learning = replace(
+        service_learning,
+        agent_operable_subjects=tuple(
+            cap.name
+            for cap in capabilities
+            if cap.learning.agent_operable
+        ),
     )
     _reject_duplicate_skill_names(
         service_learning,
@@ -447,6 +460,7 @@ def _parse_capability_section(
         docs_rel=Path("docs") / "capabilities" / cap_name,
         skills_rel=Path("skills") / "capabilities" / cap_name,
         subject=cap_name,
+        kind="capability",
         where=f"`[{section}]`",
         err=ServiceDeclarationError,
     )
