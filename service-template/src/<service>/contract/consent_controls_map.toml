@@ -49,7 +49,11 @@ adr = "ADR-0026 §6 (the assistant's acting identity — enforced at the callabl
 # as given (the three-identities attribution model, ADR-0021; the
 # assistant's role-scoping, ADR-0024 §2; the eval/training consumers,
 # ADR-0020 §5 / ADR-0025 §5). They are cross-referenced, not placed: a
-# control in this map is one ADR-0026 itself decides.
+# control in this map is one ADR-0026 itself decides. Also NOT placed:
+# §1's remembered-default preference and revoke-and-delete surfaces —
+# AC1's named set is the closed list this ticket pins, and those two
+# surfaces belong to the consent lanes (#286+), which add them to the
+# map as their own entries (citing §1) when they land.
 
 # --- §1 Consent capture -----------------------------------------------------
 
