@@ -104,7 +104,7 @@ class _RecordingStub(StubCollaborator):
             raise invalid_request("Expected a JSON object request body.")
         return JSONResponse(self._answer(payload))
 
-    def _answer(self, payload: object) -> dict:
+    def _answer(self, payload: dict) -> dict:
         raise NotImplementedError  # each surface answers at its own contract
 
 
@@ -145,9 +145,8 @@ class StubAgentHarness(_RecordingStub):
         self._verdict = _validated_verdict(verdict)
         self.body = {"verdict": self._verdict, "surface": "stub-agent-harness"}
 
-    def _answer(self, payload: object) -> dict:
-        tool = payload.get("tool") if isinstance(payload, dict) else None
-        return {"tool": tool, "verdict": self._verdict}
+    def _answer(self, payload: dict) -> dict:
+        return {"tool": payload.get("tool"), "verdict": self._verdict}
 
 
 class StubSharedMount(_RecordingStub):
@@ -170,8 +169,8 @@ class StubSharedMount(_RecordingStub):
         super().__init__(path=path, methods=("POST",), body={"surface": "stub-shared-mount"})
         self.shared = tuple(shared)
 
-    def _answer(self, payload: object) -> dict:
-        target = payload.get("path") if isinstance(payload, dict) else None
+    def _answer(self, payload: dict) -> dict:
+        target = payload.get("path")
         if target is not None and any(
             target == root or target.startswith(root.rstrip("/") + "/")
             for root in self.shared
@@ -209,8 +208,8 @@ class StubLan(_RecordingStub):
         super().__init__(path=path, methods=("POST",), body={"surface": "stub-lan"})
         self.in_scope = tuple(in_scope)
 
-    def _answer(self, payload: object) -> dict:
-        address = payload.get("address") if isinstance(payload, dict) else None
+    def _answer(self, payload: dict) -> dict:
+        address = payload.get("address")
         if address in self.in_scope:
             answer: dict[str, Any] = {
                 "access": "allowed",

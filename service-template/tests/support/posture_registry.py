@@ -238,9 +238,14 @@ def _validated_stance(stance: str, where: str) -> str:
 
 
 def _require_str(table: dict, key: str, where: str) -> str:
-    value = table.get(key)
+    return _require_non_empty_str(table.get(key), f"{where}.{key}")
+
+
+def _require_non_empty_str(value: object, where: str) -> str:
+    """The non-empty-string rule, stated ONCE — the loader's parse and the
+    record surface reject the same way."""
     if not isinstance(value, str) or not value.strip():
-        raise PostureRegistryError(f"`{where}.{key}` must be a non-empty string")
+        raise PostureRegistryError(f"`{where}` must be a non-empty string")
     return value
 
 
@@ -263,11 +268,8 @@ def record_stance(
     — the round-trip is the contract (AC 3), not an in-memory echo.
     """
     _validated_stance(stance, "record_stance")
-    for name, value in (("control", control), ("lane", lane)):
-        if not isinstance(value, str) or not value.strip():
-            raise PostureRegistryError(
-                f"record_stance: `{name}` must be a non-empty string"
-            )
+    _require_non_empty_str(control, "record_stance.control")
+    _require_non_empty_str(lane, "record_stance.lane")
     controls_map = load_security_controls_map(map_path)
     if control not in {c.id for c in controls_map.controls}:
         raise PostureRegistryError(
