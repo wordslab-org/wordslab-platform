@@ -37,9 +37,10 @@ agent harness (ADR-0026 §6 bounds it; a different thing).
 ## The three homes
 
 - **template** — the copied service's own contract: the per-input consent
-  flag and the never-bypassable exclusion (`contract/base/consent.py`,
-  shipped by #72), the per-service dataset-extraction surface, and the
-  declared trace data-shape (ADR-0026 §1/§2, sharpening ADR-0002).
+  flag, the remembered default and revoke-and-delete surfaces, and the
+  never-bypassable exclusion (`contract/base/consent.py`, shipped by #72),
+  the per-service dataset-extraction surface, and the declared trace
+  data-shape (ADR-0026 §1/§2, sharpening ADR-0002).
 - **core** — the core's `datasets` capability (ADR-0003; #62/#111, not yet
   built — the checker stands up a stub surface and records the registry
   name `core.datasets` as data): the consent-gate filter at the boundary,

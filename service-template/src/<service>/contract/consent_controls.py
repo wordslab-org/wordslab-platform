@@ -60,9 +60,10 @@ flags the drift). Shape errors are load errors; placement drift is a reported
 finding. A *typo'd* home (a value outside `HOMES`) is neither: it is a
 shape error, because the map would otherwise place the control nowhere
 without saying so. (Two *distinct* controls sharing one home is not drift
-at all — the template legitimately carries the flag, the exclusion, the
-extraction surface and the data-shape declaration; the checker checks a
-control's *identity*, and the home's required pair.)
+at all — the template legitimately carries the flag, the remembered
+default, revoke-and-delete, the exclusion, the extraction surface and the
+data-shape declaration; the checker checks a control's *identity*, and the
+home's required pair.)
 
 ## What this map deliberately does not carry
 

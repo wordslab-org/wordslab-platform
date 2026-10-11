@@ -63,7 +63,7 @@ seam = "the per-input consent flag on every user input surface (`contract/base/c
 id = "remembered-consent-default"
 adr = "ADR-0026 §1 (a remembered default is an explicit user-written rule per surface/input-type, always visible and overridable — never a silent heuristic)"
 home = "template"
-seam = "the consent-resolution rule beside the flag (`input_consent`, #72); the user-written preference surface is built by the consent lanes (#286+)"
+seam = "the user-written preference surface (built by the consent lanes, #286+); the static ADR default beside the flag (`input_consent`, #72) belongs to the consent-flag control"
 
 [[controls]]
 id = "revoke-and-delete"

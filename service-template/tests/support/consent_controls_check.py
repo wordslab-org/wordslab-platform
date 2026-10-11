@@ -18,9 +18,10 @@ the placement invariants against the map:
 2. **every control has a home** — a control the model names but never places
    is homeless;
 3. **no control is re-implemented in two places** — a control id landed in
-   two places. (A home legitimately hosts several DISTINCT controls — the
-   template carries the flag, the exclusion, the extraction surface and the
-   data-shape declaration — so the invariant is about a control's identity,
+   places. (A home legitimately hosts several DISTINCT controls — the
+   template carries the flag, the remembered default, revoke-and-delete, the
+   exclusion, the extraction surface and the data-shape declaration — so the
+   invariant is about a control's identity,
    never a count of controls per home.)
 4. every home a control names has a stub owning-home surface;
 5. **every consent-bearing home carries the required pair** — the consent
@@ -213,10 +214,11 @@ def compliance_findings(
             )
 
     # (3) no control is re-implemented in two places — the SAME control
-    # landed twice (a duplicated id, whatever the homes): the model names one
-    # control and places it twice. Two DISTINCT controls sharing one home is
-    # legal (the template carries the flag, the exclusion, the extraction
-    # surface and the data-shape declaration).
+    # landed twice (a duplicated id, whatever the homes): the model names
+    # one control and places it twice. Two DISTINCT controls sharing one
+    # home is legal (the template carries six distinct controls — flag,
+    # remembered default, revoke-and-delete, exclusion, extraction
+    # surface, data-shape declaration).
     for control_id, homes in sorted(census.items()):
         if len(homes) > 1:
             findings.append(
