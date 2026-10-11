@@ -49,11 +49,7 @@ adr = "ADR-0026 §6 (the assistant's acting identity — enforced at the callabl
 # as given (the three-identities attribution model, ADR-0021; the
 # assistant's role-scoping, ADR-0024 §2; the eval/training consumers,
 # ADR-0020 §5 / ADR-0025 §5). They are cross-referenced, not placed: a
-# control in this map is one ADR-0026 itself decides. Also NOT placed:
-# §1's remembered-default preference and revoke-and-delete surfaces —
-# AC1's named set is the closed list this ticket pins, and those two
-# surfaces belong to the consent lanes (#286+), which add them to the
-# map as their own entries (citing §1) when they land.
+# control in this map is one ADR-0026 itself decides.
 
 # --- §1 Consent capture -----------------------------------------------------
 
@@ -62,6 +58,18 @@ id = "consent-flag"
 adr = "ADR-0026 §1 (per-interaction consent, default \"may use for improvement\", the visible private/secret toggle)"
 home = "template"
 seam = "the per-input consent flag on every user input surface (`contract/base/consent.py`, shipped by #72)"
+
+[[controls]]
+id = "remembered-consent-default"
+adr = "ADR-0026 §1 (a remembered default is an explicit user-written rule per surface/input-type, always visible and overridable — never a silent heuristic)"
+home = "template"
+seam = "the consent-resolution rule beside the flag (`input_consent`, #72); the user-written preference surface is built by the consent lanes (#286+)"
+
+[[controls]]
+id = "revoke-and-delete"
+adr = "ADR-0026 §1 (withdrawal bars past data from future extraction; the story satisfies GDPR's review/delete obligations)"
+home = "template"
+seam = "the per-user input history's review/withdraw/delete surface (built by the consent lanes, #286+)"
 
 # --- §2 The mediated boundary — the two passes, split ownership -------------
 

@@ -65,9 +65,11 @@ agent harness (ADR-0026 §6 bounds it; a different thing).
 The checker asserts *that* each control is placed, never *how* it behaves —
 the consent flag/gate behavior is #72's (tested in `test_consent.py`), the
 core `datasets` machinery is #62/#111's, the sphere gate and container are
-#48's, and the consent lanes own the remembered-default and
-revoke-and-delete surfaces. Each mechanism is tested once, in its owning
-lane (the #66-style no-double-testing rule).
+#48's. The remembered-default and revoke-and-delete controls are PLACED
+in the map (the map is the complete ADR-0026 §1 index from day one —
+maintainer ruling on #285), but their surfaces are BUILT by the consent
+lanes, which test the mechanism once in their own lane (the #66-style
+no-double-testing rule).
 
 ## See also
 

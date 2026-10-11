@@ -70,8 +70,12 @@ def test_the_shipped_map_is_the_consent_model_as_data():
     assert controls_map.homes_used == ("chat-and-agents", "core", "template")
     assert controls_map.cited_sections == ("1", "2", "3", "6")
     assert {c.id for c in controls_map.controls} == {
-        # AC 1's named set, each pinned to its home
+        # AC 1's named set plus §1's remembered-default and revoke-and-delete
+        # (Laurent's ruling on #285: the map is the complete §1 index from
+        # day one), each pinned to its home
         "consent-flag",
+        "remembered-consent-default",
+        "revoke-and-delete",
         "private-secret-exclusion",
         "dataset-extraction-surface",
         "trace-data-shape-declaration",
@@ -84,6 +88,8 @@ def test_the_shipped_map_is_the_consent_model_as_data():
     }
     homes = {c.id: c.home for c in controls_map.controls}
     assert homes["consent-flag"] == "template"
+    assert homes["remembered-consent-default"] == "template"
+    assert homes["revoke-and-delete"] == "template"
     assert homes["private-secret-exclusion"] == "template"
     assert homes["dataset-extraction-surface"] == "template"
     assert homes["trace-data-shape-declaration"] == "template"

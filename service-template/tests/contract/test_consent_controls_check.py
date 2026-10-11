@@ -147,10 +147,10 @@ def test_two_distinct_controls_sharing_one_home_is_legal():
     """The template legitimately hosts several DISTINCT controls (flag,
     exclusion, extraction surface, data-shape declaration) — the invariant
     checks a control's identity, never a count per home. The shipped map
-    proves it: four controls homed `template`, still green."""
+    proves it: six controls homed `template`, still green."""
     controls_map = load_consent_controls_map(DEFAULT_MAP_PATH)
     template_controls = [c.id for c in controls_map.controls if c.home == "template"]
-    assert len(template_controls) == 4, template_controls
+    assert len(template_controls) == 6, template_controls
     report = check_consent_controls(DEFAULT_MAP_PATH)
     assert report.green is True, report.findings
 
@@ -247,7 +247,7 @@ def test_the_checker_is_consumable_by_the_sweeper():
     assert report.path.name == "consent_controls_map.toml"
     assert report.green is True, report.findings
     lines = report.render().splitlines()
-    assert lines == ["consent placement green: 4 sections, 10 controls, 3 homes"]
+    assert lines == ["consent placement green: 4 sections, 12 controls, 3 homes"]
     assert not any(line.startswith("  - ") for line in lines)
 
 
