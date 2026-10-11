@@ -428,8 +428,10 @@ def compliance_findings(
             # malformed full unit was already flagged by _unit_violations, so
             # skip this sub-probe rather than crash on it.
             items = full.get("items", [])
-            half = len(items) // 2
-            seqs_ok = all(isinstance(i.get("seq"), int) for i in items)
+            half = len(items) // 2 if isinstance(items, list) else 0
+            seqs_ok = isinstance(items, list) and all(
+                isinstance(i, dict) and isinstance(i.get("seq"), int) for i in items
+            )
             if seqs_ok:
                 # a true midpoint when there is one, else seq 0 (before the
                 # first record) — either way the delta is NON-EMPTY.

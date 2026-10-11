@@ -221,18 +221,16 @@ def export_restore_routes(store, *, service_name: str, version: str) -> list[Rou
         since: int | None = None
         raw_since = params.get("since")
         if raw_since is not None:
+            message = (
+                f"Invalid `since` {raw_since!r}: a non-negative integer "
+                "seq (ADR-0021 §5)."
+            )
             try:
                 since = int(raw_since)
             except ValueError:
-                raise invalid_request(
-                    f"Invalid `since` {raw_since!r}: a non-negative integer "
-                    "seq (ADR-0021 §5)."
-                ) from None
+                raise invalid_request(message) from None
             if since < 0:
-                raise invalid_request(
-                    f"Invalid `since` {raw_since!r}: a non-negative integer "
-                    "seq (ADR-0021 §5)."
-                )
+                raise invalid_request(message)
         kind = KIND_DELTA if since is not None else KIND_FULL
         items = store.records(owner, role, after_seq=since or 0)
         through = store.high_water(owner, role)
