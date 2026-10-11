@@ -46,7 +46,13 @@ def test_openapi_doc_carries_the_canary_operations():
     with svc.authorized() as c:
         doc = c.get("/openapi.json").json()
     paths = doc["paths"]
-    assert set(paths) == {"/v1/echo", "/v1/echo/extract", "/v1/echo/ping"}
+    assert set(paths) == {
+        "/v1/echo",
+        "/v1/echo/extract",
+        "/v1/echo/ping",
+        "/v1/export",
+        "/v1/restore",
+    }
     post = paths["/v1/echo"]["post"]
     get = paths["/v1/echo/ping"]["get"]
     assert post["operationId"] == "echo"

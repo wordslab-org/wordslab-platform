@@ -66,6 +66,26 @@ openapi_fragment = {
                                             "extraction) or 'private_secret' — do not use."
                                         ),
                                     },
+                                    "owner": {
+                                        "type": "string",
+                                        "default": "local",
+                                        "description": (
+                                            "The identity the interaction belongs to (ADR-0021 §1). "
+                                            "Absent: the machine's local user identity — the "
+                                            "attribution the per-user export/restore contract "
+                                            "extracts on (ticket #269)."
+                                        ),
+                                    },
+                                    "role": {
+                                        "type": "string",
+                                        "enum": ["user", "builder", "admin"],
+                                        "default": "user",
+                                        "description": (
+                                            "The data sphere the interaction belongs to "
+                                            "(ADR-0021 §1 — the three identities of a physical "
+                                            "user)."
+                                        ),
+                                    },
                                 },
                                 "additionalProperties": True,
                             }
@@ -138,9 +158,11 @@ openapi_fragment = {
                                             "type": "array",
                                             "items": {
                                                 "type": "object",
-                                                "required": ["seq", "text", "consent"],
+                                                "required": ["seq", "owner", "role", "text", "consent"],
                                                 "properties": {
                                                     "seq": {"type": "integer"},
+                                                    "owner": {"type": "string"},
+                                                    "role": {"type": "string", "enum": ["user", "builder", "admin"]},
                                                     "text": {"type": "string"},
                                                     "consent": {
                                                         "type": "string",
@@ -192,5 +214,148 @@ openapi_fragment = {
                 },
             }
         },
-    }
+        # --- The per-user export/restore surface (ticket #269, ADR-0021
+        # --- §3/§5/§7) — the base contract module's routes
+        # --- (`contract/base/export_restore.py`), demonstrated on the
+        # --- canary's interaction record. The core's `backup` capability
+        # --- (ADR-0021 §8, `core.backup` — recorded as data, not built)
+        # --- calls this shape at the end.
+        "/v1/export": {
+            "get": {
+                "operationId": "export",
+                "summary": "Export one user+role's data as a self-contained unit.",
+                "description": (
+                    "The per-user export surface (ADR-0021 §3): `owner` + `role` are "
+                    "REQUIRED — a whole-DB export (no user+role context) is the shape "
+                    "ADR-0021 §3 forbids. `since` selects a true-incremental delta "
+                    "(records with seq > since); absent selects a full export. The unit "
+                    "is deliberately NOT item-5 paginated: a paginated export is not a "
+                    "self-contained unit."
+                ),
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string"},
+                        "description": "The identity whose data is exported (ADR-0021 §1).",
+                    },
+                    {
+                        "name": "role",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "enum": ["user", "builder", "admin"]},
+                        "description": "The data sphere (ADR-0021 §1 — the three identities).",
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "schema": {"type": "integer", "minimum": 0},
+                        "description": "Export only records with seq > since — a true-incremental delta (ADR-0021 §5).",
+                    },
+                ],
+                "responses": {
+                    "200": {
+                        "description": "One self-contained export unit (ADR-0021 §3).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["service", "version", "owner", "role", "kind", "since", "through", "items"],
+                                    "properties": {
+                                        "service": {"type": "string", "description": "The service identity the unit was exported from (ADR-0021 §7)."},
+                                        "version": {"type": "string"},
+                                        "owner": {"type": "string"},
+                                        "role": {"type": "string", "enum": ["user", "builder", "admin"]},
+                                        "kind": {"type": "string", "enum": ["full", "delta"]},
+                                        "since": {
+                                            "type": ["integer", "null"],
+                                            "description": "null for a full export; the seq a delta chains from (ADR-0021 §5).",
+                                        },
+                                        "through": {"type": "integer", "description": "The highest seq this service holds for the user+role."},
+                                        "items": {"type": "array", "items": {"type": "object"}},
+                                    },
+                                }
+                            }
+                        },
+                    },
+                    "400": {
+                        "description": "Missing/empty owner, unknown role, or non-integer since.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer key.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                },
+            }
+        },
+        "/v1/restore": {
+            "post": {
+                "operationId": "restore",
+                "summary": "Apply one export unit to this service.",
+                "description": (
+                    "The restore surface (ADR-0021 §3/§5/§7): a full unit replaces the "
+                    "user+role's records; a delta must chain onto the current high-water "
+                    "seq (else 409 conflict). The unit's service identity is verified "
+                    "against this service before apply — the restore target must provide "
+                    "the same service (ADR-0021 §7)."
+                ),
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["service", "version", "owner", "role", "kind", "since", "through", "items"],
+                                "properties": {
+                                    "service": {"type": "string"},
+                                    "version": {"type": "string"},
+                                    "owner": {"type": "string"},
+                                    "role": {"type": "string", "enum": ["user", "builder", "admin"]},
+                                    "kind": {"type": "string", "enum": ["full", "delta"]},
+                                    "since": {"type": ["integer", "null"]},
+                                    "through": {"type": "integer"},
+                                    "items": {"type": "array", "items": {"type": "object"}},
+                                },
+                                "additionalProperties": False,
+                            }
+                        }
+                    },
+                },
+                "responses": {
+                    "200": {
+                        "description": "The unit was applied.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["restored", "owner", "role", "kind", "items"],
+                                    "properties": {
+                                        "restored": {"type": "boolean", "const": True},
+                                        "owner": {"type": "string"},
+                                        "role": {"type": "string"},
+                                        "kind": {"type": "string", "enum": ["full", "delta"]},
+                                        "items": {"type": "integer", "description": "The number of records applied."},
+                                    },
+                                }
+                            }
+                        },
+                    },
+                    "400": {
+                        "description": "The body is not a valid export unit (closed shape — unknown/missing keys, bad vocabulary).",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                    "401": {
+                        "description": "Missing or invalid Bearer key.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                    "409": {
+                        "description": "The unit's service identity does not match, or a delta does not chain onto the current seq.",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/error"}}},
+                    },
+                },
+            }
+        },
+    },
 }

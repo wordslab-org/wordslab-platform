@@ -49,7 +49,13 @@ def test_an_input_without_the_flag_defaults_to_may_use():
         r = c.get("/v1/echo/extract")
     assert r.status_code == 200
     assert r.json()["items"] == [
-        {"seq": 1, "text": "defaulted", "consent": DEFAULT_CONSENT}
+        {
+            "seq": 1,
+            "owner": "local",
+            "role": "user",
+            "text": "defaulted",
+            "consent": DEFAULT_CONSENT,
+        }
     ]
 
 
@@ -76,10 +82,10 @@ def test_an_explicit_consent_null_is_rejected_not_normalized():
 
 
 def test_an_input_without_a_text_string_is_rejected_loudly():
-    """The canary's interaction record is `{seq, text, consent}` — an input
-    without a string `text` has no interaction content to record, so it is
-    a client error (400 `invalid_request`), not a silently degraded record
-    (review finding)."""
+    """The canary's interaction record is `{seq, owner, role, text, consent}`
+    — an input without a string `text` has no interaction content to record,
+    so it is a client error (400 `invalid_request`), not a silently degraded
+    record (review finding)."""
     svc = make_service()
     with svc.authorized() as c:
         r = c.post("/v1/echo", json={"foo": 1})

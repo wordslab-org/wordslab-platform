@@ -5,8 +5,11 @@ contract mandates (ADR-0001 item 9, ADR-0002 §3/§4):
 
 - **deterministic**: `POST /v1/echo` (returns the request body), `GET
   /v1/echo/extract` (the recorded interactions through the consent gate —
-  the consent-flag template contract, ticket #72) and `GET /v1/echo/ping`
-  (returns pong) — routes in `routes.py`, OpenAPI fragment in `api.py`;
+  the consent-flag template contract, ticket #72), `GET /v1/echo/ping`
+  (returns pong), and the per-user export/restore pair `GET /v1/export` +
+  `POST /v1/restore` (the export/restore template contract, ticket #269,
+  ADR-0021 §3 — the base module's routes wired against the canary's store)
+  — routes in `routes.py`, OpenAPI fragment in `api.py`;
 - **agent**: its tools are auto-generated from the OpenAPI fragment by the
   base machinery (`contract/base/mcp.py`) — the canary ships no MCP code;
 - **human**: the Echo page (`page.py`) at `/echo` — FastHTML + vendored

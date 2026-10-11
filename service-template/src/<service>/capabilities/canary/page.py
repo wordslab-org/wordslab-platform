@@ -25,6 +25,7 @@ from fasthtml.common import (
     Div,
     Form,
     H1,
+    H3,
     Head,
     Html,
     Input,
@@ -59,6 +60,42 @@ _ECHO_FORM_ALPINE = (
     "this.result = await r.json();"
     "} catch (e) { this.error = e; }"
     "finally { this.busy = false; }"
+    "}}"
+)
+
+# The backup trigger rides the same surface the orchestration calls
+# (ADR-0021 §9, ticket #269): "back up my data now" exports the CURRENT
+# user's data as one self-contained unit (GET /v1/export) and downloads it;
+# "restore" applies a saved unit back (POST /v1/restore). Near-free given
+# the design — the same capability the core's backup orchestration drives.
+_BACKUP_ALPINE = (
+    "{backupBusy: false, backupNote: '', "
+    "async backupNow() {"
+    "this.backupBusy = true; this.backupNote = '';"
+    "try {"
+    "const r = await fetch('/v1/export?owner=local&role=user');"
+    "if (!r.ok) { this.backupNote = 'Backup failed: ' + r.status; return; }"
+    "const unit = await r.json();"
+    "const a = document.createElement('a');"
+    "a.href = URL.createObjectURL(new Blob([JSON.stringify(unit, null, 2)], "
+    "{type: 'application/json'}));"
+    "a.download = unit.service + '-' + unit.owner + '-' + unit.role + '.json';"
+    "a.click();"
+    "this.backupNote = 'Exported ' + unit.items.length + ' record(s) as one unit.';"
+    "} catch (e) { this.backupNote = 'Backup failed: ' + e; }"
+    "finally { this.backupBusy = false; }"
+    "}, "
+    "async restoreFile(input) {"
+    "this.backupNote = '';"
+    "try {"
+    "const unit = JSON.parse(await input.files[0].text());"
+    "const r = await fetch('/v1/restore', {method: 'POST',"
+    "headers: {'Content-Type': 'application/json'},"
+    "body: JSON.stringify(unit)});"
+    "const body = await r.json();"
+    "this.backupNote = r.ok ? ('Restored ' + body.items + ' record(s).') "
+    ": ('Restore refused: ' + body.error.message);"
+    "} catch (e) { this.backupNote = 'Restore failed: ' + e; }"
     "}}"
 )
 
@@ -124,6 +161,34 @@ def echo_page(service_name: str, version: str) -> HTMLResponse:
                         cls="echo-error",
                         **{"x-show": "error !== null", "x-text": "error"},
                     ),
+                ),
+                # The backup trigger (ADR-0021 §9, ticket #269): "back up my
+                # data now" + restore, riding the same per-user export/restore
+                # surface the core's backup orchestration drives.
+                Div(
+                    H3("Backup"),
+                    Small(
+                        "Your data, one self-contained unit per user — the same "
+                        "export/restore surface the platform's backup cadence "
+                        "drives (ADR-0021). Export downloads your unit; restore "
+                        "applies a saved unit back.",
+                        cls="muted",
+                    ),
+                    Button("Back up my data now", type="button",
+                           **{"@click": "backupNow()", ":disabled": "backupBusy"}),
+                    Label(
+                        Input(type="file", accept="application/json",
+                              **{"@change": "restoreFile($event.target)"}),
+                        "Restore from a saved unit",
+                        cls="restore-label",
+                    ),
+                    Div(
+                        "",
+                        cls="backup-note",
+                        **{"x-show": "backupNote !== ''", "x-text": "backupNote"},
+                    ),
+                    cls="backup",
+                    **{"x-data": _BACKUP_ALPINE},
                 ),
                 role="main",
             )
