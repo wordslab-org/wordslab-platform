@@ -399,62 +399,77 @@ def compliance_findings(
     if expected:
         owner, role, _ = expected[0]
         full = client.get("/v1/export", params={"owner": owner, "role": role}).json()
-        through = full.get("through")
-        r = client.get("/v1/export", params={"owner": owner, "role": role, "since": through})
         problems: list[str] = []
-        if r.status_code != 200:
+        if not isinstance(full, dict):
+            # never raise: a non-object export body is drift, reported —
+            # mirroring _unit_violations' guard on the unit itself.
             problems.append(
-                f"GET /v1/export?since={through} returned {r.status_code} — the "
-                "true-incremental delta surface is missing (ADR-0021 §5)"
+                f"GET /v1/export returned a non-object JSON body "
+                f"({type(full).__name__}) — not an export unit (ADR-0021 §3)"
             )
         else:
-            delta = r.json()
-            problems += _unit_violations(delta, service=service, owner=owner, role=role)
-            if delta.get("kind") != "delta" or delta.get("since") != through:
-                problems.append(
-                    "the `since` export is not a delta unit chaining from the requested "
-                    f"seq (kind {delta.get('kind')!r}, since {delta.get('since')!r}) "
-                    "— true-incremental semantics (ADR-0021 §5)"
-                )
-            if delta.get("items") != []:
-                problems.append(
-                    "the delta since the high-water seq is not empty — the delta "
-                    "re-captures already-backed-up records (ADR-0021 §5)"
-                )
-            # a NON-EMPTY delta must hold exactly the records above `since`:
-            # the full up to a mid seq plus the delta above it = the full.
-            # The mid is a true midpoint (not the high-water seq, which would
-            # make the delta empty and the probe vacuous). Never raise: a
-            # malformed full unit was already flagged by _unit_violations, so
-            # skip this sub-probe rather than crash on it.
-            items = full.get("items", [])
-            half = len(items) // 2 if isinstance(items, list) else 0
-            seqs_ok = isinstance(items, list) and all(
-                isinstance(i, dict) and isinstance(i.get("seq"), int) for i in items
+            through = full.get("through")
+            r = client.get(
+                "/v1/export", params={"owner": owner, "role": role, "since": through}
             )
-            if seqs_ok:
-                # a true midpoint when there is one, else seq 0 (before the
-                # first record) — either way the delta is NON-EMPTY.
-                mid_seq = items[half - 1]["seq"] if half else 0
-                r_mid = client.get(
-                    "/v1/export", params={"owner": owner, "role": role, "since": mid_seq}
+            if r.status_code != 200:
+                problems.append(
+                    f"GET /v1/export?since={through} returned {r.status_code} — the "
+                    "true-incremental delta surface is missing (ADR-0021 §5)"
                 )
-                if r_mid.status_code != 200:
+            else:
+                delta = r.json()
+                problems += _unit_violations(
+                    delta, service=service, owner=owner, role=role
+                )
+                if delta.get("kind") != "delta" or delta.get("since") != through:
                     problems.append(
-                        f"GET /v1/export?since={mid_seq} returned {r_mid.status_code} — "
-                        "the true-incremental delta surface is missing for a mid seq "
+                        "the `since` export is not a delta unit chaining from the "
+                        f"requested seq (kind {delta.get('kind')!r}, since "
+                        f"{delta.get('since')!r}) — true-incremental semantics "
                         "(ADR-0021 §5)"
                     )
-                else:
-                    delta_mid = r_mid.json()
-                    above = [i for i in items if i["seq"] > mid_seq]
-                    if delta_mid.get("items") != above:
+                if delta.get("items") != []:
+                    problems.append(
+                        "the delta since the high-water seq is not empty — the delta "
+                        "re-captures already-backed-up records (ADR-0021 §5)"
+                    )
+                # a NON-EMPTY delta must hold exactly the records above `since`:
+                # the full up to a mid seq plus the delta above it = the full.
+                # The mid is a true midpoint (not the high-water seq, which would
+                # make the delta empty and the probe vacuous). Never raise: a
+                # malformed full unit was already flagged by _unit_violations, so
+                # skip this sub-probe rather than crash on it.
+                items = full.get("items", [])
+                half = len(items) // 2 if isinstance(items, list) else 0
+                seqs_ok = isinstance(items, list) and all(
+                    isinstance(i, dict) and isinstance(i.get("seq"), int)
+                    for i in items
+                )
+                if seqs_ok:
+                    # a true midpoint when there is one, else seq 0 (before the
+                    # first record) — either way the delta is NON-EMPTY.
+                    mid_seq = items[half - 1]["seq"] if half else 0
+                    r_mid = client.get(
+                        "/v1/export",
+                        params={"owner": owner, "role": role, "since": mid_seq},
+                    )
+                    if r_mid.status_code != 200:
                         problems.append(
-                            f"the delta since seq {mid_seq} holds "
-                            f"{len(delta_mid.get('items', []))} record(s), not exactly "
-                            f"the {len(above)} record(s) above it — true-incremental "
-                            "semantics (ADR-0021 §5)"
+                            f"GET /v1/export?since={mid_seq} returned "
+                            f"{r_mid.status_code} — the true-incremental delta "
+                            "surface is missing for a mid seq (ADR-0021 §5)"
                         )
+                    else:
+                        delta_mid = r_mid.json()
+                        above = [i for i in items if i["seq"] > mid_seq]
+                        if delta_mid.get("items") != above:
+                            problems.append(
+                                f"the delta since seq {mid_seq} holds "
+                                f"{len(delta_mid.get('items', []))} record(s), not "
+                                f"exactly the {len(above)} record(s) above it — "
+                                "true-incremental semantics (ADR-0021 §5)"
+                            )
         if problems:
             findings.extend(problems)
         else:
