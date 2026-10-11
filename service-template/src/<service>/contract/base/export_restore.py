@@ -224,7 +224,10 @@ def export_restore_routes(store, *, service_name: str, version: str) -> list[Rou
             try:
                 since = int(raw_since)
             except ValueError:
-                since = -1
+                raise invalid_request(
+                    f"Invalid `since` {raw_since!r}: a non-negative integer "
+                    "seq (ADR-0021 §5)."
+                ) from None
             if since < 0:
                 raise invalid_request(
                     f"Invalid `since` {raw_since!r}: a non-negative integer "
