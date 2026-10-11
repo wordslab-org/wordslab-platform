@@ -41,6 +41,19 @@ meet inside the service repo.
    must precede any `[table]` header — in TOML everything after a table
    header belongs to that table.
 
+   A **template-level contract-checker** ships the same way but is **not a
+   capability** (maintainer ruling on #275 — a test function declared as a
+   capability is misleading): the template ships the **security-controls map
+   + the placement compliance checker** as plain data + test functions — the
+   map at `contract/security_controls_map.toml`, the loader at
+   `contract/security_controls.py`, the checker at
+   `tests/support/security_controls_check.py` (a **test harness**, never the
+   AI-agent harness — say "compliance checker" or "test harness", never bare
+   "harness"). It carries **no** `[<service>.<capability>]` section, no
+   catalog entry, and no learning-bar subject; its documentation is a plain
+   doc at `docs/security-controls.md`. Never restate the model it indexes:
+   the map cites ADR-0017 and stays an index.
+
    **The learning/operability bar** (ADR-0024 §1, ADR-0002 §7; declared by
    layout per ADR-0031 §2 as amended) — **not declared in TOML**: keep the
    files at the conventional paths and the loader discovers and audits them

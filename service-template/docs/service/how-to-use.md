@@ -15,7 +15,10 @@ The template service is the copy-to-start skeleton of a wordslab service: a
 set of capabilities exposed through the platform dashboard, all three
 callable surfaces (API, agent MCP, UI), and this learning bar. Today it
 ships one capability, `canary` (the Echo proof capability, ticket #71); a
-real service keeps the shell and replaces the capability set.
+real service keeps the shell and replaces the capability set. Alongside the
+capability set it carries the **security-controls map + compliance checker**
+(ticket #275) — plain data + test functions, not a capability — which
+indexes ADR-0017's security model and travels with the copy.
 
 ## Details
 
@@ -35,6 +38,9 @@ real service keeps the shell and replaces the capability set.
 ## See also
 
 - `docs/capabilities/canary/` — the canary capability's own graded docs.
+- `docs/security-controls.md` — the security-controls map + compliance
+  checker (a data surface: the security model's index + its placement
+  checker; plain data + test functions, not a capability).
 - `service.toml` — the declaration: own properties, then one section per
   capability.
 - ADR-0002 (the service template) · ADR-0031 (the declaration shape) ·
