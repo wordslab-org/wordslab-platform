@@ -1,8 +1,9 @@
-"""Control-placement map tests (ticket #275; parent spec #66, ADR-0017).
+"""Security-controls map tests (ticket #275; parent spec #66, ADR-0017).
 
 The map is DATA with a CLOSED shape and a loader that rejects loudly (the
-settled #74/#75 contract); the placement invariants over it are the harness's
-(`tests/support/placement.py`, tested in `test_placement_harness.py`).
+settled #74/#75 contract); the placement invariants over it are the
+compliance checker's (`tests/support/security_controls_check.py`, tested in
+`test_security_controls_check.py`).
 
 Two things are asserted here:
 
@@ -12,29 +13,30 @@ Two things are asserted here:
 - the **shipped map** — ADR-0017's five §1 frames resolve, every control has
   exactly one home, and every control section of the ADR is cited.
 
-The map is loaded at the data seam: `load_placement_map(path)` returns the
-parsed shape or raises a precise `PlacementMapError`, validated from inline
-TOML written via tmp_path. No HTTP seam — this is a data surface.
+The map is loaded at the data seam: `load_security_controls_map(path)`
+returns the parsed shape or raises a precise `SecurityMapError`, validated
+from inline TOML written via tmp_path. No HTTP seam — this is a data surface.
 """
 
 from __future__ import annotations
 
 import textwrap
+from pathlib import Path
 
 import pytest
 
-from contract.placement import (
+from contract.security_controls import (
     ADR_0017,
     CONTROL_KEYS,
     DEFAULT_MAP_PATH,
     FRAME_KEYS,
     HOMES,
-    PlacementMap,
-    PlacementMapError,
-    load_placement_map,
+    SecurityControlsMap,
+    SecurityMapError,
+    load_security_controls_map,
 )
 
-from tests.support.placement_fixtures import (
+from tests.support.security_controls_fixtures import (
     FRAME_ALPHA,
     FRAME_BETA,
     CONTROL_ONE,
@@ -47,24 +49,24 @@ from tests.support.placement_fixtures import (
 
 
 def test_a_well_formed_map_loads_into_frames_and_controls(tmp_path):
-    placement_map = load_placement_map(write_map(tmp_path))
-    assert isinstance(placement_map, PlacementMap)
-    assert [f.id for f in placement_map.frames] == ["alpha", "beta"]
-    assert [c.id for c in placement_map.controls] == ["control-one", "control-two"]
+    controls_map = load_security_controls_map(write_map(tmp_path))
+    assert isinstance(controls_map, SecurityControlsMap)
+    assert [f.id for f in controls_map.frames] == ["alpha", "beta"]
+    assert [c.id for c in controls_map.controls] == ["control-one", "control-two"]
     # the map's own path rides the parsed shape (the sweep reports it)
-    assert placement_map.path.name == "placement_map.toml"
+    assert controls_map.path.name == "security_controls_map.toml"
     # every citation names ADR-0017 — the single source
-    assert all(ADR_0017 in c.adr for c in placement_map.controls)
+    assert all(ADR_0017 in c.adr for c in controls_map.controls)
 
 
 def test_the_frame_to_control_direction_is_derived_not_declared(tmp_path):
     """A frame's resolution comes from its controls' `backs` — one source, so
     the two directions of the map cannot drift apart."""
-    placement_map = load_placement_map(write_map(tmp_path))
-    assert [c.id for c in placement_map.controls_for("alpha")] == ["control-one"]
-    assert [c.id for c in placement_map.controls_for("beta")] == ["control-two"]
-    assert placement_map.control("control-one").backs == ("alpha",)
-    assert placement_map.frame("beta").adr == "ADR-0017 §1.2 (accidental data leakage)"
+    controls_map = load_security_controls_map(write_map(tmp_path))
+    assert [c.id for c in controls_map.controls_for("alpha")] == ["control-one"]
+    assert [c.id for c in controls_map.controls_for("beta")] == ["control-two"]
+    assert controls_map.control("control-one").backs == ("alpha",)
+    assert controls_map.frame("beta").adr == "ADR-0017 §1.2 (accidental data leakage)"
 
 
 def test_a_control_may_back_several_frames_and_settle_its_own_section(tmp_path):
@@ -72,21 +74,21 @@ def test_a_control_may_back_several_frames_and_settle_its_own_section(tmp_path):
     while settling a concern of its own section. `backs` may carry several
     frames — or none at all."""
     shared = CONTROL_ONE.replace('backs = ["alpha"]', 'backs = ["alpha", "beta"]')
-    placement_map = load_placement_map(
+    controls_map = load_security_controls_map(
         write_map(tmp_path, FRAME_ALPHA + FRAME_BETA + shared + CONTROL_TWO)
     )
-    assert [c.id for c in placement_map.controls_for("alpha")] == ["control-one"]
-    assert [c.id for c in placement_map.controls_for("beta")] == [
+    assert [c.id for c in controls_map.controls_for("alpha")] == ["control-one"]
+    assert [c.id for c in controls_map.controls_for("beta")] == [
         "control-one",
         "control-two",
     ]
 
     self_settling = CONTROL_ONE.replace('backs = ["alpha"]', "backs = []")
-    placement_map = load_placement_map(
+    controls_map = load_security_controls_map(
         write_map(tmp_path, FRAME_ALPHA + self_settling)
     )
-    assert placement_map.controls[0].backs == ()
-    assert placement_map.controls_for("alpha") == ()
+    assert controls_map.controls[0].backs == ()
+    assert controls_map.controls_for("alpha") == ()
 
 
 def test_a_boundary_frame_is_marked_as_such(tmp_path):
@@ -96,9 +98,9 @@ def test_a_boundary_frame_is_marked_as_such(tmp_path):
     frames = FRAME_ALPHA + FRAME_BETA.replace(
         'id = "beta"', 'id = "beta"\nboundary = true'
     )
-    placement_map = load_placement_map(write_map(tmp_path, frames + CONTROL_ONE))
-    assert placement_map.frame("alpha").boundary is False
-    assert placement_map.frame("beta").boundary is True
+    controls_map = load_security_controls_map(write_map(tmp_path, frames + CONTROL_ONE))
+    assert controls_map.frame("alpha").boundary is False
+    assert controls_map.frame("beta").boundary is True
 
 
 def test_an_empty_backs_list_is_legal_but_a_dangling_one_is_not(tmp_path):
@@ -108,10 +110,10 @@ def test_an_empty_backs_list_is_legal_but_a_dangling_one_is_not(tmp_path):
     path = write_map(
         tmp_path, FRAME_ALPHA + CONTROL_ONE.replace('backs = ["alpha"]', "backs = []")
     )
-    assert load_placement_map(path).controls[0].backs == ()
+    assert load_security_controls_map(path).controls[0].backs == ()
 
-    with pytest.raises(PlacementMapError, match="undeclared threat frame"):
-        load_placement_map(
+    with pytest.raises(SecurityMapError, match="undeclared threat frame"):
+        load_security_controls_map(
             write_map(
                 tmp_path, FRAME_ALPHA + CONTROL_ONE.replace('["alpha"]', '["gamma"]')
             )
@@ -121,11 +123,11 @@ def test_an_empty_backs_list_is_legal_but_a_dangling_one_is_not(tmp_path):
 def test_asking_for_an_undeclared_frame_or_control_is_loud(tmp_path):
     """A foreign id is a rejection, never an empty answer (`controls_for`
     validates the frame first)."""
-    placement_map = load_placement_map(write_map(tmp_path))
-    with pytest.raises(PlacementMapError, match="not a declared threat frame"):
-        placement_map.controls_for("gamma")
-    with pytest.raises(PlacementMapError, match="not a declared control"):
-        placement_map.control("control-ghost")
+    controls_map = load_security_controls_map(write_map(tmp_path))
+    with pytest.raises(SecurityMapError, match="not a declared threat frame"):
+        controls_map.controls_for("gamma")
+    with pytest.raises(SecurityMapError, match="not a declared control"):
+        controls_map.control("control-ghost")
 
 
 # ------------------------------------------------------- loud-rejection rules
@@ -165,7 +167,7 @@ def test_asking_for_an_undeclared_frame_or_control_is_loud(tmp_path):
         # seam is required — where inside the home the control lives
         (map_document(controls=CONTROL_ONE.replace('seam = "the keys/secrets capabilities"', "")),
          "must be a non-empty string"),
-        # ids are slugs (the harness and the later lanes name them)
+        # ids are slugs (the checker and the later lanes name them)
         (map_document(frames=FRAME_ALPHA.replace('id = "alpha"', 'id = "Alpha One"')),
          "lowercase slugs"),
         # every citation names ADR-0017 — the single source
@@ -191,38 +193,39 @@ def test_asking_for_an_undeclared_frame_or_control_is_loud(tmp_path):
     ],
 )
 def test_map_rejections(tmp_path, content, match):
-    with pytest.raises(PlacementMapError, match=match):
-        load_placement_map(write_map(tmp_path, content))
+    with pytest.raises(SecurityMapError, match=match):
+        load_security_controls_map(write_map(tmp_path, content))
 
 
 def test_a_missing_map_file_is_rejected_loudly(tmp_path):
-    with pytest.raises(PlacementMapError, match="placement map not found"):
-        load_placement_map(tmp_path / "nowhere.toml")
+    with pytest.raises(SecurityMapError, match="security-controls map not found"):
+        load_security_controls_map(tmp_path / "nowhere.toml")
 
 
 def test_a_homeless_control_is_NOT_a_load_error(tmp_path):
     """The deliberate split: a control with no home is a *placement* fact the
-    HARNESS reports (#275 AC 3), never a load error — the loader validates
-    shape and references, the harness validates placement. A *typo'd* home is
-    the load error instead (above), so the two can never be confused."""
+    COMPLIANCE CHECKER reports (#275 AC 3), never a load error — the loader
+    validates shape and references, the checker validates placement. A
+    *typo'd* home is the load error instead (above), so the two can never be
+    confused."""
     path = write_map(
         tmp_path,
         FRAME_ALPHA + FRAME_BETA + CONTROL_ONE.replace('home = "core"\n', "") + CONTROL_TWO,
     )
-    placement_map = load_placement_map(path)  # loads fine
-    assert placement_map.controls[0].home == ""
+    controls_map = load_security_controls_map(path)  # loads fine
+    assert controls_map.controls[0].home == ""
 
 
 def test_a_control_landed_twice_is_NOT_a_load_error_either(tmp_path):
     """Same split for duplication: the same control placed in two places —
     both in its own home and split across two — is the placement drift the
-    harness catches, so the loader leaves it to the harness (a loader-level
+    checker catches, so the loader leaves it to the checker (a loader-level
     duplicate check would have to guess which drift shape to reject)."""
     twin = CONTROL_ONE.replace('home = "core"', 'home = "connectors"')
-    placement_map = load_placement_map(
+    controls_map = load_security_controls_map(
         write_map(tmp_path, FRAME_ALPHA + CONTROL_ONE + twin)
     )
-    assert [c.id for c in placement_map.controls] == ["control-one", "control-one"]
+    assert [c.id for c in controls_map.controls] == ["control-one", "control-one"]
 
 
 # ------------------------------------------------- the shipped map (the model)
@@ -232,23 +235,23 @@ def test_the_shipped_map_is_discovered_next_to_the_loader():
     """The map travels with the copy-to-start ritual: it sits next to the
     loader inside `contract/`, a path the rename never touches."""
     assert DEFAULT_MAP_PATH.is_file()
-    assert DEFAULT_MAP_PATH.name == "placement_map.toml"
+    assert DEFAULT_MAP_PATH.name == "security_controls_map.toml"
     assert DEFAULT_MAP_PATH.parent.name == "contract"
 
 
 def test_the_shipped_map_resolves_adr_0017_section_1_five_threat_frames():
     """ADR-0017 §1's five surfaces, in the ADR's own order — and every one
     backed by at least one control."""
-    placement_map = load_placement_map()
-    assert [f.id for f in placement_map.frames] == [
+    controls_map = load_security_controls_map()
+    assert [f.id for f in controls_map.frames] == [
         "compromised-agent-or-harness",
         "accidental-data-leakage",
         "host-os-malware",
         "trusted-lan-untrusted-internet",
         "host-os-files-unreachable",
     ]
-    for frame in placement_map.frames:
-        controls = placement_map.controls_for(frame.id)
+    for frame in controls_map.frames:
+        controls = controls_map.controls_for(frame.id)
         assert controls, f"§1 frame `{frame.id}` resolves to no control"
         assert all(ADR_0017 in c.adr for c in controls)
 
@@ -256,21 +259,21 @@ def test_the_shipped_map_resolves_adr_0017_section_1_five_threat_frames():
 def test_the_shipped_map_marks_only_the_host_os_malware_frame_a_boundary():
     """§1.3 is the frame the ADR names an explicit, incomplete boundary (the
     honest non-overclaim). The other four are defended surfaces."""
-    placement_map = load_placement_map()
-    boundaries = [f.id for f in placement_map.frames if f.boundary]
+    controls_map = load_security_controls_map()
+    boundaries = [f.id for f in controls_map.frames if f.boundary]
     assert boundaries == ["host-os-malware"]
 
 
 def test_every_control_in_the_shipped_map_has_exactly_one_home():
     """#275 AC 1 — every control resolves to exactly one owning
     capability/home."""
-    placement_map = load_placement_map()
-    assert placement_map.controls, "the map places no control"
-    homeless = [c.id for c in placement_map.controls if not c.home]
+    controls_map = load_security_controls_map()
+    assert controls_map.controls, "the map places no control"
+    homeless = [c.id for c in controls_map.controls if not c.home]
     assert homeless == [], f"homeless control(s): {homeless}"
-    assert set(placement_map.homes_used) <= set(HOMES)
+    assert set(controls_map.homes_used) <= set(HOMES)
     # every control's own id is unique — no control landed twice
-    ids = [c.id for c in placement_map.controls]
+    ids = [c.id for c in controls_map.controls]
     assert len(ids) == len(set(ids))
 
 
@@ -278,20 +281,21 @@ def test_the_shipped_map_places_the_guardrail_layer_once_per_section_8_site():
     """§8 settles the guardrail placement across sites; each site hosts
     exactly one of §8's controls, so the layer is not re-implemented (the
     duplication invariant, read off the shipped map)."""
-    from tests.support.placement import GUARDRAIL_SITES, _guardrails_by_site
+    from tests.support.security_controls_check import GUARDRAIL_SITES, _guardrails_by_site
 
-    by_site = _guardrails_by_site(load_placement_map())
+    by_site = _guardrails_by_site(load_security_controls_map())
     assert set(by_site) == set(GUARDRAIL_SITES)
     assert all(len(ids) == 1 for ids in by_site.values()), by_site
 
 
 def test_the_shipped_map_cites_every_control_section_of_adr_0017():
     """§1 carries the frames, §6 states the platform does NOT intercept the
-    harness (the controls it enumerates are placed under their own sections,
-    §2/§5/§7), and the ADR's Context takes the trust basics as given. Every
-    other section decides controls, so every other section must be cited —
-    the sweep that proves no control section of the ADR is silently unplaced."""
-    cited = load_placement_map().cited_sections
+    agent harness (the controls it enumerates are placed under their own
+    sections, §2/§5/§7), and the ADR's Context takes the trust basics as
+    given. Every other section decides controls, so every other section must
+    be cited — the sweep that proves no control section of the ADR is
+    silently unplaced."""
+    cited = load_security_controls_map().cited_sections
     assert cited == ("1", "2", "3", "4", "5", "7", "8", "9")
     assert "6" not in cited  # the harness-authority section places no control
 
@@ -301,7 +305,7 @@ def test_the_shipped_map_covers_the_homes_the_verification_lanes_expect():
     (#277 installer/Chat+Agents, #278 Chat+Agents, #279 core, #280 Connectors,
     #281 the three guardrail homes, #282 installer, #283 the lifecycle) — the
     two tickets' scopes are deliberately the same set."""
-    assert load_placement_map().homes_used == (
+    assert load_security_controls_map().homes_used == (
         "chat-and-agents",
         "connectors",
         "core",
@@ -313,7 +317,7 @@ def test_the_shipped_map_covers_the_homes_the_verification_lanes_expect():
 
 
 def test_the_map_is_not_a_declaration_key(tmp_path):
-    """The trap #275 names: a `[security]`/`[placement]` table inside a
+    """The trap #275 names: a `[security]`/`[controls]` table inside a
     declaration is an UNKNOWN KEY — the same ruling that struck down a
     declared `[learning]` table for #75 (the FILES are the declaration). The
     map is its own file precisely so the closed declaration shapes stay closed."""
@@ -344,13 +348,26 @@ def test_the_map_is_not_a_declaration_key(tmp_path):
         versions-history = "d"
 
         [security]
-        placement-map = "contract/placement_map.toml"
+        controls-map = "contract/security_controls_map.toml"
         """
     )
     path = service_root / "service.toml"
     path.write_text(toml)
     with pytest.raises(ServiceDeclarationError, match="unknown"):
         load_service_toml(path)
+
+
+def test_the_checker_is_not_a_declared_capability():
+    """The maintainer's ruling on #275: the checker ships as plain data +
+    test functions, NOT as a capability — `service.toml` declares only the
+    canary, and the service's learning-bar subjects carry no checker entry.
+    (A test function declared as a capability is misleading.)"""
+    from contract.declaration import load_service_toml
+
+    service_toml = Path(__file__).resolve().parents[2] / "service.toml"
+    svc = load_service_toml(service_toml)
+    assert [c.name for c in svc.capabilities] == ["canary"]
+    assert svc.learning.agent_operable_subjects == ("canary",)
 
 
 def test_the_shipped_map_and_loader_carry_no_service_name():

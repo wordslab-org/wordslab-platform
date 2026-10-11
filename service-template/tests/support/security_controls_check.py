@@ -1,11 +1,18 @@
-"""The control-placement invariant harness (ticket #275) — the cross-cutting
-assertions that keep ADR-0017's placement claim checkable *from the first
-service* (the build order's testability rule; spec #66's Testing Decisions).
+"""The security-controls compliance checker (ticket #275) — the
+test-side, cross-cutting assertions that keep ADR-0017's placement claim
+checkable *from the first service* (the build order's testability rule; spec
+#66's Testing Decisions).
 
-The harness stands up a **stub owning-capability surface** per home the map
+Vocabulary note: this is a **test harness / compliance checker**. In an
+agentic platform "harness" alone reads as the *AI agent harness* — so the
+module, its functions, and its docs always say **compliance checker** or
+**test harness** (the agent harness it bounds is ADR-0017 §6's, a different
+thing entirely).
+
+The checker stands up a **stub owning-capability surface** per home the map
 names (each a `StubCollaborator` — the repo's single stub-factory, wired via
-the service factory's `extra_routes`, never a mock of internals), then asserts
-the placement invariants against the map:
+the service factory's `extra_routes`, never a mock of internals), then
+asserts the placement invariants against the map:
 
 1. **every threat frame of ADR-0017 §1 is backed** by at least one control;
 2. **every control has a home** — a control the model names but never places
@@ -24,17 +31,17 @@ real seams are #48 (session containers, network policy, the agent loop), #50/
 #55 (the door, its tiers, its guardrail hook), #58 (Media transforms), #62
 (the core's keys/secrets), #63 (the installer's stances), #65 (the update
 flow). **#276** (the verification substrate) replaces this collaborator set
-with the stub harness / host-OS / LAN surfaces and adds the posture registry
-where each control's *runtime stance* is recorded; this module has no stance
-and verifies no control's behaviour — it asserts only *placement*.
+with the stub agent-harness / host-OS / LAN surfaces and adds the posture
+registry where each control's *runtime stance* is recorded; this module has
+no stance and verifies no control's behaviour — it asserts only *placement*.
 
-The sweep entry point (`sweep_placement`) is what the test-harness sweeper
-(#68) calls to re-verify placement per service: it loads the map (the
-service's own copy — the map travels with the copy-to-start ritual), stands
-the stub surfaces up, and returns a report the runner can print pass/fail.
-`#85` (the sweeper) does not exist yet, so this is an explicit, documented
-entry point proven by this ticket's own tests against the template/canary —
-not an integration with a sweeper that isn't there.
+The sweep entry point (`check_security_controls`) is what the test-harness
+sweeper (#68/#85) calls to re-verify placement per service: it loads the map
+(the service's own copy — the map travels with the copy-to-start ritual),
+stands the stub surfaces up, and returns a report the runner can print
+pass/fail. #85 does not exist yet, so this is an explicit, documented entry
+point proven by this ticket's own tests against the template/canary — not an
+integration with a sweeper that isn't there.
 """
 
 from __future__ import annotations
@@ -42,7 +49,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from contract.placement import PlacementMap, load_placement_map
+from contract.security_controls import SecurityControlsMap, load_security_controls_map
 
 from tests.support.stubs import StubCollaborator
 
@@ -50,10 +57,10 @@ __all__ = [
     "GUARDRAIL_SECTION",
     "GUARDRAIL_SITES",
     "HOME_STUBS",
-    "PlacementReport",
+    "ComplianceReport",
     "build_home_stubs",
-    "placement_findings",
-    "sweep_placement",
+    "check_security_controls",
+    "compliance_findings",
 ]
 
 
@@ -146,8 +153,8 @@ GUARDRAIL_SECTION = "8"
 
 
 @dataclass(frozen=True)
-class PlacementReport:
-    """The harness's answer for one map: what it checked and what it found.
+class ComplianceReport:
+    """The checker's answer for one map: what it checked and what it found.
 
     `findings` is empty exactly when the placement invariants hold — the
     sweeper prints the report's `render()` line per service, so "placement is
@@ -170,7 +177,7 @@ class PlacementReport:
         """One pass/fail line for the sweeper's per-service output."""
         state = "green" if self.green else f"RED ({len(self.findings)} findings)"
         line = (
-            f"placement {state}: {len(self.frames)} frames, "
+            f"security placement {state}: {len(self.frames)} frames, "
             f"{len(self.controls)} controls, {len(self.homes)} homes"
         )
         if self.green:
@@ -178,16 +185,16 @@ class PlacementReport:
         return "\n".join([line, *(f"  - {finding}" for finding in self.findings)])
 
 
-def placement_findings(
-    placement_map: PlacementMap,
+def compliance_findings(
+    controls_map: SecurityControlsMap,
     *,
     surfaces: dict | None = None,
 ) -> list[str]:
-    """The placement findings for `placement_map` — empty when the invariants
+    """The placement findings for `controls_map` — empty when the invariants
     hold.
 
     `surfaces` is the set of stood-up owning-capability surfaces, keyed by
-    home (defaults to the harness's own `HOME_STUBS`); a control whose home
+    home (defaults to the checker's own `HOME_STUBS`); a control whose home
     has no surface is a finding, so the map and the stub set can never drift
     apart silently.
     """
@@ -195,15 +202,15 @@ def placement_findings(
     findings: list[str] = []
 
     # (1) every threat frame of ADR-0017 §1 is backed by ≥1 control.
-    for frame in placement_map.frames:
-        if not placement_map.controls_for(frame.id):
+    for frame in controls_map.frames:
+        if not controls_map.controls_for(frame.id):
             findings.append(
                 f"threat frame `{frame.id}` ({frame.adr}) resolves to no"
                 " control — a frame with no control is an unbacked surface"
             )
 
     census: dict[str, list[str]] = {}
-    for control in placement_map.controls:
+    for control in controls_map.controls:
         census.setdefault(control.id, []).append(control.home or "<no home>")
         # (2) every control has a home.
         if not control.home:
@@ -216,7 +223,7 @@ def placement_findings(
         if control.home not in surfaces:
             findings.append(
                 f"control `{control.id}`'s home `{control.home}` has no stub"
-                " owning-capability surface — the map names a home the harness"
+                " owning-capability surface — the map names a home the checker"
                 " cannot stand up, so its placement cannot be asserted"
             )
 
@@ -239,7 +246,7 @@ def placement_findings(
     #
     # (3b) §8's guardrail layer re-implemented — each site §8 settles hosts
     #      exactly one of §8's controls.
-    for site, ids in sorted(_guardrails_by_site(placement_map).items()):
+    for site, ids in sorted(_guardrails_by_site(controls_map).items()):
         if len(ids) > 1:
             findings.append(
                 f"ADR-0017 §8's guardrail site `{site}` carries {len(ids)}"
@@ -251,33 +258,33 @@ def placement_findings(
     return findings
 
 
-def _guardrails_by_site(placement_map: PlacementMap) -> dict[str, list[str]]:
+def _guardrails_by_site(controls_map: SecurityControlsMap) -> dict[str, list[str]]:
     """ADR-0017 §8's guardrail controls grouped by the site each is homed in
     (a control is a §8 control when its citation NAMES that section — read
     from the parsed citation, never a substring probe of the prose)."""
     by_site: dict[str, list[str]] = {}
-    for control in placement_map.controls:
+    for control in controls_map.controls:
         if GUARDRAIL_SECTION in control.sections and control.home in GUARDRAIL_SITES:
             by_site.setdefault(control.home, []).append(control.id)
     return by_site
 
 
-def sweep_placement(map_path: str | Path | None = None) -> PlacementReport:
+def check_security_controls(map_path: str | Path | None = None) -> ComplianceReport:
     """Stand the stub surfaces up, load the map and assert placement (the
     sweeper-consumable entry point).
 
     `map_path` defaults to the shipped map next to the loader, so a copied
     service sweeps its own vendored copy with no arguments. A malformed map
-    raises `PlacementMapError` (a load failure — the map is not a model);
+    raises `SecurityMapError` (a load failure — the map is not a model);
     placement drift is reported as findings, never raised, so the sweeper can
     print what is wrong rather than crash.
     """
-    placement_map = load_placement_map(map_path)
+    controls_map = load_security_controls_map(map_path)
     stubs = build_home_stubs()
-    return PlacementReport(
-        findings=tuple(placement_findings(placement_map, surfaces=stubs)),
-        frames=tuple(f.id for f in placement_map.frames),
-        controls=tuple(c.id for c in placement_map.controls),
-        homes=tuple(sorted({c.home for c in placement_map.controls if c.home})),
-        path=placement_map.path,
+    return ComplianceReport(
+        findings=tuple(compliance_findings(controls_map, surfaces=stubs)),
+        frames=tuple(f.id for f in controls_map.frames),
+        controls=tuple(c.id for c in controls_map.controls),
+        homes=tuple(sorted({c.home for c in controls_map.controls if c.home})),
+        path=controls_map.path,
     )

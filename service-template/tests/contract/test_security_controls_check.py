@@ -1,6 +1,7 @@
-"""Control-placement invariant harness tests (ticket #275 AC 2/3/4).
+"""Security-controls compliance-checker tests (ticket #275 AC 2/3/4).
 
-The harness (`tests/support/placement.py`) stands up a **stub
+The compliance checker (`tests/support/security_controls_check.py` — a
+TEST-side checker; never the AI-agent harness) stands up a **stub
 owning-capability surface** per home and asserts the placement invariants
 against the map: every §1 frame backed, every control homed, no control
 re-implemented in two places, every named home with a surface.
@@ -10,32 +11,32 @@ homeless control and a map with a double-homed control must each be CAUGHT,
 with the specific finding. The stubs are the repo's single stub-factory
 (`StubCollaborator`), exercised over the one HTTP seam — never a mock of
 internals, never a real service, never a second mocking framework (#275's
-scope fence: the stub harness / host-OS / LAN surfaces are #276's).
+scope fence: the stub agent-harness / host-OS / LAN surfaces are #276's).
 """
 
 from __future__ import annotations
 
 import pytest
 
-from contract.placement import (
+from contract.security_controls import (
     DEFAULT_MAP_PATH,
     HOMES,
-    PlacementMapError,
-    load_placement_map,
+    SecurityMapError,
+    load_security_controls_map,
 )
 
-from tests.support.placement import (
+from tests.support.security_controls_check import (
     GUARDRAIL_SECTION,
     HOME_STUBS,
-    PlacementReport,
+    ComplianceReport,
     build_home_stubs,
-    placement_findings,
-    sweep_placement,
+    check_security_controls,
+    compliance_findings,
 )
 from tests.support.stubs import StubCollaborator
 from tests.support.test_server import InProcessService
 
-from tests.support.placement_fixtures import (
+from tests.support.security_controls_fixtures import (
     CONTROL_ONE,
     CONTROL_TWO,
     FRAME_ALPHA,
@@ -48,15 +49,15 @@ from tests.support.placement_fixtures import (
 
 
 def test_a_good_map_is_green(tmp_path):
-    placement_map = load_placement_map(good_map(tmp_path))
-    assert placement_findings(placement_map) == []
-    report = sweep_placement(good_map(tmp_path))
+    controls_map = load_security_controls_map(good_map(tmp_path))
+    assert compliance_findings(controls_map) == []
+    report = check_security_controls(good_map(tmp_path))
     assert report.green is True
     assert report.findings == ()
     assert report.frames == ("alpha", "beta")
     assert report.controls == ("control-one", "control-two")
     assert report.homes == ("connectors", "core")
-    assert report.render().startswith("placement green")
+    assert report.render().startswith("security placement green")
 
 
 def test_a_frame_with_no_control_backing_it_is_caught(tmp_path):
@@ -64,7 +65,7 @@ def test_a_frame_with_no_control_backing_it_is_caught(tmp_path):
     unbacked frame is an unbacked surface."""
     # `beta` is declared but no control backs it
     path = write_map(tmp_path, FRAME_ALPHA + FRAME_BETA + CONTROL_ONE)
-    report = sweep_placement(path)
+    report = check_security_controls(path)
     assert report.green is False
     assert any("`beta`" in f and "no control" in f for f in report.findings)
     assert "RED" in report.render()
@@ -76,9 +77,9 @@ def test_a_frame_with_no_control_backing_it_is_caught(tmp_path):
 
 def test_a_HOMELESS_control_is_caught(tmp_path):
     """#275 AC 3 (required): a map with a homeless control is caught by the
-    harness — a control the model names but never places."""
+    checker — a control the model names but never places."""
     homeless = CONTROL_TWO.replace('home = "connectors"\n', "")
-    report = sweep_placement(write_map(tmp_path, FRAME_ALPHA + FRAME_BETA + CONTROL_ONE + homeless))
+    report = check_security_controls(write_map(tmp_path, FRAME_ALPHA + FRAME_BETA + CONTROL_ONE + homeless))
     assert report.green is False
     assert any(
         "control-two" in finding and "homeless" in finding for finding in report.findings
@@ -92,7 +93,7 @@ def test_a_DOUBLE_HOMED_control_is_caught(tmp_path):
     is caught. The drift's shape — the model names ONE control, and the map
     lands it in two places."""
     twin = CONTROL_ONE  # the same control, declared a second time
-    report = sweep_placement(write_map(tmp_path, FRAME_ALPHA + CONTROL_ONE + twin))
+    report = check_security_controls(write_map(tmp_path, FRAME_ALPHA + CONTROL_ONE + twin))
     assert report.green is False
     (finding,) = [f for f in report.findings if "re-implemented" in f]
     assert "`control-one`" in finding and "landed in 2 places" in finding
@@ -108,7 +109,7 @@ adr = "ADR-0017 §8 (builtin transforms, declared twice)"
 home = "media-transformations"
 seam = "a second builtin transform hook"
 """
-    report = sweep_placement(
+    report = check_security_controls(
         write_map(
             tmp_path,
             FRAME_ALPHA
@@ -134,10 +135,10 @@ def test_a_control_whose_home_has_no_surface_is_caught(tmp_path):
     """Invariant (4): every home a control names must have a stood-up stub
     owning-capability surface — so the map and the collaborator set can never
     drift apart silently."""
-    placement_map = load_placement_map(good_map(tmp_path))
-    report = PlacementReport(
+    controls_map = load_security_controls_map(good_map(tmp_path))
+    report = ComplianceReport(
         findings=tuple(
-            placement_findings(placement_map, surfaces={"core": build_home_stubs()["core"]})
+            compliance_findings(controls_map, surfaces={"core": build_home_stubs()["core"]})
         ),
     )
     assert report.green is False
@@ -150,7 +151,7 @@ def test_the_guardrail_site_grouping_reads_named_sections_not_substrings():
     §8, or ADR-0017 §80, must not be mistaken for the guardrail section. The
     regex is anchored on `ADR-0017 §N`, so a co-cited ADR-0004 §8 is not ours
     and `§80` is its own (unmatched) token."""
-    from contract.placement import Control, adr_0017_sections
+    from contract.security_controls import Control, adr_0017_sections
 
     assert adr_0017_sections("ADR-0017 §8") == ("8",)
     # only sections WRITTEN against ADR-0017 count: §7.5 shares §7's number
@@ -176,16 +177,16 @@ def test_the_sweep_is_consumable_by_the_sweeper(tmp_path):
     the stub surfaces up, and returns a report it can render pass/fail. #85
     does not exist yet, so the proof is this ticket's test against the
     template/canary."""
-    report = sweep_placement()  # the shipped map, discovered by location
-    assert isinstance(report, PlacementReport)
-    assert report.path.name == "placement_map.toml"
+    report = check_security_controls()  # the shipped map, discovered by location
+    assert isinstance(report, ComplianceReport)
+    assert report.path.name == "security_controls_map.toml"
     assert report.green is True, report.findings
     lines = report.render().splitlines()
-    assert lines == ["placement green: 5 frames, 16 controls, 7 homes"]
+    assert lines == ["security placement green: 5 frames, 16 controls, 7 homes"]
     assert not any(line.startswith("  - ") for line in lines)
 
 
-def test_the_shipped_map_passes_the_harness_end_to_end(tmp_path):
+def test_the_shipped_map_passes_the_checker_end_to_end(tmp_path):
     """The template's own map — the model a copied service inherits — is
     green with no fixture meddling (the acceptance shared with the canary).
 
@@ -193,7 +194,7 @@ def test_the_shipped_map_passes_the_harness_end_to_end(tmp_path):
     `src/<service>/` path: the copy-to-start ritual renames that directory,
     and a hard-coded placeholder would make a copied service's suite red.
     """
-    report = sweep_placement(DEFAULT_MAP_PATH)
+    report = check_security_controls(DEFAULT_MAP_PATH)
     assert report.green is True, report.findings
     assert report.path == DEFAULT_MAP_PATH
 
@@ -263,5 +264,5 @@ def test_each_stub_records_the_registry_name_where_the_adrs_name_one(home):
 def test_a_malformed_map_still_raises_rather_than_reporting(tmp_path):
     """A load failure is not a finding: a malformed map is not a model, so the
     sweep raises instead of reporting a green-looking report."""
-    with pytest.raises(PlacementMapError):
-        sweep_placement(write_map(tmp_path, "[[frames]]\nid = 'Alpha One'\n"))
+    with pytest.raises(SecurityMapError):
+        check_security_controls(write_map(tmp_path, "[[frames]]\nid = 'Alpha One'\n"))

@@ -1,5 +1,5 @@
-"""Placement-map test fixtures, shared by the loader tests and the harness
-tests (ticket #275).
+"""Security-controls-map test fixtures, shared by the loader tests and the
+compliance-checker tests (ticket #275).
 
 The map documents are built from NAMED part constants, never chained
 `.replace()` calls on a whole document — a no-op replace silently tests the
@@ -59,14 +59,14 @@ def map_document(
     frames: str = FRAME_ALPHA + FRAME_BETA,
     controls: str = CONTROL_ONE + CONTROL_TWO,
 ) -> str:
-    """A placement map document from whole named blocks."""
+    """A security-controls map document from whole named blocks."""
     return frames + "\n" + controls
 
 
 def write_map(tmp_path, content: str | None = None) -> Path:
     """Write a map document to a `tmp_path` fixture and return its path."""
     content = map_document() if content is None else content
-    path = tmp_path / "placement_map.toml"
+    path = tmp_path / "security_controls_map.toml"
     path.write_text(textwrap.dedent(content))
     return path
 

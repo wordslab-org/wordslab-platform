@@ -1,15 +1,19 @@
-# The control-placement map — ADR-0017's security model as data (ticket #275).
+# The security-controls map — ADR-0017's security model as data (ticket #275).
 #
 # ADR-0017 is the SINGLE SOURCE. This file CITES it; it never restates a
 # control's internals. It says where each control LIVES (its single owning
 # home) and which threat frame(s) of ADR-0017 §1 it answers. The loader
-# (`contract/placement.py`) validates the closed shape and the references;
-# the invariant harness (`tests/support/placement.py`) proves the index is
+# (`contract/security_controls.py`) validates the closed shape and the
+# references; the compliance checker (`tests/support/security_compliance.py`,
+# a TEST-side checker — never the AI-agent harness) proves the index is
 # complete — every frame backed, every control homed, no control homed twice.
 #
-# NOT a declaration key: this is its own file, discovered next to the loader.
-# A `[security]`/`[placement]` table in service.toml/implementation.toml is an
-# unknown key there (ticket #75's ruling — the FILES are the declaration).
+# NOT a declaration key and NOT a capability: this is its own data file,
+# discovered next to the loader. A `[security]`/`[controls]` table in
+# service.toml/implementation.toml is an unknown key there (ticket #75's
+# ruling — the FILES are the declaration), and the checker ships as plain
+# data + test functions, not as a declared capability (maintainer ruling on
+# #275 — a test function declared as a capability is misleading).
 #
 # The five threat frames of §1. A control's `backs` list is what makes the
 # frame→control direction DERIVED (one source, two directions that cannot
@@ -139,7 +143,7 @@ backs = ["compromised-agent-or-harness"]
 # control with two homes. The Inference model capability is the cheap
 # classification surface the two boundaries call (ADR-0029's classic-AI
 # capability); the door-side and loop-side hooks are where §8's two boundary
-# policies live. (The `guardrail-*` ids below are what the harness's §8 site
+# policies live. (The `guardrail-*` ids below are what the checker's §8 site
 # invariant groups by home.)
 
 [[controls]]

@@ -1,24 +1,29 @@
-"""The control-placement map — the machine-readable index of ADR-0017's
+"""The security-controls map — the machine-readable index of ADR-0017's
 security model (ticket #275, parent spec #66).
 
 ADR-0017 is the **single source**: it names the threat frames and the
 controls, each with exactly one home. This module does **not** restate any
-control's internals — it *places* them. The map is the index that says
-*where* each control lives, and the invariant harness
-(`tests/support/placement.py`) proves the index is complete (no control
-homeless, no control re-implemented in two places).
+control's internals — it *indexes* them. The map says *where* each control
+lives, and the compliance checker (`tests/support/security_controls_check.py`
+— a TEST-side checker; "harness" here always means the test harness, never
+the AI-agent harness) proves the index is complete (no control homeless, no
+control re-implemented in two places).
 
-## The map's shape (a data file + a loader with a CLOSED shape)
+## What the checker is NOT
 
-The map is **data**, discovered/loaded explicitly — never a declaration
-key. A `[security]` / `[placement]` table inside `service.toml` or
+It ships as **plain data + test functions inside the template** — not as a
+capability (maintainer ruling on #275: a test function declared as a
+capability is misleading; there is no `[<service>.placement]` section, no
+catalog entry, no learning-bar subject). It is also not a declaration key:
+a `[security]` / `[controls]` table inside `service.toml` or
 `implementation.toml` would be an **unknown key** and is rejected by those
 loaders (the closed-shape rule they already enforce; the same ruling that
 struck down a declared `[learning]` table for #75 — the FILES are the
 declaration). The map lives in its own file next to this module:
 
-    contract/placement_map.toml      the map (data)
-    contract/placement.py            this loader (the seam)
+    contract/security_controls_map.toml   the map (data)
+    contract/security_controls.py         this loader (the seam)
+    tests/support/security_controls_check.py   the compliance checker
 
     [frames]    every threat frame of ADR-0017 §1 — its id, the ADR
                 citation, and `boundary = true` when §1 names it an
@@ -28,8 +33,8 @@ declaration). The map lives in its own file next to this module:
                 within that home, and the threat frame(s) it answers.
 
 The frame→control direction is **derived** from each control's `backs`
-(`PlacementMap.controls_for`) — one source, so the two directions cannot
-drift apart.
+(`SecurityControlsMap.controls_for`) — one source, so the two directions
+cannot drift apart.
 
 ## What the loader validates (loudly) and what it deliberately does not
 
@@ -48,16 +53,16 @@ The loader validates **shape and references**:
   cited).
 
 It does **not** reject placement drift: a homeless control, or the same
-control landed in two places, are exactly the **placement** facts the harness
-exists to report (#275's own acceptance criterion — "a map with a homeless or
-double-homed control is caught by the harness"). Shape errors are load
-errors; placement drift is a harness finding. A *typo'd* home (a value
+control landed in two places, are exactly the facts the compliance checker
+exists to report (#275's own acceptance criterion — "a map with a homeless
+or double-homed control is caught by the checker"). Shape errors are load
+errors; placement drift is a reported finding. A *typo'd* home (a value
 outside `HOMES`) is neither: it is a shape error, because the map would
 otherwise place the control nowhere without saying so. (Two *distinct*
 controls sharing one home is not drift at all — a home legitimately hosts
 several, e.g. Connectors carries the door's audit, tier, approval and its
-guardrail hook; the harness checks a control's *identity*, and §8's layer per
-site.)
+guardrail hook; the checker checks a control's *identity*, and §8's layer
+per site.)
 
 ## What this map deliberately does not carry
 
@@ -66,8 +71,8 @@ site.)
 - **The honest non-goals as a narrative.** §1's *host-OS-malware* frame is
   one of the five frames, so it is representable here as a declared
   `boundary` — the minimum the frame invariant needs. The remaining
-  non-goals (the disk thief, no unified harness accept/refuse trail, the
-  heavy guardrail tier off by default) are #276/#282's model state and
+  non-goals (the disk thief, no unified agent-harness accept/refuse trail,
+  the heavy guardrail tier off by default) are #276/#282's model state and
   #284's narrative, not this ticket's.
 - **What ADR-0017's Context takes as given.** Machine identity keys (ADR-0003),
   the overlay (ADR-0003/0004), the `keys`/`secrets` split (ADR-0003/0006),
@@ -94,9 +99,10 @@ ADR_0017 = "ADR-0017"
 
 #: The map's shipped data file, module-adjacent. Discovered by *location*
 #: (the same convention the bar uses): the copy-to-start ritual renames
-#: `src/<service>/` but never `contract/placement_map.toml`, so the default
-#: path survives the rename — and a copied service carries its own copy.
-DEFAULT_MAP_PATH = Path(__file__).resolve().with_name("placement_map.toml")
+#: `src/<service>/` but never `contract/security_controls_map.toml`, so the
+#: default path survives the rename — and a copied service carries its own
+#: copy.
+DEFAULT_MAP_PATH = Path(__file__).resolve().with_name("security_controls_map.toml")
 
 #: The closed home vocabulary: **the single owning home of a control**. Each
 #: home names the platform service or layer ADR-0017's placement settles, with
@@ -139,15 +145,15 @@ def adr_0017_sections(citation: str) -> tuple[str, ...]:
 
     Citations are prose (`ADR-0017 §2; ADR-0014 (the mount mechanics…)`), so
     membership is READ from the citation — one parser, shared by the loader's
-    sweep (`cited_sections`) and the harness's section grouping. Only sections
+    sweep (`cited_sections`) and the checker's section grouping. Only sections
     written against ADR-0017 count: a co-cited ADR's own `§N` (e.g. ADR-0004
     §12) is that ADR's, not this one's.
     """
     return tuple(_SECTION_RE.findall(citation))
 
 
-class PlacementMapError(ValueError):
-    """A placement map that violates its declared shape.
+class SecurityMapError(ValueError):
+    """A security-controls map that violates its declared shape.
 
     Raised at load time: a malformed map is not a model, so it must not load
     half-read (the settled #74/#75 contract — the loader validates the closed
@@ -188,13 +194,13 @@ class Control:
     @property
     def sections(self) -> tuple[str, ...]:
         """The ADR-0017 sections this citation names (its own `§N` tokens) —
-        the fact the harness reads to tell which section a control lives
+        the fact the checker reads to tell which section a control lives
         under, never a substring probe of the citation prose."""
         return adr_0017_sections(self.adr)
 
 
 @dataclass(frozen=True)
-class PlacementMap:
+class SecurityControlsMap:
     """The parsed, validated map — ADR-0017's frames and its placed controls.
 
     The frame→control direction is derived (`controls_for`), never stored
@@ -210,14 +216,14 @@ class PlacementMap:
         for frame in self.frames:
             if frame.id == frame_id:
                 return frame
-        raise PlacementMapError(f"`{frame_id}` is not a declared threat frame")
+        raise SecurityMapError(f"`{frame_id}` is not a declared threat frame")
 
     def control(self, control_id: str) -> Control:
         """The (first) control with this id, or a loud rejection."""
         for control in self.controls:
             if control.id == control_id:
                 return control
-        raise PlacementMapError(f"`{control_id}` is not a declared control")
+        raise SecurityMapError(f"`{control_id}` is not a declared control")
 
     def controls_for(self, frame_id: str) -> tuple[Control, ...]:
         """The controls backing a frame — derived from `Control.backs`, so a
@@ -235,9 +241,9 @@ class PlacementMap:
         """The ADR-0017 sections cited across the map (frames and controls
         alike), by their top-level `§N` — the sweep that proves no control
         section of the ADR is silently unplaced. §6 states the platform does
-        NOT intercept the harness, and §1 carries the frames themselves, so a
-        control's `adr` must not name either: the map cites the section a
-        control LIVES under (the harness reads the same `sections` fact)."""
+        NOT intercept the agent harness, and §1 carries the frames themselves,
+        so a control's `adr` must not name either: the map cites the section a
+        control LIVES under (the checker reads the same `sections` fact)."""
         sections: set[str] = set()
         for entry in (self.frames, self.controls):
             for item in entry:
@@ -248,28 +254,29 @@ class PlacementMap:
 # --------------------------------------------------------------- the loader
 
 
-def load_placement_map(path: str | Path | None = None) -> PlacementMap:
-    """Load and validate the control-placement map.
+def load_security_controls_map(path: str | Path | None = None) -> SecurityControlsMap:
+    """Load and validate the security-controls map.
 
-    `path` defaults to the module-adjacent `placement_map.toml` (the shipped
-    map, which travels with the copy-to-start ritual — pass an explicit path
-    to load a fixture). A malformed map raises `PlacementMapError` naming the
-    offending entry — never a silent partial read.
+    `path` defaults to the module-adjacent `security_controls_map.toml` (the
+    shipped map, which travels with the copy-to-start ritual — pass an
+    explicit path to load a fixture). A malformed map raises
+    `SecurityMapError` naming the offending entry — never a silent partial
+    read.
     """
     path = Path(path) if path is not None else DEFAULT_MAP_PATH
     if not path.is_file():
-        raise PlacementMapError(f"placement map not found: {path}")
+        raise SecurityMapError(f"security-controls map not found: {path}")
     try:
         raw = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        raise PlacementMapError(f"placement map is not valid TOML: {exc}") from None
+        raise SecurityMapError(f"security-controls map is not valid TOML: {exc}") from None
 
     unknown = set(raw) - {"frames", "controls"}
     if unknown:
-        raise PlacementMapError(
-            f"unknown top-level key(s) {sorted(unknown)} — the placement map"
-            " declares only `frames` and `controls` (closed shape, typos fail"
-            " loudly). It is NOT a declaration key: a `[security]`/`[placement]`"
+        raise SecurityMapError(
+            f"unknown top-level key(s) {sorted(unknown)} — the security-controls"
+            " map declares only `frames` and `controls` (closed shape, typos fail"
+            " loudly). It is NOT a declaration key: a `[security]`/`[controls]`"
             " table in service.toml/implementation.toml is an unknown key there"
             " (ticket #75's ruling stands — the FILES are the declaration)."
         )
@@ -280,7 +287,7 @@ def load_placement_map(path: str | Path | None = None) -> PlacementMap:
         or not frame_raw
         or not all(isinstance(entry, dict) for entry in frame_raw)
     ):
-        raise PlacementMapError(
+        raise SecurityMapError(
             "`frames` must be a non-empty array of tables (`[[frames]]`) — the"
             " map resolves ADR-0017 §1's threat frames, so a map without them"
             " is not a model"
@@ -291,14 +298,14 @@ def load_placement_map(path: str | Path | None = None) -> PlacementMap:
         or not control_raw
         or not all(isinstance(entry, dict) for entry in control_raw)
     ):
-        raise PlacementMapError(
+        raise SecurityMapError(
             "`controls` must be a non-empty array of tables (`[[controls]]`) —"
             " a map that places no control is not a model"
         )
 
     frames = _parse_frames(frame_raw)
     controls = _parse_controls(control_raw, {f.id for f in frames})
-    return PlacementMap(frames=frames, controls=controls, path=path)
+    return SecurityControlsMap(frames=frames, controls=controls, path=path)
 
 
 def _parse_frames(entries: list) -> tuple[Frame, ...]:
@@ -308,25 +315,25 @@ def _parse_frames(entries: list) -> tuple[Frame, ...]:
         where = f"frames[{index}]"
         unknown = set(entry) - FRAME_KEYS
         if unknown:
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}` has unknown key(s) {sorted(unknown)} — a frame"
                 f" declares only: {', '.join(sorted(FRAME_KEYS))}"
             )
         frame_id = _require_slug(entry, "id", where)
         where = f"{where} (`{frame_id}`)"
         if frame_id in seen:
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}` declares threat frame {frame_id!r} twice — a frame's"
                 " own definition may not be duplicated (its `boundary` flag and"
                 " its role would contradict each other). A CONTROL landed twice"
-                " is the different, *placement* fact the harness reports."
+                " is the different, *placement* fact the checker reports."
             )
         seen.add(frame_id)
         adr = _require_str(entry, "adr", where)
         _check_cites_adr_0017(adr, where)
         boundary = entry.get("boundary", False)
         if not isinstance(boundary, bool):
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}.boundary` must be true or false — it marks a §1"
                 " frame the model declares an explicit, incomplete boundary"
                 " (never silently claimed as defended)"
@@ -341,7 +348,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
         where = f"controls[{index}]"
         unknown = set(entry) - CONTROL_KEYS
         if unknown:
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}` has unknown key(s) {sorted(unknown)} — a control"
                 f" declares only: {', '.join(sorted(CONTROL_KEYS))}"
             )
@@ -351,15 +358,15 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
         _check_cites_adr_0017(adr, where)
 
         # `home` is where the control lives. It is DELIBERATELY optional here:
-        # a control with no home is the placement fact the harness reports
+        # a control with no home is the placement fact the checker reports
         # (#275 AC: "a map with a homeless ... control is caught by the
-        # harness"). A *declared* home that is not in the closed vocabulary is
+        # checker"). A *declared* home that is not in the closed vocabulary is
         # a different thing — a typo — and fails loudly at load.
         home = entry.get("home", "")
         if not isinstance(home, str):
-            raise PlacementMapError(f"`{where}.home` must be a string")
+            raise SecurityMapError(f"`{where}.home` must be a string")
         if home and home not in HOMES:
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}.home` is {home!r} — not one of the map's homes"
                 f" {sorted(HOMES)}. A control's home is the single owning"
                 " capability/service ADR-0017's placement settles (a typo'd"
@@ -368,7 +375,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 
         seam = entry.get("seam", "")
         if not isinstance(seam, str) or not seam.strip():
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}.seam` must be a non-empty string — where inside its"
                 " home the control lives (the surface/capability the ADR's"
                 " placement names); the map cites ADR-0017 rather than"
@@ -377,7 +384,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 
         backs_raw = entry.get("backs", [])
         if not isinstance(backs_raw, list) or not all(isinstance(b, str) for b in backs_raw):
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}.backs` must be an array of threat-frame ids — the"
                 " §1 frame(s) the control answers (empty when the control"
                 " settles a concern of its own section rather than one of the"
@@ -385,7 +392,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
             )
         dangling = [b for b in backs_raw if b not in frame_ids]
         if dangling:
-            raise PlacementMapError(
+            raise SecurityMapError(
                 f"`{where}.backs` names undeclared threat frame(s) {dangling} —"
                 " a dangling reference would silently drop the control out of"
                 f" the model; declared frames: {sorted(frame_ids)}"
@@ -402,16 +409,16 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 def _require_str(table: dict, key: str, where: str) -> str:
     value = table.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise PlacementMapError(f"`{where}.{key}` must be a non-empty string")
+        raise SecurityMapError(f"`{where}.{key}` must be a non-empty string")
     return value
 
 
 def _require_slug(table: dict, key: str, where: str) -> str:
     value = _require_str(table, key, where)
     if not _SLUG_RE.fullmatch(value):
-        raise PlacementMapError(
+        raise SecurityMapError(
             f"`{where}.{key}` is {value!r} — ids are lowercase slugs"
-            " (a-z, digits, hyphens; the map's keys are what the harness and"
+            " (a-z, digits, hyphens; the map's keys are what the checker and"
             " the later verification lanes name)"
         )
     return value
@@ -419,7 +426,7 @@ def _require_slug(table: dict, key: str, where: str) -> str:
 
 def _check_cites_adr_0017(adr: str, where: str) -> None:
     if ADR_0017 not in adr:
-        raise PlacementMapError(
+        raise SecurityMapError(
             f"`{where}.adr` is {adr!r} — every entry cites {ADR_0017} (the"
             " single source; an evolution note such as ADR-0030's per-tool"
             " tiering may accompany the citation, never replace it)"
@@ -434,8 +441,8 @@ __all__ = [
     "HOMES",
     "Control",
     "Frame",
-    "PlacementMap",
-    "PlacementMapError",
+    "SecurityControlsMap",
+    "SecurityMapError",
     "adr_0017_sections",
-    "load_placement_map",
+    "load_security_controls_map",
 ]
