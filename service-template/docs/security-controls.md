@@ -44,8 +44,38 @@ each mechanism is tested once, in its owning service (#66's
 no-double-testing rule). The runtime stance of each control is the
 verification substrate's (#276) and the seven lanes' (#277–#283).
 
+## The verification substrate (#276)
+
+The shared scaffolding the seven per-control verification lanes consume, so
+the verification environment is built once, not per control:
+
+- `tests/support/verification_substrate.py` — **the stub-collaborator set**:
+  a **stub agent-harness** (its native accept/refuse surface, ADR-0017 §6 —
+  a test flips the verdict, so a control can be asserted to hold *even when
+  the harness approves the call*), a **stub shared mount** and a **stub LAN**
+  (the host-OS / LAN surfaces the isolation and network-policy lanes
+  wander), plus #275's stub owning-capability surfaces — reused via
+  `build_stub_collaborators()`, never re-created. Every stub is the repo's
+  single stub-factory at its contract seam, served over the one HTTP seam.
+- `tests/support/posture_registry.py` — **the posture registry**: where each
+  lane records its control's **runtime stance** and the coherence bar
+  (#284) reads the whole model back as one sweep. Its contract surface is
+  the loader/record/read-back API (`load_posture_registry`,
+  `record_stance`, `registry.stance`); stances key on the map's control ids
+  — the map is the key vocabulary — and the shape is closed (unknown keys,
+  stances outside the vocabulary, and stances for unmapped controls fail
+  loudly at load).
+
+The substrate verifies **no control**: it ships the scaffolding plus its own
+behavioral contract (a stub harness approving a call, a stub LAN being
+wandered, a stance round-tripping through the registry). The per-control
+stance assertions are the seven lanes'; the coherence sweep is #284's.
+Vocabulary: never bare "harness" — the artifact is the **stub agent-harness**
+(what it models is the AI agent harness, ADR-0017 §6's).
+
 ## See also
 
 - ADR-0017 (the security model — the single source) · spec #66 (its Testing
-  Decisions) · #275 (this ticket) · #276 (the verification substrate).
+  Decisions) · #275 (this ticket) · #276 (the verification substrate) ·
+  #277–#283 (the per-control verification lanes) · #284 (the coherence bar).
 - `docs/architecture/20-concerns/21-security.md` (the build-view chapter).
