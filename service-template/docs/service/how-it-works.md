@@ -31,7 +31,10 @@ skill, discovered by layout). This page explains how those pieces fit.
    `contract/security_controls.py` loads the **security-controls map** — the
    template-level checker that indexes ADR-0017's security model (its
    compliance checker lives test-side,
-   `tests/support/security_controls_check.py`).
+   `tests/support/security_controls_check.py`) — and
+   `contract/consent_controls.py` loads the sibling **consent-controls map**
+   indexing ADR-0026's consent model (checker at
+   `tests/support/consent_controls_check.py`).
 3. **Capabilities register routes** — `create_service_app(extra_routes=...)`
    mounts the capability's `/v1/...` routes on the shared app; the MCP
    surface is auto-generated from the same OpenAPI spec, so it can't drift.
@@ -46,6 +49,9 @@ skill, discovered by layout). This page explains how those pieces fit.
 - `docs/capabilities/canary/how-it-works.md` — the same story one level down.
 - `docs/security-controls.md` — the vendored security-controls map + its
   compliance checker (plain data + test functions, not a capability).
+- `docs/consent-controls.md` — the vendored consent-controls map + its
+  compliance checker (the same shape, indexing ADR-0026's consent model).
 - ADR-0031 §2 (the declaration shape) · ADR-0001 (the family contracts) ·
   ADR-0002 (the template) · ADR-0017 (the security model the
-  security-controls map indexes).
+  security-controls map indexes) · ADR-0026 (the consent model the
+  consent-controls map indexes).

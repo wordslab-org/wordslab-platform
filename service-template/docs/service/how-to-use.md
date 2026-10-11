@@ -18,7 +18,9 @@ ships one capability, `canary` (the Echo proof capability, ticket #71); a
 real service keeps the shell and replaces the capability set. Alongside the
 capability set it carries the **security-controls map + compliance checker**
 (ticket #275) — plain data + test functions, not a capability — which
-indexes ADR-0017's security model and travels with the copy.
+indexes ADR-0017's security model and travels with the copy, and the
+sibling **consent-controls map + compliance checker** (ticket #285) in the
+same shape, indexing ADR-0026's consent model.
 
 ## Details
 
@@ -41,6 +43,8 @@ indexes ADR-0017's security model and travels with the copy.
 - `docs/security-controls.md` — the security-controls map + compliance
   checker (a data surface: the security model's index + its placement
   checker; plain data + test functions, not a capability).
+- `docs/consent-controls.md` — the consent-controls map + compliance
+  checker (the same shape, indexing ADR-0026's consent model).
 - `service.toml` — the declaration: own properties, then one section per
   capability.
 - ADR-0002 (the service template) · ADR-0031 (the declaration shape) ·

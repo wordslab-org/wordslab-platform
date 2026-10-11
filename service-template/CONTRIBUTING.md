@@ -52,7 +52,14 @@ meet inside the service repo.
    "harness"). It carries **no** `[<service>.<capability>]` section, no
    catalog entry, and no learning-bar subject; its documentation is a plain
    doc at `docs/security-controls.md`. Never restate the model it indexes:
-   the map cites ADR-0017 and stays an index.
+   the map cites ADR-0017 and stays an index. The **consent-controls map +
+   compliance checker** (#285) ships in the same shape —
+   `contract/consent_controls_map.toml`, loader `contract/consent_controls.py`,
+   checker `tests/support/consent_controls_check.py`, plain doc at
+   `docs/consent-controls.md` — indexing ADR-0026's consent model (the
+   consent flag, the never-bypassable exclusion, the extraction/declaration
+   surfaces, the core `datasets` boundary, the sphere gate) so consent
+   placement is re-verified per service from the first one.
 
    **The learning/operability bar** (ADR-0024 §1, ADR-0002 §7; declared by
    layout per ADR-0031 §2 as amended) — **not declared in TOML**: keep the
