@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The embedded web-UI host of the installer (ADR-0014 §2/§3 phase 3).
+       Modern Windows UI stack: WinUI 3 (Windows App SDK) hosting the WebView2 control —
+       no WinForms, no WPF. Built in pure C# (no XAML pages): the window and the WebView2
+       element are constructed in code, so the project also compiles on Linux
+       (EnableWindowsTargeting) and runs on the Windows host. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Wordslab.Wizard.WebUi</RootNamespace>
+    <!-- No Appx/PRI resources in this pure-C# unpackaged project: the MrtCore tooling's MSBuild
+         tasks ship only with the Visual Studio toolset, so disabling it keeps Linux CI builds
+         working (the dotnet CLI alone cannot load Microsoft.Build.AppxPackage.dll). -->
+    <EnableCoreMrtTooling>false</EnableCoreMrtTooling>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wizard.Abstractions\Wizard.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
