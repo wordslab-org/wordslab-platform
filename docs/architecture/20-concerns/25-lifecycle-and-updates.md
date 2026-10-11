@@ -91,7 +91,7 @@
 
 - **Organizing principle — data spheres:** backup is **per sphere** (user / builder / admin); a physical user has **three identities** (`laurent` / `laurent-builder` / `laurent-admin`). Every datum is linked to an identity + role (attribution model — folded into #31). (ADR-0021 §1.)
 - **What's backed up:** all user-generated + authoritative data across services; **excluded** are model weights and reinstallable software (re-download/reinstall). (ADR-0021 §2.)
-- **Per-user extraction:** service storage must be **designed for per-user export + true incremental from the start** (DB builtins can't be used — they'd capture every user and defeat per-user encryption/restore). A **service-template constraint** (amends ADR-0002). (ADR-0021 §3.)
+- **Per-user extraction:** service storage must be **designed for per-user export + true incremental from the start** (DB builtins can't be used — they'd capture every user and defeat per-user encryption/restore). A **service-template constraint** (amends ADR-0002). The template enforces it: the per-user export/restore surface (`GET /v1/export` + `POST /v1/restore`, `contract/base/export_restore.py`) + the export/restore compliance checker (`tests/support/export_restore_check.py`) — the seam the orchestration below calls, re-verified per service from the first one (#269). (ADR-0021 §3.)
 - **Where (per sphere):**
   - **User sphere:** per-service encrypted zips; target chosen by that user (external disk / another machine's `workspace/` / cloud = a data location; no shared storage). (ADR-0021 §4.)
   - **Builder sphere:** GitHub + HuggingFace push (primary) + local-directory mirror (unpublished work, GitHub-down days); **not encrypted** (auditability, LAN-open). (ADR-0021 §4.)

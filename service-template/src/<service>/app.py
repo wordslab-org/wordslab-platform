@@ -60,7 +60,9 @@ def create_app(
     )
 
     # The canary's per-app interaction record — the consent contract's
-    # storage side (ticket #72): echo records, /v1/echo/extract gates.
+    # storage side (ticket #72): echo records, /v1/echo/extract gates. It
+    # also carries the user+role attribution the export/restore contract
+    # extracts per user+role (ticket #269).
     interactions = canary.InteractionStore()
 
     return create_service_app(
@@ -70,7 +72,10 @@ def create_app(
         resources=resources,
         models=models,
         health_status=health_status,
-        extra_routes=[*canary.routes(interactions), *(extra_routes or [])],
+        extra_routes=[
+            *canary.routes(interactions, service_name=name, version=version_),
+            *(extra_routes or []),
+        ],
         ui_routes=canary.ui_routes(name, version_),
         openapi_doc=openapi_doc,
         mcp=True,
