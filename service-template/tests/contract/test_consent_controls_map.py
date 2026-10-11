@@ -32,7 +32,7 @@ from contract.consent_controls import (
 )
 
 from tests.support.consent_controls_fixtures import (
-    CONTROL_EXTRACTION,
+    CONTROL_ANONYMIZE,
     CONTROL_FLAG,
     CONTROL_GATE,
     SECTION_ONE,
@@ -144,6 +144,39 @@ def test_an_unknown_control_key_is_rejected(tmp_path):
         )
 
 
+def test_an_unknown_section_key_is_rejected(tmp_path):
+    drifted = SECTION_ONE.replace('adr = "ADR-0026 §1', 'backs = []\nadr = "ADR-0026 §1')
+    with pytest.raises(ConsentControlsMapError, match="unknown key"):
+        load_consent_controls_map(
+            write_map(tmp_path, drifted + SECTION_TWO + CONTROL_FLAG + CONTROL_GATE)
+        )
+
+
+def test_a_non_string_home_is_rejected(tmp_path):
+    typo = CONTROL_GATE.replace('home = "template"', "home = 3")
+    with pytest.raises(ConsentControlsMapError, match="must be a string"):
+        load_consent_controls_map(
+            write_map(tmp_path, SECTION_ONE + SECTION_TWO + CONTROL_FLAG + typo)
+        )
+
+
+def test_a_control_citing_no_ADR_0026_section_is_rejected(tmp_path):
+    """A citation that names the ADR but no section would silently drop the
+    control out of the section sweep."""
+    bare = CONTROL_FLAG.replace('adr = "ADR-0026 §1', 'adr = "ADR-0026')
+    with pytest.raises(ConsentControlsMapError, match="cites no ADR-0026 section"):
+        load_consent_controls_map(
+            write_map(tmp_path, SECTION_ONE + SECTION_TWO + bare + CONTROL_GATE)
+        )
+
+
+def test_a_scalar_sections_array_is_rejected(tmp_path):
+    with pytest.raises(ConsentControlsMapError, match="non-empty array of tables"):
+        load_consent_controls_map(
+            write_map(tmp_path, 'sections = ["1"]\n\n' + CONTROL_FLAG + CONTROL_GATE)
+        )
+
+
 def test_a_non_slug_control_id_is_rejected(tmp_path):
     bad = CONTROL_FLAG.replace('id = "consent-flag"', 'id = "Consent Flag"')
     with pytest.raises(ConsentControlsMapError, match="lowercase slugs"):
@@ -205,7 +238,7 @@ def test_a_control_citing_an_undeclared_section_is_rejected(tmp_path):
     silently drop out of the sweep."""
     with pytest.raises(ConsentControlsMapError, match="undeclared section"):
         load_consent_controls_map(
-            write_map(tmp_path, SECTION_ONE + CONTROL_EXTRACTION + CONTROL_FLAG)
+            write_map(tmp_path, SECTION_ONE + CONTROL_ANONYMIZE + CONTROL_FLAG)
         )
 
 

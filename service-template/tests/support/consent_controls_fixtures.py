@@ -14,7 +14,7 @@ import textwrap
 from pathlib import Path
 
 __all__ = [
-    "CONTROL_EXTRACTION",
+    "CONTROL_ANONYMIZE",
     "CONTROL_FLAG",
     "CONTROL_GATE",
     "SECTION_ONE",
@@ -52,7 +52,7 @@ home = "template"
 seam = "the never-bypassable consent gate"
 """
 
-CONTROL_EXTRACTION = """\
+CONTROL_ANONYMIZE = """\
 [[controls]]
 id = "core-anonymize-pass"
 adr = "ADR-0026 §2 (pass 2 — data replacement at the core)"
@@ -64,7 +64,7 @@ seam = "the core's `datasets` capability before storing"
 def map_document(
     *,
     sections: str = SECTION_ONE + SECTION_TWO,
-    controls: str = CONTROL_FLAG + CONTROL_GATE + CONTROL_EXTRACTION,
+    controls: str = CONTROL_FLAG + CONTROL_GATE + CONTROL_ANONYMIZE,
 ) -> str:
     """A consent-controls map document from whole named blocks."""
     return sections + "\n" + controls

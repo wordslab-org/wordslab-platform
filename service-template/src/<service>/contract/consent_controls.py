@@ -42,8 +42,10 @@ The loader validates **shape and references**:
 - the closed key sets (a typo fails at load, never silently);
 - every id is a lowercase slug; section ids are unique (a section's own
   index entry may not be declared twice);
-- every control cites a DECLARED section (a dangling reference would
-  silently drop a control out of the sweep);
+- every control cites at least one ADR-0026 section, and every section it
+  cites is DECLARED (a dangling reference would silently drop a control out
+  of the sweep);
+- `home` is a string when present (a non-string home is a shape error);
 - every `home` is one of the closed `HOMES` (a typo'd home would silently
   place a control nowhere);
 - every citation names ADR-0026 (the single source — an evolution note such
@@ -53,8 +55,8 @@ The loader validates **shape and references**:
 
 It does **not** reject placement drift: a homeless control, or the same
 control landed in two places, are exactly the facts the compliance checker
-exists to report (#285's own acceptance criteria — the harness flags the
-drift). Shape errors are load errors; placement drift is a reported
+exists to report (#285's own acceptance criteria — the compliance checker
+flags the drift). Shape errors are load errors; placement drift is a reported
 finding. A *typo'd* home (a value outside `HOMES`) is neither: it is a
 shape error, because the map would otherwise place the control nowhere
 without saying so. (Two *distinct* controls sharing one home is not drift
@@ -369,7 +371,7 @@ def _parse_controls(entries: list, section_ids: set[str]) -> tuple[Control, ...]
 
         # `home` is where the control lives. It is DELIBERATELY optional
         # here: a control with no home is the placement fact the checker
-        # reports (#285 AC: the harness flags it). A *declared* home that is
+        # reports (#285 AC: the compliance checker flags it). A *declared* home that is
         # not in the closed vocabulary is a different thing — a typo — and
         # fails loudly at load.
         home = entry.get("home", "")

@@ -37,7 +37,7 @@ from tests.support.consent_controls_check import (
     compliance_findings,
 )
 from tests.support.consent_controls_fixtures import (
-    CONTROL_EXTRACTION,
+    CONTROL_ANONYMIZE,
     CONTROL_FLAG,
     CONTROL_GATE,
     SECTION_ONE,
@@ -90,12 +90,9 @@ def test_a_surface_without_the_consent_flag_is_flagged(tmp_path):
     surface WITHOUT the consent flag is flagged — and the map still LOADS
     (the drift is reported, never raised: assert both halves of the split)."""
     no_flag = CONTROL_GATE  # the template home keeps the exclusion, loses the flag
-    controls_map = load_consent_controls_map(
-        write_map(tmp_path, SECTION_ONE + SECTION_TWO + no_flag + CONTROL_EXTRACTION)
-    )  # ... the map LOADS
-    report = check_consent_controls(
-        write_map(tmp_path, SECTION_ONE + SECTION_TWO + no_flag + CONTROL_EXTRACTION)
-    )  # ... the sweep REPORTS
+    path = write_map(tmp_path, SECTION_ONE + SECTION_TWO + no_flag + CONTROL_ANONYMIZE)
+    controls_map = load_consent_controls_map(path)  # ... the map LOADS
+    report = check_consent_controls(path)  # ... the sweep REPORTS
     assert report.green is False
     (finding,) = [f for f in report.findings if "consent-flag" in f]
     assert "`template`" in finding and "does not place" in finding
@@ -108,7 +105,7 @@ def test_a_surface_without_the_never_bypassable_exclusion_is_flagged(tmp_path):
     private/secret exclusion the surface is flagged."""
     no_exclusion = CONTROL_FLAG  # the template home keeps the flag, loses the gate
     report = check_consent_controls(
-        write_map(tmp_path, SECTION_ONE + SECTION_TWO + no_exclusion + CONTROL_EXTRACTION)
+        write_map(tmp_path, SECTION_ONE + SECTION_TWO + no_exclusion + CONTROL_ANONYMIZE)
     )
     assert report.green is False
     (finding,) = [f for f in report.findings if "private-secret-exclusion" in f]
@@ -121,7 +118,7 @@ def test_a_HOMELESS_control_is_caught(tmp_path):
     control the model names but never places."""
     homeless = CONTROL_GATE.replace('home = "template"\n', "")
     report = check_consent_controls(
-        write_map(tmp_path, SECTION_ONE + SECTION_TWO + CONTROL_FLAG + homeless + CONTROL_EXTRACTION)
+        write_map(tmp_path, SECTION_ONE + SECTION_TWO + CONTROL_FLAG + homeless + CONTROL_ANONYMIZE)
     )
     assert report.green is False
     assert any(
@@ -139,7 +136,7 @@ def test_a_DOUBLE_HOMED_control_is_caught(tmp_path):
     places."""
     twin = CONTROL_FLAG.replace('home = "template"', 'home = "core"')
     report = check_consent_controls(
-        write_map(tmp_path, SECTION_ONE + SECTION_TWO + CONTROL_FLAG + twin + CONTROL_GATE + CONTROL_EXTRACTION)
+        write_map(tmp_path, SECTION_ONE + SECTION_TWO + CONTROL_FLAG + twin + CONTROL_GATE + CONTROL_ANONYMIZE)
     )
     assert report.green is False
     (finding,) = [f for f in report.findings if "re-implemented" in f]

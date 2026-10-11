@@ -65,7 +65,7 @@ seam = "the per-input consent flag on every user input surface (`contract/base/c
 id = "private-secret-exclusion"
 adr = "ADR-0026 §2 (pass 1 — filter = the consent gate; the private/secret exclusion is never bypassable whatever the service adds)"
 home = "template"
-seam = "the never-bypassable consent gate (`consent_gate`, #72) applied by every extraction surface"
+seam = "every extraction surface's gate step (`consent_gate`, shipped by #72)"
 
 [[controls]]
 id = "dataset-extraction-surface"
@@ -115,4 +115,4 @@ seam = "the callable surface (MCP/OpenAPI tool layer) of every service, driven f
 id = "assistant-container-shape"
 adr = "ADR-0026 §6 (the assistant runs in a container with only the user's workspace mounted — no out-of-band host access; the container prevents it)"
 home = "chat-and-agents"
-seam = "the per-user assistant session container's workspace-only mount (#48; ADR-0007 §8)"
+seam = "the per-user assistant session container (ADR-0007 §8; #48)"
