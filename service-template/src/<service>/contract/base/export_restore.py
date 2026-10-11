@@ -187,6 +187,13 @@ def validate_export_unit(unit: object) -> dict:
         raise ValueError(
             "The export unit's `items` is a list of record objects (ADR-0021 §3)."
         )
+    for item in unit["items"]:
+        seq = item.get("seq")
+        if not isinstance(seq, int) or isinstance(seq, bool) or seq < 0:
+            raise ValueError(
+                f"Every export-unit item carries a non-negative integer `seq` "
+                f"(the chain), got {seq!r} (ADR-0021 §5)."
+            )
     for key in ("service", "version"):
         if not isinstance(unit[key], str) or not unit[key]:
             raise ValueError(
@@ -217,10 +224,7 @@ def export_restore_routes(store, *, service_name: str, version: str) -> list[Rou
             try:
                 since = int(raw_since)
             except ValueError:
-                raise invalid_request(
-                    f"Invalid `since` {raw_since!r}: a non-negative integer "
-                    "seq (ADR-0021 §5)."
-                ) from None
+                since = -1
             if since < 0:
                 raise invalid_request(
                     f"Invalid `since` {raw_since!r}: a non-negative integer "

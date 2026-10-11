@@ -31,6 +31,7 @@ from contract.base.export_restore import (
     KIND_FULL,
     ROLES,
     UNIT_KEYS,
+    build_export_unit,
 )
 
 from tests.support.test_server import InProcessService
@@ -278,6 +279,84 @@ def test_a_malformed_restore_body_is_invalid_request_not_internal_error():
         r2 = c.post("/v1/restore", json=[1, 2, 3])
     assert r1.status_code == 400 and r1.json()["error"]["type"] == "invalid_request"
     assert r2.status_code == 400 and r2.json()["error"]["type"] == "invalid_request"
+
+
+def test_an_export_with_an_empty_owner_is_rejected_loudly():
+    """The owner must be non-empty: `owner=` (present but empty) is the
+    whole-DB shape in disguise — 400 naming it (ADR-0021 §3)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        r = c.get("/v1/export", params={"owner": "", "role": "user"})
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+    assert "owner" in r.json()["error"]["message"]
+
+
+def test_an_export_with_a_negative_since_is_rejected_loudly():
+    """`since` is a seq: a negative one is a shape error, never a silent
+    full export (ADR-0021 §5)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        r = c.get("/v1/export", params={"owner": "alice", "role": "user", "since": -1})
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+    assert "since" in r.json()["error"]["message"]
+
+
+def test_a_restore_unit_with_an_unknown_kind_is_rejected_loudly():
+    """The kind is a closed vocabulary (full / delta): a third kind is 400
+    naming it (ADR-0021 §5)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        unit = c.get("/v1/export", params={"owner": "alice", "role": "user"}).json()
+        unit["kind"] = "snapshot"
+        r = c.post("/v1/restore", json=unit)
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+    assert "snapshot" in r.json()["error"]["message"]
+
+
+def test_a_restore_unit_with_an_invalid_through_is_rejected_loudly():
+    """`through` is the seq the unit reaches: a negative or non-integer one
+    is 400 naming it (ADR-0021 §3)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        unit = c.get("/v1/export", params={"owner": "alice", "role": "user"}).json()
+        unit["through"] = -3
+        r = c.post("/v1/restore", json=unit)
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+    assert "through" in r.json()["error"]["message"]
+
+
+def test_a_restore_unit_without_a_service_identity_is_rejected_loudly():
+    """The unit carries the service identity it was exported from: an empty
+    or non-string identity is 400 naming it (ADR-0021 §7)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        unit = c.get("/v1/export", params={"owner": "alice", "role": "user"}).json()
+        unit["service"] = ""
+        r = c.post("/v1/restore", json=unit)
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+    assert "service" in r.json()["error"]["message"]
+
+
+def test_a_restore_unit_whose_items_lack_a_seq_is_rejected_not_applied():
+    """Every item carries the chain anchor: an item without an integer
+    `seq` is 400 naming it — never a 500 from the store (ADR-0021 §5)."""
+    svc = make_service()
+    with svc.authorized() as c:
+        identity = c.get("/v1/export", params={"owner": "alice", "role": "user"}).json()
+        unit = build_export_unit(
+            service=identity["service"], version=identity["version"],
+            owner="alice", role="user", kind="full", since=None, through=0,
+            items=[{"owner": "alice", "role": "user", "text": "no-seq", "consent": "may_use"}],
+        )
+        r = c.post("/v1/restore", json=unit)
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+    assert "seq" in r.json()["error"]["message"]
 
 
 # --- Full + delta replay (ADR-0021 §3/§5/§7) -------------------------------

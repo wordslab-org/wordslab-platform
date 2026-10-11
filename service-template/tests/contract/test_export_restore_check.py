@@ -28,11 +28,11 @@ from tests.support.export_restore_check import (
     BOB,
     CONTROLLED_EXPECTED,
     CONTROLLED_RECORDS,
-    ContractReport,
+    ComplianceReport,
     StubExportRestoreService,
     WholeDbExportService,
     check_export_restore,
-    contract_findings,
+    compliance_findings,
 )
 from tests.support.test_server import InProcessService
 
@@ -40,7 +40,7 @@ from tests.support.test_server import InProcessService
 # --------------------------------------------------- service passes (AC 2)
 
 
-def _check_stub() -> ContractReport:
+def _check_stub() -> ComplianceReport:
     stub = StubExportRestoreService()
     for owner, role, text in CONTROLLED_RECORDS:
         stub.store.record(text=text, consent="may_use", owner=owner, role=role)
@@ -169,7 +169,7 @@ def test_the_checker_entry_point_is_consumable_by_the_sweeper():
     exist yet, so the proof is this ticket's tests — against the canary and
     the negative fixture."""
     report = _check_stub()
-    assert isinstance(report, ContractReport)
+    assert isinstance(report, ComplianceReport)
     assert report.green is True
     lines = report.render().splitlines()
     assert lines == [
@@ -186,7 +186,7 @@ def test_contract_drift_is_reported_never_raised():
     bad = WholeDbExportService()
     try:
         with bad.client() as client:
-            findings, passed = contract_findings(
+            findings, passed = compliance_findings(
                 client,
                 target_factory=lambda: WholeDbExportService(),
                 expected=CONTROLLED_EXPECTED,
