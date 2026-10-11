@@ -14,7 +14,7 @@ Two things are asserted here:
   exactly one home, and every control section of the ADR is cited.
 
 The map is loaded at the data seam: `load_security_controls_map(path)`
-returns the parsed shape or raises a precise `SecurityMapError`, validated
+returns the parsed shape or raises a precise `SecurityControlsMapError`, validated
 from inline TOML written via tmp_path. No HTTP seam — this is a data surface.
 """
 
@@ -32,7 +32,7 @@ from contract.security_controls import (
     FRAME_KEYS,
     HOMES,
     SecurityControlsMap,
-    SecurityMapError,
+    SecurityControlsMapError,
     load_security_controls_map,
 )
 
@@ -112,7 +112,7 @@ def test_an_empty_backs_list_is_legal_but_a_dangling_one_is_not(tmp_path):
     )
     assert load_security_controls_map(path).controls[0].backs == ()
 
-    with pytest.raises(SecurityMapError, match="undeclared threat frame"):
+    with pytest.raises(SecurityControlsMapError, match="undeclared threat frame"):
         load_security_controls_map(
             write_map(
                 tmp_path, FRAME_ALPHA + CONTROL_ONE.replace('["alpha"]', '["gamma"]')
@@ -124,9 +124,9 @@ def test_asking_for_an_undeclared_frame_or_control_is_loud(tmp_path):
     """A foreign id is a rejection, never an empty answer (`controls_for`
     validates the frame first)."""
     controls_map = load_security_controls_map(write_map(tmp_path))
-    with pytest.raises(SecurityMapError, match="not a declared threat frame"):
+    with pytest.raises(SecurityControlsMapError, match="not a declared threat frame"):
         controls_map.controls_for("gamma")
-    with pytest.raises(SecurityMapError, match="not a declared control"):
+    with pytest.raises(SecurityControlsMapError, match="not a declared control"):
         controls_map.control("control-ghost")
 
 
@@ -193,12 +193,12 @@ def test_asking_for_an_undeclared_frame_or_control_is_loud(tmp_path):
     ],
 )
 def test_map_rejections(tmp_path, content, match):
-    with pytest.raises(SecurityMapError, match=match):
+    with pytest.raises(SecurityControlsMapError, match=match):
         load_security_controls_map(write_map(tmp_path, content))
 
 
 def test_a_missing_map_file_is_rejected_loudly(tmp_path):
-    with pytest.raises(SecurityMapError, match="security-controls map not found"):
+    with pytest.raises(SecurityControlsMapError, match="security-controls map not found"):
         load_security_controls_map(tmp_path / "nowhere.toml")
 
 
@@ -360,14 +360,14 @@ def test_the_map_is_not_a_declaration_key(tmp_path):
 def test_the_checker_is_not_a_declared_capability():
     """The maintainer's ruling on #275: the checker ships as plain data +
     test functions, NOT as a capability — `service.toml` declares only the
-    canary, and the service's learning-bar subjects carry no checker entry.
-    (A test function declared as a capability is misleading.)"""
+    canary. (A test function declared as a capability is misleading.) The
+    learning-bar side of the same fact is pinned by the bar test in
+    `test_declaration_files.py` — this test owns only the ruling's own
+    contract: no capability section names the checker."""
     from contract.declaration import load_service_toml
 
-    service_toml = Path(__file__).resolve().parents[2] / "service.toml"
-    svc = load_service_toml(service_toml)
+    svc = load_service_toml(Path(__file__).resolve().parents[2] / "service.toml")
     assert [c.name for c in svc.capabilities] == ["canary"]
-    assert svc.learning.agent_operable_subjects == ("canary",)
 
 
 def test_the_shipped_map_and_loader_carry_no_service_name():

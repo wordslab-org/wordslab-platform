@@ -13,8 +13,9 @@ control re-implemented in two places).
 
 It ships as **plain data + test functions inside the template** — not as a
 capability (maintainer ruling on #275: a test function declared as a
-capability is misleading; there is no `[<service>.placement]` section, no
-catalog entry, no learning-bar subject). It is also not a declaration key:
+capability is misleading; there is no `[<service>.<capability>]` section for
+it, no catalog entry, no learning-bar subject). It is also not a declaration
+key:
 a `[security]` / `[controls]` table inside `service.toml` or
 `implementation.toml` would be an **unknown key** and is rejected by those
 loaders (the closed-shape rule they already enforce; the same ruling that
@@ -152,7 +153,7 @@ def adr_0017_sections(citation: str) -> tuple[str, ...]:
     return tuple(_SECTION_RE.findall(citation))
 
 
-class SecurityMapError(ValueError):
+class SecurityControlsMapError(ValueError):
     """A security-controls map that violates its declared shape.
 
     Raised at load time: a malformed map is not a model, so it must not load
@@ -216,14 +217,14 @@ class SecurityControlsMap:
         for frame in self.frames:
             if frame.id == frame_id:
                 return frame
-        raise SecurityMapError(f"`{frame_id}` is not a declared threat frame")
+        raise SecurityControlsMapError(f"`{frame_id}` is not a declared threat frame")
 
     def control(self, control_id: str) -> Control:
         """The (first) control with this id, or a loud rejection."""
         for control in self.controls:
             if control.id == control_id:
                 return control
-        raise SecurityMapError(f"`{control_id}` is not a declared control")
+        raise SecurityControlsMapError(f"`{control_id}` is not a declared control")
 
     def controls_for(self, frame_id: str) -> tuple[Control, ...]:
         """The controls backing a frame — derived from `Control.backs`, so a
@@ -260,20 +261,20 @@ def load_security_controls_map(path: str | Path | None = None) -> SecurityContro
     `path` defaults to the module-adjacent `security_controls_map.toml` (the
     shipped map, which travels with the copy-to-start ritual — pass an
     explicit path to load a fixture). A malformed map raises
-    `SecurityMapError` naming the offending entry — never a silent partial
+    `SecurityControlsMapError` naming the offending entry — never a silent partial
     read.
     """
     path = Path(path) if path is not None else DEFAULT_MAP_PATH
     if not path.is_file():
-        raise SecurityMapError(f"security-controls map not found: {path}")
+        raise SecurityControlsMapError(f"security-controls map not found: {path}")
     try:
         raw = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        raise SecurityMapError(f"security-controls map is not valid TOML: {exc}") from None
+        raise SecurityControlsMapError(f"security-controls map is not valid TOML: {exc}") from None
 
     unknown = set(raw) - {"frames", "controls"}
     if unknown:
-        raise SecurityMapError(
+        raise SecurityControlsMapError(
             f"unknown top-level key(s) {sorted(unknown)} — the security-controls"
             " map declares only `frames` and `controls` (closed shape, typos fail"
             " loudly). It is NOT a declaration key: a `[security]`/`[controls]`"
@@ -287,7 +288,7 @@ def load_security_controls_map(path: str | Path | None = None) -> SecurityContro
         or not frame_raw
         or not all(isinstance(entry, dict) for entry in frame_raw)
     ):
-        raise SecurityMapError(
+        raise SecurityControlsMapError(
             "`frames` must be a non-empty array of tables (`[[frames]]`) — the"
             " map resolves ADR-0017 §1's threat frames, so a map without them"
             " is not a model"
@@ -298,7 +299,7 @@ def load_security_controls_map(path: str | Path | None = None) -> SecurityContro
         or not control_raw
         or not all(isinstance(entry, dict) for entry in control_raw)
     ):
-        raise SecurityMapError(
+        raise SecurityControlsMapError(
             "`controls` must be a non-empty array of tables (`[[controls]]`) —"
             " a map that places no control is not a model"
         )
@@ -315,14 +316,14 @@ def _parse_frames(entries: list) -> tuple[Frame, ...]:
         where = f"frames[{index}]"
         unknown = set(entry) - FRAME_KEYS
         if unknown:
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}` has unknown key(s) {sorted(unknown)} — a frame"
                 f" declares only: {', '.join(sorted(FRAME_KEYS))}"
             )
         frame_id = _require_slug(entry, "id", where)
         where = f"{where} (`{frame_id}`)"
         if frame_id in seen:
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}` declares threat frame {frame_id!r} twice — a frame's"
                 " own definition may not be duplicated (its `boundary` flag and"
                 " its role would contradict each other). A CONTROL landed twice"
@@ -333,7 +334,7 @@ def _parse_frames(entries: list) -> tuple[Frame, ...]:
         _check_cites_adr_0017(adr, where)
         boundary = entry.get("boundary", False)
         if not isinstance(boundary, bool):
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}.boundary` must be true or false — it marks a §1"
                 " frame the model declares an explicit, incomplete boundary"
                 " (never silently claimed as defended)"
@@ -348,7 +349,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
         where = f"controls[{index}]"
         unknown = set(entry) - CONTROL_KEYS
         if unknown:
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}` has unknown key(s) {sorted(unknown)} — a control"
                 f" declares only: {', '.join(sorted(CONTROL_KEYS))}"
             )
@@ -364,9 +365,9 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
         # a different thing — a typo — and fails loudly at load.
         home = entry.get("home", "")
         if not isinstance(home, str):
-            raise SecurityMapError(f"`{where}.home` must be a string")
+            raise SecurityControlsMapError(f"`{where}.home` must be a string")
         if home and home not in HOMES:
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}.home` is {home!r} — not one of the map's homes"
                 f" {sorted(HOMES)}. A control's home is the single owning"
                 " capability/service ADR-0017's placement settles (a typo'd"
@@ -375,7 +376,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 
         seam = entry.get("seam", "")
         if not isinstance(seam, str) or not seam.strip():
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}.seam` must be a non-empty string — where inside its"
                 " home the control lives (the surface/capability the ADR's"
                 " placement names); the map cites ADR-0017 rather than"
@@ -384,7 +385,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 
         backs_raw = entry.get("backs", [])
         if not isinstance(backs_raw, list) or not all(isinstance(b, str) for b in backs_raw):
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}.backs` must be an array of threat-frame ids — the"
                 " §1 frame(s) the control answers (empty when the control"
                 " settles a concern of its own section rather than one of the"
@@ -392,7 +393,7 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
             )
         dangling = [b for b in backs_raw if b not in frame_ids]
         if dangling:
-            raise SecurityMapError(
+            raise SecurityControlsMapError(
                 f"`{where}.backs` names undeclared threat frame(s) {dangling} —"
                 " a dangling reference would silently drop the control out of"
                 f" the model; declared frames: {sorted(frame_ids)}"
@@ -409,14 +410,14 @@ def _parse_controls(entries: list, frame_ids: set[str]) -> tuple[Control, ...]:
 def _require_str(table: dict, key: str, where: str) -> str:
     value = table.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise SecurityMapError(f"`{where}.{key}` must be a non-empty string")
+        raise SecurityControlsMapError(f"`{where}.{key}` must be a non-empty string")
     return value
 
 
 def _require_slug(table: dict, key: str, where: str) -> str:
     value = _require_str(table, key, where)
     if not _SLUG_RE.fullmatch(value):
-        raise SecurityMapError(
+        raise SecurityControlsMapError(
             f"`{where}.{key}` is {value!r} — ids are lowercase slugs"
             " (a-z, digits, hyphens; the map's keys are what the checker and"
             " the later verification lanes name)"
@@ -426,7 +427,7 @@ def _require_slug(table: dict, key: str, where: str) -> str:
 
 def _check_cites_adr_0017(adr: str, where: str) -> None:
     if ADR_0017 not in adr:
-        raise SecurityMapError(
+        raise SecurityControlsMapError(
             f"`{where}.adr` is {adr!r} — every entry cites {ADR_0017} (the"
             " single source; an evolution note such as ADR-0030's per-tool"
             " tiering may accompany the citation, never replace it)"
@@ -442,7 +443,7 @@ __all__ = [
     "Control",
     "Frame",
     "SecurityControlsMap",
-    "SecurityMapError",
+    "SecurityControlsMapError",
     "adr_0017_sections",
     "load_security_controls_map",
 ]

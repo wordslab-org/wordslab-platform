@@ -275,7 +275,7 @@ def check_security_controls(map_path: str | Path | None = None) -> ComplianceRep
 
     `map_path` defaults to the shipped map next to the loader, so a copied
     service sweeps its own vendored copy with no arguments. A malformed map
-    raises `SecurityMapError` (a load failure — the map is not a model);
+    raises `SecurityControlsMapError` (a load failure — the map is not a model);
     placement drift is reported as findings, never raised, so the sweeper can
     print what is wrong rather than crash.
     """

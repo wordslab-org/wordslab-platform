@@ -21,7 +21,7 @@ import pytest
 from contract.security_controls import (
     DEFAULT_MAP_PATH,
     HOMES,
-    SecurityMapError,
+    SecurityControlsMapError,
     load_security_controls_map,
 )
 
@@ -171,7 +171,7 @@ def test_the_guardrail_site_grouping_reads_named_sections_not_substrings():
     assert control.sections == ("8",)
 
 
-def test_the_sweep_is_consumable_by_the_sweeper(tmp_path):
+def test_the_checker_is_consumable_by_the_sweeper(tmp_path):
     """#275 AC 4: an explicit, documented entry point the sweeper (#68/#85)
     can call — it loads the service's OWN vendored map (no arguments), stands
     the stub surfaces up, and returns a report it can render pass/fail. #85
@@ -264,5 +264,5 @@ def test_each_stub_records_the_registry_name_where_the_adrs_name_one(home):
 def test_a_malformed_map_still_raises_rather_than_reporting(tmp_path):
     """A load failure is not a finding: a malformed map is not a model, so the
     sweep raises instead of reporting a green-looking report."""
-    with pytest.raises(SecurityMapError):
+    with pytest.raises(SecurityControlsMapError):
         check_security_controls(write_map(tmp_path, "[[frames]]\nid = 'Alpha One'\n"))

@@ -16,7 +16,7 @@ bare "harness", which in this platform means the AI agent harness
   owning home, its seam inside that home, and the frames it backs. The map
   **cites** ADR-0017 by section; it never restates a control's internals.
 - `contract/security_controls.py` — **the loader**: `load_security_controls_map()`
-  returns the parsed map or raises `SecurityMapError` naming the offending
+  returns the parsed map or raises `SecurityControlsMapError` naming the offending
   entry (closed shape — typos and unknown keys fail loudly at load).
 - `tests/support/security_controls_check.py` — **the compliance checker**:
   stands up a stub owning-capability surface per home (the repo's single

@@ -4,7 +4,7 @@
 # control's internals. It says where each control LIVES (its single owning
 # home) and which threat frame(s) of ADR-0017 §1 it answers. The loader
 # (`contract/security_controls.py`) validates the closed shape and the
-# references; the compliance checker (`tests/support/security_compliance.py`,
+# references; the compliance checker (`tests/support/security_controls_check.py`,
 # a TEST-side checker — never the AI-agent harness) proves the index is
 # complete — every frame backed, every control homed, no control homed twice.
 #
