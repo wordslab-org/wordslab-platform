@@ -1,0 +1,118 @@
+# The consent-controls map — ADR-0026's data consent & handling model as
+# data (ticket #285, parent spec #67).
+#
+# ADR-0026 is the SINGLE SOURCE. This file CITES it; it never restates a
+# control's internals. It says where each control LIVES (its single owning
+# home) and which ADR-0026 section places it. The loader
+# (`contract/consent_controls.py`) validates the closed shape and the
+# references; the compliance checker (`tests/support/consent_controls_check.py`,
+# a TEST-side checker — never the AI-agent harness) proves the index is
+# complete — every control homed, no control homed twice, every consent-
+# bearing home carrying the flag + the never-bypassable exclusion.
+#
+# NOT a declaration key and NOT a capability: this is its own data file,
+# discovered next to the loader. A `[consent]` table in
+# service.toml/implementation.toml is an unknown key there (ticket #75's
+# ruling — the FILES are the declaration), and the checker ships as plain
+# data + test functions, not as a declared capability (#275's ruling,
+# binding on this sibling — a test function declared as a capability is
+# misleading).
+#
+# The ADR sections that PLACE controls. A control's citation is what makes
+# the section->control direction DERIVED (one source, two directions that
+# cannot drift). §4 (un-anonymizable cases out of v1 scope) and §5 (the
+# builder sphere is anonymize-free — what the platform does NOT intercept)
+# place no control of their own and are deliberately NOT declared here,
+# exactly as the security map omits ADR-0017 §6's non-interception.
+
+[[sections]]
+id = "1"
+adr = "ADR-0026 §1 (consent capture — per-interaction, default may-use, remembered by explicit user-written rule, revoke-and-delete)"
+
+[[sections]]
+id = "2"
+adr = "ADR-0026 §2 (the core log-extraction boundary — filter = the consent gate, anonymize = data replacement at the core, split ownership)"
+
+[[sections]]
+id = "3"
+adr = "ADR-0026 §3 (GDPR & anonymization quality — mandatory before dataset entry, detect-by-type via the declared trace data-shape)"
+
+[[sections]]
+id = "6"
+adr = "ADR-0026 §6 (the assistant's acting identity — enforced at the callable surface)"
+
+# The controls ADR-0026 decides, each with exactly one home. Grouped by the
+# ADR section that defines them; `§N` tokens in `adr` are what proves no
+# control-carrying section of the ADR is silently unplaced.
+#
+# Deliberately NOT here: ADR-0026's Context — the settled ground it takes
+# as given (the three-identities attribution model, ADR-0021; the
+# assistant's role-scoping, ADR-0024 §2; the eval/training consumers,
+# ADR-0020 §5 / ADR-0025 §5). They are cross-referenced, not placed: a
+# control in this map is one ADR-0026 itself decides.
+
+# --- §1 Consent capture -----------------------------------------------------
+
+[[controls]]
+id = "consent-flag"
+adr = "ADR-0026 §1 (per-interaction consent, default \"may use for improvement\", the visible private/secret toggle)"
+home = "template"
+seam = "the per-input consent flag on every user input surface (`contract/base/consent.py`, shipped by #72)"
+
+# --- §2 The mediated boundary — the two passes, split ownership -------------
+
+[[controls]]
+id = "private-secret-exclusion"
+adr = "ADR-0026 §2 (pass 1 — filter = the consent gate; the private/secret exclusion is never bypassable whatever the service adds)"
+home = "template"
+seam = "the never-bypassable consent gate (`consent_gate`, #72) applied by every extraction surface"
+
+[[controls]]
+id = "dataset-extraction-surface"
+adr = "ADR-0026 §2 (split ownership — each service implements its own dataset-extraction UI/API producing an already-filtered standardized dataset file); ADR-0002 (sharpened)"
+home = "template"
+seam = "the per-service dataset-extraction surface the template's contract shapes (the declaration surface's shape, #74)"
+
+[[controls]]
+id = "trace-data-shape-declaration"
+adr = "ADR-0026 §2; ADR-0026 §3 (detect-by-type — the trace data-shape each service declares, so filter/anonymize can target the PII fields); ADR-0002 (sharpened)"
+home = "template"
+seam = "the service's declaration surface (the FILES are the declaration, #75's ruling — no `[consent]` table; the declaration's shape is #74's)"
+
+[[controls]]
+id = "consent-gate-filter"
+adr = "ADR-0026 §2 (the boundary itself — only may-use interactions are eligible to leave the user sphere through the core)"
+home = "core"
+seam = "the core `datasets` capability's intake (ADR-0003; #62/#111 — not yet built)"
+
+[[controls]]
+id = "core-anonymize-pass"
+adr = "ADR-0026 §2; ADR-0026 §3 (pass 2 — data replacement at the core before storing; mandatory before any trace enters a dataset; v1 text-only)"
+home = "core"
+seam = "the core `datasets` capability before storing (ADR-0003; #62/#111 — not yet built)"
+
+[[controls]]
+id = "dataset-provenance"
+adr = "ADR-0026 §2 (the core records dataset provenance — service, date, builder — and syncs to HuggingFace only after anonymization)"
+home = "core"
+seam = "the core `datasets` capability's stored-dataset record (ADR-0003; #62/#111 — not yet built)"
+
+[[controls]]
+id = "non-user-log-centralization"
+adr = "ADR-0026 §2 (the core centralizes the platform's non-user-related logs; raw per-user logs stay per-service)"
+home = "core"
+seam = "the core's centralized non-user log surface (ADR-0003; #62/#111 — not yet built)"
+
+# --- §6 The assistant's acting identity --------------------------------------
+
+[[controls]]
+id = "sphere-gate-at-callable-surface"
+adr = "ADR-0026 §6 (every service API checks the acting identity's sphere before returning data — the tool-layer gate is the sole inlet, a real control not a declaration)"
+home = "chat-and-agents"
+seam = "the callable surface (MCP/OpenAPI tool layer) of every service, driven from the action-context's acting identity (#48; ADR-0024 §2)"
+
+[[controls]]
+id = "assistant-container-shape"
+adr = "ADR-0026 §6 (the assistant runs in a container with only the user's workspace mounted — no out-of-band host access; the container prevents it)"
+home = "chat-and-agents"
+seam = "the per-user assistant session container's workspace-only mount (#48; ADR-0007 §8)"
