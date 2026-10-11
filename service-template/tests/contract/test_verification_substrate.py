@@ -40,14 +40,14 @@ def test_the_stub_agent_harness_answers_its_native_accept_refuse_surface():
     """#276 AC 1: the stub agent-harness exposes the agent harness's native
     accept/refuse contract surface — a tool-call request in, a verdict out —
     asserted over the one HTTP seam."""
-    harness = StubAgentHarness(verdict="accept")
-    svc = InProcessService(api_keys=["sk-correct"], extra_routes=[harness.route])
+    stub_agent_harness = StubAgentHarness(verdict="accept")
+    svc = InProcessService(api_keys=["sk-correct"], extra_routes=[stub_agent_harness.route])
     try:
         with svc.authorized() as client:
-            response = client.post(harness.path, json={"tool": "shell"})
+            response = client.post(stub_agent_harness.path, json={"tool": "shell"})
             assert response.status_code == 200
             assert response.json() == {"tool": "shell", "verdict": "accept"}
-            assert harness.requests[-1]["payload"] == {"tool": "shell"}
+            assert stub_agent_harness.requests[-1]["payload"] == {"tool": "shell"}
     finally:
         svc.close()
 
@@ -56,13 +56,13 @@ def test_the_verdict_is_flippable_and_the_flip_shows_at_the_contract_surface():
     """The verdict a test can flip: the SAME surface answers `refuse` after
     the flip — the accept/refuse state is the surface's contract, not test
     scaffolding read from a private attribute."""
-    harness = StubAgentHarness(verdict="accept")
-    svc = InProcessService(api_keys=["sk-correct"], extra_routes=[harness.route])
+    stub_agent_harness = StubAgentHarness(verdict="accept")
+    svc = InProcessService(api_keys=["sk-correct"], extra_routes=[stub_agent_harness.route])
     try:
         with svc.authorized() as client:
-            first = client.post(harness.path, json={"tool": "shell"})
-            harness.set_verdict("refuse")
-            second = client.post(harness.path, json={"tool": "shell"})
+            first = client.post(stub_agent_harness.path, json={"tool": "shell"})
+            stub_agent_harness.set_verdict("refuse")
+            second = client.post(stub_agent_harness.path, json={"tool": "shell"})
     finally:
         svc.close()
     assert first.json()["verdict"] == "accept"
@@ -72,14 +72,30 @@ def test_the_verdict_is_flippable_and_the_flip_shows_at_the_contract_surface():
 def test_the_agent_harness_verdict_vocabulary_is_closed():
     """The native verdict is accept or refuse — anything else is a loud
     rejection naming the offending value, at construction AND at the flip."""
-    harness = StubAgentHarness()
+    stub_agent_harness = StubAgentHarness()
     with pytest.raises(ValueError, match="not a native agent-harness verdict"):
-        harness.set_verdict("maybe")
+        stub_agent_harness.set_verdict("maybe")
     with pytest.raises(ValueError, match="not a native agent-harness verdict"):
         StubAgentHarness(verdict="maybe")
 
 
 # ------------------------------------------ the stub host-OS / LAN surfaces
+
+
+def test_a_malformed_request_is_answered_malformed_never_silently_denied():
+    """A lane must not misread its own typo as the backstop firing: a
+    non-object request body is a 400 at the seam, not a `denied` answer."""
+    mount = StubSharedMount(shared=("/shared/workspace",))
+    svc = InProcessService(api_keys=["sk-correct"], extra_routes=[mount.route])
+    try:
+        with svc.authorized() as client:
+            response = client.post(
+                mount.path, content=b"not json", headers={"Content-Type": "text/plain"}
+            )
+    finally:
+        svc.close()
+    assert response.status_code == 400
+    assert response.json()["error"]["type"] == "invalid_request"
 
 
 def test_the_stub_shared_mount_allows_only_explicitly_shared_paths():
@@ -132,18 +148,18 @@ def test_the_stub_backstops_deny_whether_the_agent_harness_approves_or_refuses()
     never intercepts the agent harness; the backstops fire regardless), not
     the isolation or network-policy stance — those lanes (#277/#278) assert
     the real controls hold in this shape."""
-    harness = StubAgentHarness()
+    stub_agent_harness = StubAgentHarness()
     mount = StubSharedMount(shared=("/shared/workspace",))
     lan = StubLan(in_scope=("pypi.org",))
     svc = InProcessService(
         api_keys=["sk-correct"],
-        extra_routes=[harness.route, mount.route, lan.route],
+        extra_routes=[stub_agent_harness.route, mount.route, lan.route],
     )
     try:
         with svc.authorized() as client:
             for verdict in ("accept", "refuse"):
-                harness.set_verdict(verdict)
-                call = client.post(harness.path, json={"tool": "shell"})
+                stub_agent_harness.set_verdict(verdict)
+                call = client.post(stub_agent_harness.path, json={"tool": "shell"})
                 assert call.json()["verdict"] == verdict
                 crossing = client.post(
                     mount.path, json={"path": "/Users/anyone/Documents/x"}
@@ -208,5 +224,5 @@ def test_the_substrate_is_deterministic_and_offline():
     (#66's Testing Decisions)."""
     first, second = build_environment_stubs(), build_environment_stubs()
     assert [s.path for s in first.values()] == [s.path for s in second.values()]
-    harness = StubAgentHarness()
-    assert harness.body == StubAgentHarness().body
+    stub_agent_harness = StubAgentHarness()
+    assert stub_agent_harness.body == StubAgentHarness().body

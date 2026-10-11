@@ -48,6 +48,7 @@ from typing import Any
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from contract.base.errors import invalid_request
 from tests.support.security_controls_check import HOME_STUBS, build_home_stubs
 from tests.support.stubs import StubCollaborator
 
@@ -96,6 +97,11 @@ class _RecordingStub(StubCollaborator):
                 "payload": payload,
             }
         )
+        if not isinstance(payload, dict):
+            # a malformed request is answered as malformed, never silently
+            # folded into a deny — a lane must not misread its own typo as
+            # the backstop firing (the base contract's 400, base item 4)
+            raise invalid_request("Expected a JSON object request body.")
         return JSONResponse(self._answer(payload))
 
     def _answer(self, payload: object) -> dict:
@@ -110,8 +116,8 @@ class StubAgentHarness(_RecordingStub):
     security lives in the backstops around the harness, which fire under
     either verdict.
 
-        harness = StubAgentHarness()
-        svc = InProcessService(extra_routes=[harness.route])
+        stub_agent_harness = StubAgentHarness()
+        svc = InProcessService(extra_routes=[stub_agent_harness.route])
         # POST {"tool": ...} -> {"tool": ..., "verdict": "accept"|"refuse"}
     """
 

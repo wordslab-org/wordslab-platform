@@ -36,6 +36,7 @@ offline: no network, no clock, no randomness.
 
 from __future__ import annotations
 
+import json
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -217,6 +218,13 @@ def _parse_stance(entry: dict, index: int, mapped_ids: set[str]) -> Stance:
     return Stance(control=control, stance=stance_value, lane=lane)
 
 
+def _toml_str(value: str) -> str:
+    """A TOML basic string — `json.dumps` quoting is a valid TOML basic
+    string, so any quote/backslash in a value survives the write/read
+    round-trip instead of poisoning the registry file."""
+    return json.dumps(value)
+
+
 def _validated_stance(stance: str, where: str) -> str:
     """The closed-vocabulary rule, stated ONCE — the loader's parse and the
     record surface reject the same way, so the two can never drift."""
@@ -255,6 +263,11 @@ def record_stance(
     — the round-trip is the contract (AC 3), not an in-memory echo.
     """
     _validated_stance(stance, "record_stance")
+    for name, value in (("control", control), ("lane", lane)):
+        if not isinstance(value, str) or not value.strip():
+            raise PostureRegistryError(
+                f"record_stance: `{name}` must be a non-empty string"
+            )
     controls_map = load_security_controls_map(map_path)
     if control not in {c.id for c in controls_map.controls}:
         raise PostureRegistryError(
@@ -263,9 +276,12 @@ def record_stance(
             " for an unmapped control"
         )
     path = Path(path)
+    # Values are TOML-escaped on write (json.dumps is TOML-safe for strings):
+    # a lane label carrying a quote must still round-trip — the record
+    # surface's promise is that the file it writes LOADS.
     entry = (
-        f'\n[[stances]]\ncontrol = "{control}"\nstance = "{stance}"\n'
-        f'lane = "{lane}"\n'
+        f"\n[[stances]]\ncontrol = {_toml_str(control)}\n"
+        f"stance = {_toml_str(stance)}\nlane = {_toml_str(lane)}\n"
     )
     if path.is_file():
         text = path.read_text(encoding="utf-8") + entry

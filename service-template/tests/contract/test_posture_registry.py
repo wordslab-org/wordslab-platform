@@ -239,6 +239,25 @@ def test_record_stance_rejects_a_stance_outside_the_vocabulary_before_writing(
     assert not registry_path.exists()
 
 
+def test_a_lane_label_needing_quotes_still_round_trips(tmp_path):
+    """The record surface's promise is that the file it WRITES LOADS: a
+    value carrying a quote is TOML-escaped on write, so the round-trip
+    survives instead of poisoning the registry for every later lane."""
+    map_path = good_map(tmp_path)
+    registry_path = tmp_path / "posture_registry.toml"
+    tricky = '#279 "quoted" \\ lane'
+    recorded = record_stance(
+        registry_path,
+        control="control-one",
+        stance="verified-holding",
+        lane=tricky,
+        map_path=map_path,
+    )
+    reloaded = load_posture_registry(registry_path, map_path=map_path)
+    assert reloaded.stance("control-one") == recorded
+    assert reloaded.stance("control-one").lane == tricky
+
+
 def test_the_registry_is_consumable_by_the_coherence_bar(tmp_path):
     """#284's read-back shape: one sweep over the registry against the map —
     which controls have a recorded stance and which are missing, as data the
