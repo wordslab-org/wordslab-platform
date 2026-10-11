@@ -71,10 +71,12 @@ def test_the_verdict_is_flippable_and_the_flip_shows_at_the_contract_surface():
 
 def test_the_agent_harness_verdict_vocabulary_is_closed():
     """The native verdict is accept or refuse — anything else is a loud
-    rejection naming the offending value."""
+    rejection naming the offending value, at construction AND at the flip."""
     harness = StubAgentHarness()
     with pytest.raises(ValueError, match="not a native agent-harness verdict"):
         harness.set_verdict("maybe")
+    with pytest.raises(ValueError, match="not a native agent-harness verdict"):
+        StubAgentHarness(verdict="maybe")
 
 
 # ------------------------------------------ the stub host-OS / LAN surfaces

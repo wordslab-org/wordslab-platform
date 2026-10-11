@@ -23,7 +23,6 @@ import pytest
 
 from tests.support.posture_registry import (
     STANCES,
-    PostureRegistry,
     PostureRegistryError,
     load_posture_registry,
     record_stance,
@@ -183,6 +182,61 @@ def test_an_empty_registry_is_valid_data_not_an_error(tmp_path):
     assert registry.stances == ()
     with pytest.raises(PostureRegistryError, match="control-one"):
         registry.stance("control-one")
+
+
+def test_a_missing_registry_file_is_a_loud_rejection(tmp_path):
+    """The load surface names the missing path — a lane pointing at a
+    registry that was never written fails loudly, never loads empty."""
+    with pytest.raises(PostureRegistryError, match="posture registry not found"):
+        load_posture_registry(tmp_path / "absent.toml", map_path=good_map(tmp_path))
+
+
+def test_a_registry_header_carrying_keys_is_a_loud_rejection(tmp_path):
+    """The registry's shape is fixed by its loader, not configured per file —
+    a `[registry]` table with a key is an unknown key."""
+    map_path = good_map(tmp_path)
+    registry_path = write_registry(
+        tmp_path,
+        """\
+[registry]
+version = 2
+"""
+        + record("control-one", "verified-holding"),
+    )
+    with pytest.raises(PostureRegistryError, match="header with no keys"):
+        load_posture_registry(registry_path, map_path=map_path)
+
+
+def test_stances_as_a_non_array_is_a_loud_rejection(tmp_path):
+    map_path = good_map(tmp_path)
+    registry_path = write_registry(
+        tmp_path,
+        REGISTRY_HEADER
+        + """
+[stances]
+control = "control-one"
+""",
+    )
+    with pytest.raises(PostureRegistryError, match="array of tables"):
+        load_posture_registry(registry_path, map_path=map_path)
+
+
+def test_record_stance_rejects_a_stance_outside_the_vocabulary_before_writing(
+    tmp_path,
+):
+    """The record surface fails closed on the vocabulary too — nothing lands
+    for an invented stance."""
+    map_path = good_map(tmp_path)
+    registry_path = tmp_path / "posture_registry.toml"
+    with pytest.raises(PostureRegistryError, match="definitely-fine"):
+        record_stance(
+            registry_path,
+            control="control-one",
+            stance="definitely-fine",
+            lane="#277",
+            map_path=map_path,
+        )
+    assert not registry_path.exists()
 
 
 def test_the_registry_is_consumable_by_the_coherence_bar(tmp_path):

@@ -66,8 +66,43 @@ __all__ = [
 #: substrate models that surface; it never overrides it.
 AGENT_HARNESS_VERDICTS = ("accept", "refuse")
 
+#: The environment stubs' paths, keyed the way the lanes name them — the
+#: stable seam names the seven verification tickets cite. ONE source: the
+#: classes' default `path=` reads from here, so a seam name can never drift
+#: from the class that serves it.
+ENVIRONMENT_STUB_PATHS: dict[str, str] = {
+    "agent-harness": "/v1/agent-harness/accept-refuse",
+    "host-filesystem": "/v1/host-filesystem/mount-check",
+    "lan": "/v1/lan/reach-check",
+}
 
-class StubAgentHarness(StubCollaborator):
+
+class _RecordingStub(StubCollaborator):
+    """Shared request-recording for the environment stubs: parse the JSON
+    body, record the request (the `StubCollaborator` discipline), and answer
+    through the subclass's `_answer` — the recording shape lives once, the
+    contract answer per surface stays per class."""
+
+    async def _serve(self, request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = None
+        self.requests.append(
+            {
+                "method": request.method,
+                "path": request.url.path,
+                "query": dict(request.query_params),
+                "payload": payload,
+            }
+        )
+        return JSONResponse(self._answer(payload))
+
+    def _answer(self, payload: object) -> dict:
+        raise NotImplementedError  # each surface answers at its own contract
+
+
+class StubAgentHarness(_RecordingStub):
     """The agent harness's native accept/refuse surface (ADR-0017 §6), as a
     contract seam: a tool-call request in, a verdict out, over the one HTTP
     seam. A test flips the verdict (`set_verdict`) so a lane can assert its
@@ -83,7 +118,7 @@ class StubAgentHarness(StubCollaborator):
     def __init__(
         self,
         *,
-        path: str = "/v1/agent-harness/accept-refuse",
+        path: str = ENVIRONMENT_STUB_PATHS["agent-harness"],
         verdict: str = "accept",
     ) -> None:
         super().__init__(
@@ -104,24 +139,12 @@ class StubAgentHarness(StubCollaborator):
         self._verdict = _validated_verdict(verdict)
         self.body = {"verdict": self._verdict, "surface": "stub-agent-harness"}
 
-    async def _serve(self, request: Request) -> JSONResponse:
-        try:
-            payload = await request.json()
-        except Exception:
-            payload = None
-        self.requests.append(
-            {
-                "method": request.method,
-                "path": request.url.path,
-                "query": dict(request.query_params),
-                "payload": payload,
-            }
-        )
+    def _answer(self, payload: object) -> dict:
         tool = payload.get("tool") if isinstance(payload, dict) else None
-        return JSONResponse({"tool": tool, "verdict": self._verdict})
+        return {"tool": tool, "verdict": self._verdict}
 
 
-class StubSharedMount(StubCollaborator):
+class StubSharedMount(_RecordingStub):
     """The host-filesystem surface (ADR-0017 §2's shape): a path crossing is
     answered at the seam — the explicitly-shared directory crosses, anything
     else (the host's Documents/Desktop and friends) is denied with its
@@ -135,25 +158,13 @@ class StubSharedMount(StubCollaborator):
     def __init__(
         self,
         *,
-        path: str = "/v1/host-filesystem/mount-check",
+        path: str = ENVIRONMENT_STUB_PATHS["host-filesystem"],
         shared: tuple[str, ...] = ("/shared/workspace",),
     ) -> None:
         super().__init__(path=path, methods=("POST",), body={"surface": "stub-shared-mount"})
         self.shared = tuple(shared)
 
-    async def _serve(self, request: Request) -> JSONResponse:
-        try:
-            payload = await request.json()
-        except Exception:
-            payload = None
-        self.requests.append(
-            {
-                "method": request.method,
-                "path": request.url.path,
-                "query": dict(request.query_params),
-                "payload": payload,
-            }
-        )
+    def _answer(self, payload: object) -> dict:
         target = payload.get("path") if isinstance(payload, dict) else None
         if target is not None and any(
             target == root or target.startswith(root.rstrip("/") + "/")
@@ -169,10 +180,10 @@ class StubSharedMount(StubCollaborator):
                 "reason": f"{target!r} is not explicitly shared — the host "
                 "filesystem is unreachable by default (ADR-0017 §2)",
             }
-        return JSONResponse(answer)
+        return answer
 
 
-class StubLan(StubCollaborator):
+class StubLan(_RecordingStub):
     """The LAN surface (ADR-0017 §5's shape): a reach request is answered at
     the seam — an in-scope destination is reached, an out-of-scope LAN wander
     is refused with its reason. #278 asserts the real container network
@@ -186,25 +197,13 @@ class StubLan(StubCollaborator):
     def __init__(
         self,
         *,
-        path: str = "/v1/lan/reach-check",
+        path: str = ENVIRONMENT_STUB_PATHS["lan"],
         in_scope: tuple[str, ...] = ("pypi.org", "github.com"),
     ) -> None:
         super().__init__(path=path, methods=("POST",), body={"surface": "stub-lan"})
         self.in_scope = tuple(in_scope)
 
-    async def _serve(self, request: Request) -> JSONResponse:
-        try:
-            payload = await request.json()
-        except Exception:
-            payload = None
-        self.requests.append(
-            {
-                "method": request.method,
-                "path": request.url.path,
-                "query": dict(request.query_params),
-                "payload": payload,
-            }
-        )
+    def _answer(self, payload: object) -> dict:
         address = payload.get("address") if isinstance(payload, dict) else None
         if address in self.in_scope:
             answer: dict[str, Any] = {
@@ -217,7 +216,7 @@ class StubLan(StubCollaborator):
                 "reason": f"{address!r} is an out-of-scope destination — no "
                 "unrestricted host or LAN access (ADR-0017 §5)",
             }
-        return JSONResponse(answer)
+        return answer
 
 
 def _validated_verdict(verdict: str) -> str:
@@ -228,15 +227,6 @@ def _validated_verdict(verdict: str) -> str:
             f"{AGENT_HARNESS_VERDICTS}"
         )
     return verdict
-
-
-#: The environment stubs' paths, keyed the way the lanes name them — the
-#: stable seam names the seven verification tickets cite.
-ENVIRONMENT_STUB_PATHS: dict[str, str] = {
-    "agent-harness": "/v1/agent-harness/accept-refuse",
-    "host-filesystem": "/v1/host-filesystem/mount-check",
-    "lan": "/v1/lan/reach-check",
-}
 
 
 def build_environment_stubs() -> dict[str, StubCollaborator]:

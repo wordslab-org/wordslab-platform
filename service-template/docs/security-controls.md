@@ -67,7 +67,7 @@ the verification environment is built once, not per control:
   loudly at load).
 
 The substrate verifies **no control**: it ships the scaffolding plus its own
-behavioral contract (a stub harness approving a call, a stub LAN being
+behavioral contract (a stub agent-harness approving a call, a stub LAN being
 wandered, a stance round-tripping through the registry). The per-control
 stance assertions are the seven lanes'; the coherence sweep is #284's.
 Vocabulary: never bare "harness" — the artifact is the **stub agent-harness**

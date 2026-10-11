@@ -44,6 +44,7 @@ from contract.security_controls import SecurityControlsMap, load_security_contro
 
 __all__ = [
     "STANCES",
+    "STANCE_KEYS",
     "PostureRegistry",
     "PostureRegistryError",
     "Stance",
@@ -211,14 +212,21 @@ def _parse_stance(entry: dict, index: int, mapped_ids: set[str]) -> Stance:
             " orphan, never a silent extra"
         )
     stance_value = _require_str(entry, "stance", where)
-    if stance_value not in STANCES:
+    _validated_stance(stance_value, where)
+    lane = _require_str(entry, "lane", where)
+    return Stance(control=control, stance=stance_value, lane=lane)
+
+
+def _validated_stance(stance: str, where: str) -> str:
+    """The closed-vocabulary rule, stated ONCE — the loader's parse and the
+    record surface reject the same way, so the two can never drift."""
+    if stance not in STANCES:
         raise PostureRegistryError(
-            f"`{where}.stance` is {stance_value!r} — not one of the closed"
+            f"`{where}.stance` is {stance!r} — not one of the closed"
             f" runtime-stance vocabulary {STANCES} (a lane NAMES a stance it"
             " verified, never invents one)"
         )
-    lane = _require_str(entry, "lane", where)
-    return Stance(control=control, stance=stance_value, lane=lane)
+    return stance
 
 
 def _require_str(table: dict, key: str, where: str) -> str:
@@ -246,12 +254,7 @@ def record_stance(
     returned `Stance` is what a subsequent `load_posture_registry` reads back
     — the round-trip is the contract (AC 3), not an in-memory echo.
     """
-    if stance not in STANCES:
-        raise PostureRegistryError(
-            f"stance {stance!r} is not one of the closed runtime-stance"
-            f" vocabulary {STANCES} (a lane NAMES a stance it verified,"
-            " never invents one)"
-        )
+    _validated_stance(stance, "record_stance")
     controls_map = load_security_controls_map(map_path)
     if control not in {c.id for c in controls_map.controls}:
         raise PostureRegistryError(
