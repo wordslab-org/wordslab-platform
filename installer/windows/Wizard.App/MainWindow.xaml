@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="Wordslab.Wizard.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+        xmlns:local="using:Wordslab.Wizard.App"
+        Title="Wordslab Platform — Install">
+
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+
+  <Grid Padding="28,20,28,20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- The journey panel: everything a Windows user ever sees before the web handoff. -->
+    <Grid x:Name="JourneyPanel">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+
+      <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,16">
+        <TextBlock Text="Install Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}" />
+        <TextBlock Text="Every step is a numbered script, shown live while it runs. Nothing is installed silently — you can re-run any step yourself."
+                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+
+      <Border Grid.Row="1" Style="{StaticResource StepCard}" Margin="0,0,0,12">
+        <Grid ColumnSpacing="12">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <StackPanel Spacing="4">
+            <TextBlock Text="Which disk should hold the Wordslab data volumes?" />
+            <TextBox x:Name="DataDiskBox" PlaceholderText="e.g. D:\" />
+            <TextBlock x:Name="DiskError" Visibility="Collapsed"
+                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                       Style="{StaticResource CaptionTextBlockStyle}" />
+          </StackPanel>
+          <Button x:Name="StartButton" Grid.Column="1" VerticalAlignment="Bottom"
+                  Style="{StaticResource AccentButtonStyle}" Content="Install"
+                  Click="StartInstall_Click" MinWidth="120" />
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <ItemsControl x:Name="StepsList" ItemsSource="{x:Bind Steps}" Spacing="8">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="local:StepVm">
+              <Border Style="{StaticResource StepCard}">
+                <StackPanel Spacing="8">
+                  <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="30" Height="30" CornerRadius="15"
+                            Background="{ThemeResource SystemControlBackgroundAccentBrush}">
+                      <TextBlock Text="{x:Bind NumberText}" Foreground="White" FontWeight="SemiBold"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center"
+                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <ProgressRing Grid.Column="2" Width="20" Height="20" IsIndeterminate="True"
+                                  Visibility="{x:Bind IsRunning, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                    <FontIcon Grid.Column="3" Glyph="&#xE73E;" FontSize="18" VerticalAlignment="Center"
+                              Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                              Visibility="{x:Bind IsDone, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                  </Grid>
+                  <TextBlock Text="{x:Bind StatusText, Mode=OneWay}"
+                             Style="{StaticResource CaptionTextBlockStyle}"
+                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                  <controls:Expander Header="output" IsExpanded="False"
+                                     Visibility="{x:Bind HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                      <TextBlock Text="{x:Bind LogText, Mode=OneWay}" FontFamily="Consolas"
+                                 FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    </ScrollViewer>
+                  </controls:Expander>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <TextBlock x:Name="StatusLine" Grid.Row="3" Margin="0,12,0,0" TextWrapping="Wrap"
+                 Style="{StaticResource BodyTextBlockStyle}" />
+    </Grid>
+
+    <!-- The web handoff (phase 3): an address, not a process switch — the same window becomes
+         the dashboard. A TLS error page is expected before the front door exists. -->
+    <Grid x:Name="WebPanel" Visibility="Collapsed">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <StackPanel Spacing="4" Margin="0,0,0,12">
+        <TextBlock x:Name="WebTitle" Text="The install now continues in the dashboard"
+                   Style="{StaticResource SubtitleTextBlockStyle}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button x:Name="OpenBrowserButton" Content="Open in your browser instead" Click="OpenInBrowser_Click" />
+          <TextBlock x:Name="WebUrl" VerticalAlignment="Center"
+                     Style="{StaticResource CaptionTextBlockStyle}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+      </StackPanel>
+      <controls:WebView2 x:Name="Web" Grid.Row="1" />
+    </Grid>
+  </Grid>
+</Window>

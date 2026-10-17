@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Windows installer UI: a beautiful, simple WinUI 3 journey — no console, no TUI.
+       XAML markup window, Mica backdrop, numbered step cards with live streaming progress,
+       then a full-window WebView2 handoff (ADR-0014 §3 phase 3: an address, not a process switch).
+
+       NOTE: XAML markup compilation (XamlCompiler.exe) is Windows-only, so THIS project builds
+       on the Windows host (or CI on Windows). All journey logic lives in Wizard.Core, which
+       builds and is fully tested on any platform. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>Wordslab.Wizard.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wizard.Core\Wizard.Core.csproj" />
+  </ItemGroup>
+
+</Project>

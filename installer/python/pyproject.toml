@@ -1,0 +1,11 @@
+[project]
+name = "wordslab-installer"
+version = "0.1.0"
+description = "Wordslab Platform installer: phase-2 Python TUI + the installer API (ADR-0014 §3)"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
