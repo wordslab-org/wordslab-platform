@@ -132,20 +132,16 @@ public sealed partial class MainWindow : Window
             case ReportKind.Stdout or ReportKind.Stderr:
                 vm.AppendLog(report.Kind == ReportKind.Stderr ? $"! {report.Text}" : report.Text);
                 break;
-            case ReportKind.Exit:
-                if (report.Text == "done")
-                {
-                    vm.IsRunning = false;
-                    vm.IsDone = true;
-                    vm.StatusText = "done";
-                }
-                else
-                {
-                    vm.IsRunning = false;
-                    vm.IsFailed = true;
-                    vm.StatusText = report.Text;
-                    vm.AppendLog(report.Text);
-                }
+            case ReportKind.Success:
+                vm.IsRunning = false;
+                vm.IsDone = true;
+                vm.StatusText = "done";
+                break;
+            case ReportKind.Failure:
+                vm.IsRunning = false;
+                vm.IsFailed = true;
+                vm.StatusText = report.Text;
+                vm.AppendLog(report.Text);
                 break;
         }
     }

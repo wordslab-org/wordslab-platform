@@ -1,13 +1,19 @@
+using System.Text;
+
 namespace Wordslab.Wizard.Core;
 
 /// <summary>One command line the wizard runs. <paramref name="Status"/> is the human sentence
-/// shown in the UI while the command runs — the commands report what they do as they stream.</summary>
-public sealed record Command(string Program, IReadOnlyList<string> Args, string Status)
+/// shown in the UI while the command runs — the commands report what they do as they stream.
+/// <paramref name="OutputEncoding"/> is set for processes whose console encoding is not the
+/// system default — notably <c>wsl.exe</c>/<c>wslpath</c>, which emit UTF-16LE.</summary>
+public sealed record Command(string Program, IReadOnlyList<string> Args, string Status, Encoding? OutputEncoding = null)
 {
     public override string ToString() => $"{Program} {string.Join(' ', Args)}";
 }
 
-public enum ReportKind { Info, Start, Stdout, Stderr, Exit }
+// Info/Start drive the live status line; Stdout/Stderr feed the expandable log; Success/Failure
+// are TYPED so the UI's card state machine never parses prose (prose stays display-only payload).
+public enum ReportKind { Info, Start, Stdout, Stderr, Success, Failure }
 
 /// <summary>A streamed status line. The UI renders these live: step header (Info), command
 /// status (Start), output lines (Stdout/Stderr) and the outcome (Exit).</summary>
@@ -36,6 +42,9 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            // null for system-default tools; set for UTF-16LE emitters like wsl.exe/wslpath
+            StandardOutputEncoding = command.OutputEncoding,
+            StandardErrorEncoding = command.OutputEncoding,
         };
         foreach (var a in command.Args) p.StartInfo.ArgumentList.Add(a);
         try

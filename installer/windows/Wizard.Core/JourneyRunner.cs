@@ -29,11 +29,11 @@ public sealed class JourneyRunner(ICommandExecutor executor)
                 exits.Add(exit);
                 if (exit == 0)
                 {
-                    report(new Report(script.Number, ReportKind.Exit, "done"));
+                    report(new Report(script.Number, ReportKind.Success, "done"));
                 }
                 else
                 {
-                    report(new Report(script.Number, ReportKind.Exit,
+                    report(new Report(script.Number, ReportKind.Failure,
                         $"FAILED (exit {exit}) — the journey stops here; nothing further is installed."));
                     results.Add(new StepResult(script, exits));
                     return results; // stop at the first failure; the UI shows what happened

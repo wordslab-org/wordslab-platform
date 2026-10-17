@@ -18,7 +18,7 @@ WPF remain banned).
       real streaming process executor (both pipes drained concurrently).
     - `NumberedScript.cs` — the numbered bootstrap scripts **as readable classes**; distro
       script classes run the shared numbered shell files (`DistroShellScript`) or Python files
-      (`DistroPythonScript`, the #88 shape); paths cross into the distro only via `wslpath -u`.
+      (`DistroPythonScript`, the #88 shape); paths cross into the distro only via `wslpath -u`; all `wsl.exe` output is decoded as UTF-16LE (its console encoding).
     - `Scripts/WindowsJourney.cs` — scripts 1–3 (everything WSL-specific up to the first step
       shared with Linux) as C# classes, plus the shared steps 4–6.
     - `JourneyRunner.cs` — runs the numbered scripts in order, streaming every status/output

@@ -10,14 +10,8 @@
     <MicaBackdrop />
   </Window.SystemBackdrop>
 
+  <!-- The journey and web panels overlay; exactly one is visible at a time. -->
   <Grid Padding="28,20,28,20">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
-
     <!-- The journey panel: everything a Windows user ever sees before the web handoff. -->
     <Grid x:Name="JourneyPanel">
       <Grid.RowDefinitions>
@@ -77,6 +71,9 @@
                     <FontIcon Grid.Column="3" Glyph="&#xE73E;" FontSize="18" VerticalAlignment="Center"
                               Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                               Visibility="{x:Bind IsDone, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                    <FontIcon Grid.Column="3" Glyph="&#xE783;" FontSize="18" VerticalAlignment="Center"
+                              Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                              Visibility="{x:Bind IsFailed, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
                   </Grid>
                   <TextBlock Text="{x:Bind StatusText, Mode=OneWay}"
                              Style="{StaticResource CaptionTextBlockStyle}"

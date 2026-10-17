@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Wordslab.Wizard.Core;
 
 /// <summary>Everything crossing from the Windows host into the WSL distro goes through
@@ -8,18 +10,21 @@ public static class Wsl
 {
     public const string Exe = "wsl.exe";
 
+    // wsl.exe (and wslpath) write UTF-16LE — decoding as the system default corrupts the output.
+    private static readonly Encoding WslConsoleEncoding = Encoding.Unicode;
+
     public static Command PythonProbe() =>
-        new(Exe, new[] { "--", "python3", "--version" }, "Checking for Python in the distro");
+        new(Exe, new[] { "--", "python3", "--version" }, "Checking for Python in the distro", WslConsoleEncoding);
 
     public static Command PathTranslate(string windowsPath) =>
-        new(Exe, new[] { "wslpath", "-u", windowsPath }, "Translating a Windows path for the distro");
+        new(Exe, new[] { "wslpath", "-u", windowsPath }, "Translating a Windows path for the distro", WslConsoleEncoding);
 
     public static Command RunBash(string distroPath) =>
-        new(Exe, new[] { "--", "bash", distroPath }, $"Running {System.IO.Path.GetFileName(distroPath)} inside the distro");
+        new(Exe, new[] { "--", "bash", distroPath }, $"Running {System.IO.Path.GetFileName(distroPath)} inside the distro", WslConsoleEncoding);
 
     public static Command RunPython(string distroPath, IReadOnlyList<string>? args = null) =>
-        new(Exe, new[] { "--", "python3", distroPath }.Union(args ?? []).ToArray(),
-            $"Running {System.IO.Path.GetFileName(distroPath)} in the distro Python");
+        new(Exe, new[] { "--", "python3", distroPath }.Concat(args ?? []).ToArray(), // Concat, not Union: argv duplicates are significant
+            $"Running {System.IO.Path.GetFileName(distroPath)} in the distro Python", WslConsoleEncoding);
 }
 
 /// <summary>Runs <c>wslpath -u</c> through the executor seam so even path translation is visible

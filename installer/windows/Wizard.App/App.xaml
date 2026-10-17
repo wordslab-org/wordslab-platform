@@ -16,7 +16,7 @@
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+        <Setter TargetName="Card" Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="16,12" />
       </Style>
     </ResourceDictionary>

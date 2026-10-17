@@ -15,7 +15,7 @@ Expect: Build succeeded, 0 errors — including `Wizard.App` (XAML markup compil
 ```
 dotnet test Wizard.Tests
 ```
-Expect: Passed: 14, Failed: 0.
+Expect: Passed: 16, Failed: 0.
 
 ## S3 — the WinUI journey (the whole Windows experience)
 

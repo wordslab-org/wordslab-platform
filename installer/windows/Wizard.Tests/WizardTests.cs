@@ -151,7 +151,7 @@ public class JourneyRunnerTests
         Assert.Contains(reports, r => r is { Step: 1, Kind: ReportKind.Info } && r.Text == "First");
         Assert.Contains(reports, r => r.Kind == ReportKind.Start);   // the command status line
         Assert.Contains(reports, r => r is { Kind: ReportKind.Stdout } && r.Text == "hello");
-        Assert.Contains(reports, r => r is { Kind: ReportKind.Exit } && r.Text == "done");
+        Assert.Contains(reports, r => r is { Kind: ReportKind.Success } && r.Text == "done");
     }
 
     [Fact]
@@ -271,5 +271,23 @@ public class SupportTests
         Assert.Equal(payload, PayloadLocator.FindInstallerDir(Path.Combine(payload, "deep", "deeper")));
 
         Assert.Null(PayloadLocator.FindInstallerDir(Path.GetPathRoot(Path.GetTempPath())!));
+    }
+
+    [Fact]
+    public void Wsl_commands_declare_their_utf16le_output_encoding()
+    {
+        // wsl.exe (incl. wslpath) emits UTF-16LE; without the explicit encoding a real Windows
+        // host decodes its output as NUL-corrupted text — the fakes cannot catch this drift.
+        Assert.Equal(System.Text.Encoding.Unicode, Wsl.PythonProbe().OutputEncoding);
+        Assert.Equal(System.Text.Encoding.Unicode, Wsl.PathTranslate("C:\\x").OutputEncoding);
+        Assert.Equal(System.Text.Encoding.Unicode, Wsl.RunBash("/x/y.sh").OutputEncoding);
+        Assert.Equal(System.Text.Encoding.Unicode, Wsl.RunPython("/x/tui.py").OutputEncoding);
+    }
+
+    [Fact]
+    public void RunPython_keeps_duplicate_argv_entries()
+    {
+        var args = Wsl.RunPython("/t.py", new[] { "--flag", "--flag" }).Args;
+        Assert.Equal(new[] { "--", "python3", "/t.py", "--flag", "--flag" }, args);
     }
 }

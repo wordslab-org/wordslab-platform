@@ -3,7 +3,7 @@ using Wordslab.Wizard.Core;
 // Windows-specific numbered scripts 1–3 (everything WSL-specific up to the first step shared
 // with the Linux install) live here as C# classes. Their real content is ticket #88's home; the
 // visible placeholder commands say so. Steps 4–6 are shared with Linux and run as their distro
-// script FILES — see Scripts/SharedJourney scripts below.
+// script FILES — see the DistroShellScript subclasses below.
 
 namespace Wordslab.Wizard.Core.Scripts;
 

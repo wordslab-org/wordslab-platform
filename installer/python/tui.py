@@ -83,7 +83,7 @@ def web_handoff(dashboard_url: str, mirror: Mirror) -> str:
     """The journey's final act: hand off to the web UI as an address (ADR-0014 §3 phase 3).
 
     Returns the instruction line the TUI shows; the Windows installer additionally renders the
-    URL in its embedded webview and opens the browser itself (the WebView2Host on the native side).
+    URL in its embedded WebView2 panel and opens the browser itself (the WinUI app, native side).
     """
     mirror(f"The install now continues in the dashboard at: {dashboard_url}")
     return f"Open {dashboard_url} in your browser to continue the install (services, capabilities, activities)."
