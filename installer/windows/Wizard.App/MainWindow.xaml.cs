@@ -1,0 +1,188 @@
+using System.Collections.ObjectModel;
+using Microsoft.UI.Xaml;
+using Microsoft.Web.WebView2.Core;
+using Wordslab.Wizard.Core;
+using Wordslab.Wizard.Core.Scripts;
+
+namespace Wordslab.Wizard.App;
+
+/// <summary>The whole Windows experience of ticket #87: one window, the numbered journey with
+/// live streaming progress (Wizard.Core reports rendered straight onto the step cards), and the
+/// web handoff. The code-behind only wires events to Wizard.Core — every decision lives there.</summary>
+public sealed partial class MainWindow : Window
+{
+    private const string DashboardUrl = "https://wordslab.local/";
+
+    private readonly NumberedScript[] _journey =
+    {
+        new Script01NetworkReachability(), new Script02WslDistroDisks(), new Script03UvPythonInDistro(),
+        new Script04DataVolumes(), new Script05FirstPlatformCore(), new Script06FrontDoor(),
+    };
+
+    public ObservableCollection<StepVm> Steps { get; } = new();
+    private readonly ICommandExecutor _executor = new ProcessCommandExecutor();
+    private readonly JourneyRunner _runner;
+    private bool _running;
+
+    public MainWindow(bool webViewPreview)
+    {
+        InitializeComponent();
+        _runner = new JourneyRunner(_executor);
+
+        foreach (var script in _journey)
+            Steps.Add(new StepVm(script.Number, script.Title));
+
+        DataDiskBox.Text = SuggestDataDisk();
+
+        if (webViewPreview)
+            _ = ShowWebHandoffAsync("Webview preview — the dashboard will live here");
+    }
+
+    private static string SuggestDataDisk() =>
+        DriveInfo.GetDrives()
+            .FirstOrDefault(d => d.DriveType == DriveType.Fixed && d.Name != "C:\\")?.Name ?? "D:\\";
+
+    private async void StartInstall_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running) return;
+
+        string disk = DataDiskBox.Text.Trim();
+        string? error = Parameters.ValidateDiskPath(disk);
+        if (error is not null)
+        {
+            DiskError.Text = error;
+            DiskError.Visibility = Visibility.Visible;
+            return;
+        }
+        DiskError.Visibility = Visibility.Collapsed;
+
+        string? installerDir = PayloadLocator.FindInstallerDir(AppContext.BaseDirectory);
+        if (installerDir is null)
+        {
+            StatusLine.Text = "FAILED — the installer payload (python/tui.py + scripts/) was not found next to this wizard. Nothing further is installed.";
+            return;
+        }
+
+        var parameters = new Dictionary<string, string> { ["data_disk"] = disk };
+        string parametersFile = Path.Combine(AppContext.BaseDirectory, "wordslab-install-parameters.json");
+        Parameters.Write(parameters, parametersFile);
+
+        var ctx = new InstallContext
+        {
+            InstallerDir = installerDir,
+            Parameters = parameters,
+            ParametersFile = parametersFile,
+            WslPaths = new WslPathTranslator(_executor),
+        };
+
+        _running = true;
+        StartButton.IsEnabled = false;
+        StatusLine.Text = "Parameters saved — the later phases read the same file. Running the numbered scripts…";
+
+        IReadOnlyList<StepResult> results;
+        try
+        {
+            results = await _runner.RunAsync(_journey, ctx, report =>
+                DispatcherQueue.TryEnqueue(() => ApplyReport(report)));
+        }
+        catch (Exception ex)
+        {
+            StatusLine.Text = $"FAILED — {ex.Message}. Nothing further is installed.";
+            _running = false;
+            StartButton.IsEnabled = true;
+            return;
+        }
+
+        bool complete = results.Count == _journey.Length && results.All(r => r.Success);
+        if (complete && !await _runner.PythonAvailableInDistroAsync())
+        {
+            StatusLine.Text = "Python is not available in the distro yet — the bootstrap scripts above must complete first. Re-running the installer is safe.";
+            _running = false;
+            StartButton.IsEnabled = true;
+            return;
+        }
+
+        if (complete)
+        {
+            // The front-door step printed the address; from here the handoff is an address,
+            // not a process switch (ADR-0014 §3 phase 3).
+            await ShowWebHandoffAsync("The install now continues in the dashboard");
+        }
+        else
+        {
+            StatusLine.Text = "The journey stopped on a failed script. Fix the cause and press Install again — re-running is safe (Update path, ADR-0014 §7).";
+            _running = false;
+            StartButton.IsEnabled = true;
+        }
+    }
+
+    private void ApplyReport(Report report)
+    {
+        var vm = Steps.First(s => s.Number == report.Step);
+        switch (report.Kind)
+        {
+            case ReportKind.Info:
+                vm.IsRunning = true;
+                vm.StatusText = "running…";
+                break;
+            case ReportKind.Start:
+                vm.StatusText = report.Text;
+                vm.AppendLog(report.Text);
+                break;
+            case ReportKind.Stdout or ReportKind.Stderr:
+                vm.AppendLog(report.Kind == ReportKind.Stderr ? $"! {report.Text}" : report.Text);
+                break;
+            case ReportKind.Exit:
+                if (report.Text == "done")
+                {
+                    vm.IsRunning = false;
+                    vm.IsDone = true;
+                    vm.StatusText = "done";
+                }
+                else
+                {
+                    vm.IsRunning = false;
+                    vm.IsFailed = true;
+                    vm.StatusText = report.Text;
+                    vm.AppendLog(report.Text);
+                }
+                break;
+        }
+    }
+
+    private async Task ShowWebHandoffAsync(string title)
+    {
+        JourneyPanel.Visibility = Visibility.Collapsed;
+        WebPanel.Visibility = Visibility.Visible;
+        WebTitle.Text = title;
+        WebUrl.Text = DashboardUrl;
+        try
+        {
+            var environment = await CoreWebView2Environment.CreateAsync(
+                userDataFolder: Path.Combine(Path.GetTempPath(), "wordslab-installer-webview"));
+            await Web.EnsureCoreWebView2Async(environment);
+            Web.CoreWebView2.Navigate(DashboardUrl);
+        }
+        catch (Exception ex)
+        {
+            // No WebView2 runtime / no desktop session: the handoff is an address — say so plainly.
+            WebUrl.Text = $"{DashboardUrl}  (webview unavailable: {ex.GetType().Name} — use “Open in your browser instead”)";
+        }
+    }
+
+    private void OpenInBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = DashboardUrl,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            WebUrl.Text = $"{DashboardUrl}  (could not open the browser: {ex.Message} — copy the address)";
+        }
+    }
+}

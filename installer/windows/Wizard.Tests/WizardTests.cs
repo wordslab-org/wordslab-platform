@@ -1,171 +1,236 @@
-using Wordslab.Wizard;
-using Wordslab.Wizard.Abstractions;
+using Wordslab.Wizard.Core;
+using Wordslab.Wizard.Core.Scripts;
 using Xunit;
 
 namespace Wizard.Tests;
 
 /// <summary>A scriptable fake process: each command maps to (exit code, stdout lines, stderr lines).</summary>
-sealed class FakeProcess : IProcessRunner
+sealed class FakeProcess : ICommandExecutor
 {
     private readonly Dictionary<string, (int exit, string[] stdout, string[] stderr)> _table;
     public List<(string command, string[] args)> Calls { get; } = new();
 
     public FakeProcess(Dictionary<string, (int, string[], string[])> table) => _table = table;
 
-    public int Run(string command, IReadOnlyList<string> args, Action<string>? onStdout, Action<string>? onStderr)
+    public Task<int> RunAsync(Command command, Action<ReportLine> report, CancellationToken cancel = default)
     {
-        Calls.Add((command, args.ToArray()));
-        if (!_table.TryGetValue(command, out var entry))
-            return 127; // command not found
-        foreach (var l in entry.stdout) onStdout?.Invoke(l);
-        foreach (var l in entry.stderr) onStderr?.Invoke(l);
-        return entry.exit;
+        Calls.Add((command.Program, command.Args.ToArray()));
+        if (!_table.TryGetValue(command.Program, out var entry))
+            return Task.FromResult(127); // command not found
+        foreach (var l in entry.stdout) report(new ReportLine(ReportKind.Stdout, l));
+        foreach (var l in entry.stderr) report(new ReportLine(ReportKind.Stderr, l));
+        return Task.FromResult(entry.exit);
     }
 }
 
-/// <summary>A fake whose responses depend on the argv, for commands called repeatedly
-/// (e.g. `wsl.exe wslpath -u …` twice with different paths).</summary>
-sealed class ArgAwareProcess : IProcessRunner
+/// <summary>A fake whose responses depend on the argv — for `wsl.exe` called repeatedly with
+/// different paths (wslpath translation of two different files).</summary>
+sealed class ArgAwareProcess : ICommandExecutor
 {
-    private readonly Func<string, IReadOnlyList<string>, (int exit, string[] stdout)> _respond;
-    public List<(string command, string[] args)> Calls { get; } = new();
+    private readonly Func<Command, (int exit, string[] stdout)> _respond;
+    public List<Command> Calls { get; } = new();
 
-    public ArgAwareProcess(Func<string, IReadOnlyList<string>, (int, string[])> respond) => _respond = respond;
+    public ArgAwareProcess(Func<Command, (int, string[])> respond) => _respond = respond;
 
-    public int Run(string command, IReadOnlyList<string> args, Action<string>? onStdout, Action<string>? onStderr)
+    public Task<int> RunAsync(Command command, Action<ReportLine> report, CancellationToken cancel = default)
     {
-        Calls.Add((command, args.ToArray()));
-        var (exit, stdout) = _respond(command, args);
-        foreach (var l in stdout) onStdout?.Invoke(l);
-        return exit;
+        Calls.Add(command);
+        var (exit, stdout) = _respond(command);
+        foreach (var l in stdout) report(new ReportLine(ReportKind.Stdout, l));
+        return Task.FromResult(exit);
     }
+
+    public static ArgAwareProcess WslWithTranslatedPaths() => new(c =>
+        c.Args.Count > 0 && c.Args[0] == "wslpath"
+            ? (0, new[] { c.Args[2][0] == '/'
+                ? "/mnt/c" + c.Args[2]                                        // /repo/x -> /mnt/c/repo/x
+                : "/mnt/c/" + c.Args[2][2..].TrimStart('\\').Replace('\\', '/') }) // C:\x\y -> /mnt/c/x/y
+            : (0, Array.Empty<string>()));
 }
 
-public class ScriptRunnerTests
+static class Contexts
 {
-    private static (ScriptRunner runner, List<string> mirror, FakeProcess proc) Make(
-        Dictionary<string, (int, string[], string[])> table)
+    public static InstallContext Make(ICommandExecutor executor, string installerDir = "/repo/installer") => new()
     {
-        var mirror = new List<string>();
-        var proc = new FakeProcess(table);
-        return (new ScriptRunner(proc, mirror.Add), mirror, proc);
+        InstallerDir = installerDir,
+        Parameters = new Dictionary<string, string> { ["data_disk"] = "D:\\" },
+        ParametersFile = "/tmp/wordslab-install-parameters.json",
+        WslPaths = new WslPathTranslator(executor),
+    };
+}
+
+public class ScriptPlanTests
+{
+    [Fact]
+    public async Task Windows_specific_steps_run_on_the_host_or_via_wsl()
+    {
+        var proc = ArgAwareProcess.WslWithTranslatedPaths();
+        var ctx = Contexts.Make(proc);
+
+        var s1 = await new Script01NetworkReachability().PlanAsync(ctx);
+        Assert.Equal("pwsh", s1.Single().Program);
+
+        var s3 = await new Script03UvPythonInDistro().PlanAsync(ctx);
+        Assert.Equal(Wsl.Exe, s3.Single().Program);
+        Assert.Equal(new[] { "--", "bash", "-c", "echo 'uv bootstrap: placeholder until #88'" }, s3.Single().Args);
     }
 
     [Fact]
-    public void Runs_steps_in_order_and_mirrors_stdout_line_by_line()
+    public async Task Distro_shell_steps_translate_the_path_then_run_bash()
     {
-        var (runner, mirror, proc) = Make(new()
+        var proc = ArgAwareProcess.WslWithTranslatedPaths();
+        var ctx = Contexts.Make(proc);
+
+        var commands = await new Script04DataVolumes().PlanAsync(ctx);
+
+        Assert.Single(proc.Calls); // planning itself runs one visible command: the translation
+        Assert.Equal(new[] { "wslpath", "-u" }, proc.Calls[0].Args.Take(2));
+        Assert.Equal(new[] { "--", "bash", "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh" },
+                     commands.Single().Args);
+    }
+
+    [Fact]
+    public async Task Distro_shell_steps_fall_back_to_the_raw_path_and_fail_visibly_without_wsl()
+    {
+        // No WSL at all: wslpath fails; the step must still run and fail loudly (wsl's own error),
+        // never silently skip.
+        var proc = new FakeProcess(new Dictionary<string, (int, string[], string[])>());
+        var ctx = Contexts.Make(proc);
+
+        var commands = await new Script04DataVolumes().PlanAsync(ctx);
+
+        Assert.Equal(ctx.DistroScript("distro/04-data-volumes.sh"), commands.Single().Args[2]);
+    }
+
+    [Fact]
+    public async Task Distro_python_steps_run_the_distro_python_on_translated_paths()
+    {
+        var proc = ArgAwareProcess.WslWithTranslatedPaths();
+        var ctx = Contexts.Make(proc);
+
+        var step = new TestStep();
+        var commands = await step.PlanAsync(ctx);
+
+        Assert.Equal(new[] { "--", "python3", "/mnt/c/repo/installer/python/steps/step99_demo.py" }, commands.Single().Args);
+    }
+
+    sealed class TestStep : DistroPythonScript
+    {
+        public override int Number => 99;
+        public override string Title => "Demo python step (#88 shape)";
+        protected override string PythonFile => "steps/step99_demo.py";
+    }
+
+    [Fact]
+    public void The_windows_journey_is_six_numbered_scripts_without_gaps()
+    {
+        var journey = new NumberedScript[]
         {
-            ["one"] = (0, new[] { "hello", "world" }, Array.Empty<string>()),
-            ["two"] = (0, new[] { "done" }, Array.Empty<string>()),
-        });
-        var steps = new[]
-        {
-            new ScriptStep(1, "First", "one", Array.Empty<string>()),
-            new ScriptStep(2, "Second", "two", Array.Empty<string>()),
+            new Script01NetworkReachability(), new Script02WslDistroDisks(), new Script03UvPythonInDistro(),
+            new Script04DataVolumes(), new Script05FirstPlatformCore(), new Script06FrontDoor(),
         };
+        Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, journey.Select(s => s.Number));
+        Assert.All(journey, s => Assert.False(string.IsNullOrWhiteSpace(s.Title)));
+    }
+}
 
-        var results = runner.RunAll(steps);
+public class JourneyRunnerTests
+{
+    [Fact]
+    public async Task Runs_scripts_in_order_and_streams_their_status_and_output()
+    {
+        var proc = new FakeProcess(new() { ["ok"] = (0, new[] { "hello" }, Array.Empty<string>()) });
+        var reports = new List<Report>();
+        var runner = new JourneyRunner(proc);
+        var ctx = Contexts.Make(proc);
+        var step = new SingleCommandScript(1, "First", "ok");
 
-        Assert.Equal(2, results.Count);
-        Assert.True(results.All(r => r.Success));
-        Assert.Equal(new[] { "one", "two" }, proc.Calls.Select(c => c.command));
-        Assert.Contains("[01] First", mirror);
-        Assert.Contains("[01] hello", mirror);
-        Assert.Contains("[01] world", mirror);
-        Assert.Contains("[02] done", mirror);
+        var results = await runner.RunAsync(new[] { step }, ctx, reports.Add);
+
+        Assert.True(results.Single().Success);
+        Assert.Contains(reports, r => r is { Step: 1, Kind: ReportKind.Info } && r.Text == "First");
+        Assert.Contains(reports, r => r.Kind == ReportKind.Start);   // the command status line
+        Assert.Contains(reports, r => r is { Kind: ReportKind.Stdout } && r.Text == "hello");
+        Assert.Contains(reports, r => r is { Kind: ReportKind.Exit } && r.Text == "done");
     }
 
     [Fact]
-    public void Mirrors_stderr_lines_loudly()
+    public async Task Stops_at_the_first_failure_loudly_and_skips_nothing_silently()
     {
-        var (runner, mirror, _) = Make(new()
-        {
-            ["bad"] = (0, Array.Empty<string>(), new[] { "warning: careful" }),
-        });
-        runner.RunAll(new[] { new ScriptStep(3, "Warns", "bad", Array.Empty<string>()) });
-        Assert.Contains("[03] ! warning: careful", mirror);
-    }
-
-    [Fact]
-    public void Stops_at_first_failure_and_reports_it_loudly()
-    {
-        var (runner, mirror, proc) = Make(new()
+        var proc = new FakeProcess(new()
         {
             ["fail"] = (7, Array.Empty<string>(), Array.Empty<string>()),
             ["never"] = (0, new[] { "should not run" }, Array.Empty<string>()),
         });
-        var steps = new[]
-        {
-            new ScriptStep(1, "Fails", "fail", Array.Empty<string>()),
-            new ScriptStep(2, "Never runs", "never", Array.Empty<string>()),
-        };
+        var reports = new List<Report>();
+        var runner = new JourneyRunner(proc);
+        var ctx = Contexts.Make(proc);
 
-        var results = runner.RunAll(steps);
+        var results = await runner.RunAsync(
+            new NumberedScript[] { new SingleCommandScript(1, "Fails", "fail"), new SingleCommandScript(2, "Never runs", "never") },
+            ctx, reports.Add);
 
         Assert.Single(results);
-        Assert.Equal(7, results[0].ExitCode);
         Assert.DoesNotContain("never", proc.Calls.Select(c => c.command));
-        Assert.Contains(mirror, l => l.Contains("FAILED (exit 7)"));
+        Assert.Contains(reports, r => r.Text.Contains("FAILED (exit 7)") && r.Text.Contains("nothing further is installed"));
     }
 
     [Fact]
-    public void Passes_arguments_through_to_the_process()
+    public async Task Python_probe_runs_python_INSIDE_the_distro_not_wsl_version()
     {
-        var (runner, _, proc) = Make(new()
-        {
-            ["wsl.exe"] = (0, Array.Empty<string>(), Array.Empty<string>()),
-        });
-        runner.RunAll(new[] { new ScriptStep(1, "In distro", "wsl.exe", new[] { "--", "bash", "-c", "echo hi" }) });
-        Assert.Equal(new[] { "--", "bash", "-c", "echo hi" }, proc.Calls.Single().args);
+        var proc = new FakeProcess(new() { [Wsl.Exe] = (0, new[] { "Python 3.12.4" }, Array.Empty<string>()) });
+        Assert.True(await new JourneyRunner(proc).PythonAvailableInDistroAsync());
+        // The regression this pins: `wsl.exe --version` would only prove WSL exists.
+        Assert.Equal(new[] { "--", "python3", "--version" }, proc.Calls.Single().args);
+    }
+
+    sealed class SingleCommandScript(int number, string title, string program) : NumberedScript
+    {
+        public override int Number => number;
+        public override string Title => title;
+        public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx) =>
+            Task.FromResult<IReadOnlyList<Command>>(new[] { new Command(program, Array.Empty<string>(), title) });
     }
 }
 
-public class ParameterCollectorTests
+public class ExecutorTests
 {
-    // A validator with teeth only exists for real parameters (data_disk today); the yes/no
-    // tests supply their own inline rule — no production dead code for #90's future parameter.
-    private static string? YesNo(string value) => value is "y" or "n" ? null : "answer y or n";
-
     [Fact]
-    public void Empty_answer_takes_the_default()
+    public async Task Real_executor_streams_stdout_and_exit_code()
     {
-        var collector = new ParameterCollector(_ => "");
-        var answers = collector.Collect(new[]
-        {
-            new ParameterSpec("join_lan", "Join?", "y", YesNo),
-        });
-        Assert.Equal("y", answers["join_lan"]);
+        var lines = new List<ReportLine>();
+        int exit = await new ProcessCommandExecutor()
+            .RunAsync(new Command("sh", new[] { "-c", "echo one; echo two" }, "echo test"), lines.Add);
+
+        Assert.Equal(0, exit);
+        Assert.Equal(new[] { "one", "two" }, lines.Select(l => l.Text));
     }
 
     [Fact]
-    public void Invalid_answer_is_reasked_until_valid()
+    public async Task Real_executor_mirrors_stderr_without_deadlocking_on_a_flooded_pipe()
     {
-        var queue = new Queue<string?>(new string?[] { "maybe", "n" });
-        var collector = new ParameterCollector(_ => queue.Dequeue());
-        var answers = collector.Collect(new[]
-        {
-            new ParameterSpec("join_lan", "Join?", "y", YesNo),
-        });
-        Assert.Equal("n", answers["join_lan"]);
-        Assert.Empty(queue); // both answers consumed: the invalid one was re-asked
-    }
+        // Regression: reading stdout to EOF first deadlocks when the process fills the stderr pipe.
+        var lines = new List<ReportLine>();
+        var task = new ProcessCommandExecutor().RunAsync(
+            new Command("sh", new[] { "-c", "i=0; while [ $i -lt 4000 ]; do echo e$i >&2; i=$((i+1)); done; echo last" }, "flood"),
+            lines.Add);
 
-    [Fact]
-    public void No_default_and_no_answer_is_a_loud_error()
-    {
-        var collector = new ParameterCollector(_ => "");
-        Assert.Throws<InvalidOperationException>(() =>
-            collector.Collect(new[] { new ParameterSpec("data_disk", "Which disk?", null) }));
+        Assert.True(task.Wait(TimeSpan.FromSeconds(15)), "ProcessCommandExecutor deadlocked");
+        Assert.Equal(0, await task);
+        Assert.Contains("last", lines.Select(l => l.Text));
+        Assert.Equal(4000, lines.Count(l => l.Kind == ReportKind.Stderr));
     }
+}
 
+public class SupportTests
+{
     [Fact]
     public void Disk_validation_accepts_drive_paths_and_rejects_junk()
     {
-        Assert.Null(ParameterCollector.ValidateDiskPath("D:\\"));
-        Assert.Null(ParameterCollector.ValidateDiskPath("/data")); // POSIX roots (Linux wizard path)
-        Assert.NotNull(ParameterCollector.ValidateDiskPath("not a path"));
-        Assert.NotNull(ParameterCollector.ValidateDiskPath("/")); // bare root is refused on purpose
+        Assert.Null(Parameters.ValidateDiskPath("D:\\"));
+        Assert.Null(Parameters.ValidateDiskPath("/data")); // POSIX roots (Linux parity)
+        Assert.NotNull(Parameters.ValidateDiskPath("not a path"));
+        Assert.NotNull(Parameters.ValidateDiskPath("/")); // bare root is refused on purpose
     }
 
     [Fact]
@@ -174,100 +239,37 @@ public class ParameterCollectorTests
         string path = Path.Combine(Path.GetTempPath(), $"wsparams-{Guid.NewGuid():N}.json");
         try
         {
-            ParameterCollector.WriteParameters(new Dictionary<string, string> { ["data_disk"] = "D:\\" }, path);
-            var parsed = System.Text.Json.JsonSerializer
-                .Deserialize<Dictionary<string, string>>(File.ReadAllText(path))!;
-            Assert.Equal("D:\\", parsed["data_disk"]);
+            Parameters.Write(new Dictionary<string, string> { ["data_disk"] = "D:\\" }, path);
+            var read = Parameters.Read(path);
+            Assert.Equal("D:\\", read["data_disk"]);
         }
         finally
         {
             File.Delete(path);
         }
     }
-}
 
-public class PhaseHandoffTests
-{
     [Fact]
-    public void Python_probe_runs_python_INSIDE_the_distro_not_wsl_version()
+    public async Task Wsl_path_translator_returns_the_trimmed_first_stdout_line()
     {
-        var proc = new FakeProcess(new() { ["wsl.exe"] = (0, new[] { "Python 3.12.4" }, Array.Empty<string>()) });
-        Assert.True(new PhaseHandoff(proc, _ => { }).PythonAvailableInWsl());
-        // The regression this pins: `wsl.exe --version` would only prove WSL exists.
-        Assert.Equal(new[] { "--", "python3", "--version" }, proc.Calls.Single().args);
+        var proc = new FakeProcess(new() { [Wsl.Exe] = (0, new[] { "  /mnt/c/data  " }, Array.Empty<string>()) });
+        string? result = await new WslPathTranslator(proc).ToDistroPathAsync(@"C:\data");
+        Assert.Equal("/mnt/c/data", result);
     }
 
     [Fact]
-    public void Python_unavailable_when_distro_probe_fails()
+    public void Payload_locator_finds_the_repo_and_payload_layouts()
     {
-        var proc = new FakeProcess(new Dictionary<string, (int, string[], string[])>());
-        Assert.False(new PhaseHandoff(proc, _ => { }).PythonAvailableInWsl());
-    }
+        string repo = Path.Combine(Path.GetTempPath(), $"wsrepo-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(repo, "installer", "python"));
+        File.WriteAllText(Path.Combine(repo, "installer", "python", "tui.py"), "");
+        Assert.Equal(Path.Combine(repo, "installer"), PayloadLocator.FindInstallerDir(Path.Combine(repo, "installer", "windows")));
 
-    [Fact]
-    public void Tui_handoff_translates_both_paths_then_launches_python_in_the_distro()
-    {
-        var mirror = new List<string>();
-        var proc = new ArgAwareProcess((cmd, args) =>
-        {
-            if (args.Count > 0 && args[0] == "wslpath")
-                return (0, new[] { "/mnt/c/" + args[2][2..].TrimStart('\\').Replace('\\', '/') }); // C:\x\y -> /mnt/c/x/y
-            return (0, new[] { "tui ran" }); // wsl.exe -- python3 …
-        });
-        var handoff = new PhaseHandoff(proc, mirror.Add);
+        string payload = Path.Combine(Path.GetTempPath(), $"wspayload-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(payload, "python"));
+        File.WriteAllText(Path.Combine(payload, "python", "tui.py"), "");
+        Assert.Equal(payload, PayloadLocator.FindInstallerDir(Path.Combine(payload, "deep", "deeper")));
 
-        int exit = handoff.HandOffToPythonTuiInWsl(
-            @"C:\repo\installer\python\tui.py", @"C:\repo\params.json");
-
-        Assert.Equal(0, exit);
-        Assert.Equal(3, proc.Calls.Count);
-        Assert.Equal(new[] { "wslpath", "-u", @"C:\repo\installer\python\tui.py" }, proc.Calls[0].args);
-        Assert.Equal(new[] { "wslpath", "-u", @"C:\repo\params.json" }, proc.Calls[1].args);
-        Assert.Equal("wsl.exe", proc.Calls[2].command);
-        Assert.Equal(new[]
-        {
-            "--", "python3", "/mnt/c/repo/installer/python/tui.py", "--parameters", "/mnt/c/repo/params.json",
-            "--journey", "windows",
-        }, proc.Calls[2].args);
-        Assert.Contains(mirror, l => l.Contains("handing the journey to the Python installer TUI"));
-        Assert.Contains("tui ran", mirror);
-    }
-
-    [Fact]
-    public void Tui_handoff_stops_loudly_when_a_path_cannot_be_translated()
-    {
-        var mirror = new List<string>();
-        var proc = new FakeProcess(new() { ["wsl.exe"] = (1, Array.Empty<string>(), Array.Empty<string>()) });
-        var handoff = new PhaseHandoff(proc, mirror.Add);
-
-        int exit = handoff.HandOffToPythonTuiInWsl(@"C:\x\tui.py", @"C:\x\params.json");
-
-        Assert.Equal(1, exit);
-        Assert.Contains(mirror, l => l.Contains("could not translate a Windows path") && l.Contains("nothing further is installed"));
-        // Only translations ran — the TUI was never launched.
-        Assert.All(proc.Calls, c => Assert.Equal("wslpath", c.args[0]));
-    }
-
-    sealed class FakeWebHost : IWebUiHost
-    {
-        public string? Shown, Opened;
-        public void Show(string url) => Shown = url;
-        public void OpenInBrowser(string url) => Opened = url;
-    }
-
-    [Fact]
-    public void Web_handoff_shows_the_webview_then_opens_the_browser_at_the_same_url()
-    {
-        var mirror = new List<string>();
-        var handoff = new PhaseHandoff(new FakeProcess(new Dictionary<string, (int, string[], string[])>()), mirror.Add);
-        var host = new FakeWebHost();
-
-        handoff.HandOffToWeb("https://wordslab.local/", host);
-
-        Assert.Equal("https://wordslab.local/", host.Shown);
-        Assert.Equal("https://wordslab.local/", host.Opened);
-        // The handoff says where the install continues — it does not claim the core is reachable
-        // (reachability is the front door's concern, #88).
-        Assert.Contains(mirror, l => l.Contains("continues in the dashboard at: https://wordslab.local/"));
+        Assert.Null(PayloadLocator.FindInstallerDir(Path.GetPathRoot(Path.GetTempPath())!));
     }
 }

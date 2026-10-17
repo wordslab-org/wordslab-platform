@@ -1,62 +1,56 @@
 # Windows test scenarios — ticket #87 (for Laurent, native host)
 
-Run these on the Windows machine (the Hermes gateway there). The repo clone must have the .NET 10
-SDK (`winget install Microsoft.DotNet.SDK.10`). All commands from `installer\windows\`.
+Run these on the Windows machine. The repo clone must have the .NET 10 SDK
+(`winget install Microsoft.DotNet.SDK.10`). All commands from `installer\windows\`.
 
-## S1 — the solution builds natively
+## S1 — everything builds natively
 
 ```
 dotnet build
 ```
-Expect: Build succeeded, 0 errors (no `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT` needed on Windows).
+Expect: Build succeeded, 0 errors — including `Wizard.App` (XAML markup compiles on Windows).
 
 ## S2 — the C# contract tests pass natively
 
 ```
-dotnet test
+dotnet test Wizard.Tests
 ```
 Expect: Passed: 14, Failed: 0.
 
-## S3 — the phase-1 console wizard runs
+## S3 — the WinUI journey (the whole Windows experience)
 
 ```
-dotnet run --project Wizard --framework net10.0-windows10.0.19041.0
+dotnet run --project Wizard.App
 ```
-Expect, in order:
-1. Header "Wordslab Platform installer — phase 1 (native)." + the transparency line.
-2. One parameter prompt with a visible default (`data_disk` defaults to the first non-C fixed
-   drive). Type a bogus disk path → expect "not a valid drive path" and the prompt re-asked.
-   Type `D:\` (or your data disk) → accepted.
-3. "Parameters saved to ...wordslab-install-parameters.json".
-4. Three numbered scripts `[01]..[03]`, each running a real script FILE under
-   `installer\scripts\windows\` and printing its placeholder line (the files say
-   "placeholder until #88" — you can re-run any of them by hand).
-5. Handoff: the wizard probes `wsl -- python3 --version`.
-   - No WSL distro / no python3 in it → "Python is not available in the distro yet — the bootstrap
-     scripts above must complete first." (exit 1). Screenshot it.
-   - With a WSL distro containing Python 3 → "Python is available in the distro — handing the
-     journey to the Python installer TUI." then the phase-2 TUI output (`[01]..[06]` placeholders
-     + the web-handoff address line), then — on a GUI session — the WebView2 window. Screenshot
-     whichever you get.
+Expect a single modern WinUI window (Mica backdrop, rounded cards) — **no console window, no
+TUI**:
+1. Title "Install Wordslab Platform" + the transparency caption line.
+2. A parameter card: the data disk text box pre-filled with the first non-C fixed drive.
+   Type a bogus path → red "not a valid drive path (e.g. D:\)" under the box; a real drive → accepted.
+3. Six numbered cards are visible from the start, each with a number badge and its title.
+4. Press **Install**: cards activate one by one — progress ring spins, the status sentence
+   updates ("Checking github and pypi reachability"…), and the "output" expander appears with
+   the streamed placeholder lines ("placeholder until #88").
+5. Without a WSL distro installed: steps 2–6 show the loud `FAILED (exit …)` line in their card
+   and the bottom line says the journey stopped and re-running is safe. Screenshot this.
+6. With WSL + a distro containing Python 3: all six cards turn done, then the window becomes the
+   dashboard handoff. Screenshot whichever of 5/6 you get.
 
-## S4 — the embedded webview host (WinUI 3 + WebView2)
-
-The webview window only opens after the TUI phase succeeds (phase 3). To exercise the host alone,
-run from `installer\windows\`:
+## S4 — the WebView2 handoff alone
 
 ```
-dotnet run --project Wizard --framework net10.0-windows10.0.19041.0 -- --webview-preview
+dotnet run --project Wizard.App -- --webview-preview
 ```
-
-Expect: a window titled "Wordslab Platform — install" rendering `https://wordslab.local/`
-(a TLS error page is FINE and expected — the front door does not exist yet; the point is the
-WebView2 window renders and the installer process stays alive beside it). Closing the window
-ends the app. Screenshot the window.
+Expect: the same window showing the dashboard area rendering `https://wordslab.local/`
+(a TLS error page is FINE and expected — the front door does not exist yet) and an
+"Open in your browser instead" button that opens your default browser. Screenshot the window.
 
 ## S5 — what must NOT happen
 
-- No WinForms/WPF window anywhere (task manager / window styles: the window is WinUI 3 — rounded,
-  Mica-ish title bar).
-- Nothing installed silently: every action is a numbered, mirrored line.
+- No console window at any point of S3/S4 (the UI is pure WinUI 3 — XAML, Mica, rounded cards);
+  no WinForms/WPF window (check window styles / task manager).
+- Nothing installed silently: every command has a visible numbered status and streamed output.
+- The TUI is never shown on Windows — it exists only for the Linux journey.
 
-Send screenshots of S3 (wizard output) and S4 (webview window).
+Send screenshots of S3 (journey cards, ideally one mid-run with the expander open) and S4
+(webview handoff).

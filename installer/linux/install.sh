@@ -71,4 +71,4 @@ if [[ " $* " != *" --parameters "* ]]; then
 fi
 
 echo "[--] Python is available — handing the journey to the Python installer TUI."
-exec python3 "$TUI" --journey linux "$@"
+exec python3 "$TUI" "$@"

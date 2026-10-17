@@ -3,8 +3,9 @@
 Renders the install wizard on top of the installer API: numbered scripts stay visible/runnable
 beneath (transparency, no magic), progress is interpreted from streamed logs, and every decision
 is surfaced. The final act is the web handoff: an address, not a process switch — the TUI prints
-the dashboard URL to open elsewhere (remote/SSH) or the Windows wizard renders it in its embedded
-webview (via the wizard process that launched this TUI).
+the dashboard URL to open elsewhere (remote/SSH). On Windows there is no TUI at all: the WinUI
+installer app runs the same numbered journey natively (Wizard.Core script classes) and renders
+the web handoff itself — Linux users see these terminal + TUI phases.
 
 The numbered bootstrap scripts live as real files under `installer/scripts/` so the re-run
 promise is literal: the user can execute any numbered script by hand. The steps already run by
@@ -31,21 +32,15 @@ from installer_api import (
 # script paths resolve relative to this file, so a /mnt/c checkout or an extracted payload work.
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
-# Steps 1–3 belong to the native phase and differ per platform (WSL is Windows-only,
-# ADR-0003). The TUI re-shows them as completed context; numbering and titles match the
-# native runner exactly — the numbering is the contract.
-NATIVE_STEPS: dict[str, tuple[tuple[int, str], ...]] = {
-    "windows": (
-        (1, "Check network reachability (github, pypi)"),
-        (2, "Install WSL + the Wordslab distro + virtual disks"),
-        (3, "Install uv + Python inside the distro"),
-    ),
-    "linux": (
-        (1, "Download the Wordslab installer payload"),
-        (2, "Check network reachability (github, pypi)"),
-        (3, "Install uv + Python"),
-    ),
-}
+# Steps 1–3 belong to the native (install.sh) phase of the Linux journey. The TUI re-shows them
+# as completed context; numbering and titles match install.sh exactly — the numbering is the
+# contract, shared with the Windows WinUI journey's steps 4–6 (ADR-0003: WSL is Windows-only,
+# and the Windows journey's steps 1–3 are C# script classes, never scripts here).
+NATIVE_STEPS: tuple[tuple[int, str], ...] = (
+    (1, "Download the Wordslab installer payload"),
+    (2, "Check network reachability (github, pypi)"),
+    (3, "Install uv + Python"),
+)
 
 # Steps 4–6 run wherever the TUI runs, as the same numbered files for every journey.
 DISTRO_STEPS: tuple[tuple[int, str, str], ...] = (
@@ -55,13 +50,13 @@ DISTRO_STEPS: tuple[tuple[int, str, str], ...] = (
 )
 
 
-def journey_steps(journey: str) -> tuple[ScriptStep, ...]:
-    """The full numbered journey for a platform: native steps re-shown as completed context,
-    distro steps executed as their script FILES (re-runnable by hand — no magic)."""
+def journey_steps() -> tuple[ScriptStep, ...]:
+    """The full numbered Linux journey: native steps re-shown as completed context, distro
+    steps executed as their script FILES (re-runnable by hand — no magic)."""
     native = tuple(
         ScriptStep(n, title, ("echo", f"{title} — already completed by the native phase; "
                                      "re-run its script yourself any time (placeholder until #88)"))
-        for n, title in NATIVE_STEPS[journey]
+        for n, title in NATIVE_STEPS
     )
     distro = tuple(
         ScriptStep(n, title, ("bash", str(SCRIPTS_DIR / "distro" / script)))
@@ -98,13 +93,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Wordslab Platform installer TUI (phase 2)")
     parser.add_argument("--parameters", type=Path, required=True,
                         help="JSON parameters file collected by the phase-1 wizard")
-    parser.add_argument("--journey", choices=("windows", "linux"), default="linux",
-                        help="Which platform journey this TUI continues (the native phase says so)")
     parser.add_argument("--dashboard-url", default="https://wordslab.local/",
                         help="Front-door address for the web handoff")
     args = parser.parse_args(argv)
 
-    steps = journey_steps(args.journey)
+    steps = journey_steps()
     params = load_parameters(args.parameters)
     print("Wordslab Platform installer — phase 2 (Python TUI).")
     print("Collected parameters:")

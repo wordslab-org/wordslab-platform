@@ -89,18 +89,15 @@ def test_parameters_round_trip_from_the_phase1_wizard(tmp_path: Path):
     assert params == {"data_disk": "D:\\", "join_lan": "y"}
 
 
-def test_journeys_diverge_per_platform_with_stable_numbering():
-    """WSL belongs to the Windows journey only (ADR-0003); the numbering is the shared contract."""
-    windows = tui.journey_steps("windows")
-    linux = tui.journey_steps("linux")
-    assert [s.number for s in windows] == [s.number for s in linux] == [1, 2, 3, 4, 5, 6]
-    assert any("WSL" in s.title for s in windows)
-    assert not any("WSL" in s.title for s in linux)
-    assert linux[0].title == "Download the Wordslab installer payload"  # matches install.sh step 01
-    # steps 4-6 are the SAME numbered script files on both journeys, and they exist as files.
-    for s_windows, s_linux in zip(windows[3:], linux[3:]):
-        assert s_windows.title == s_linux.title
-        assert s_linux.command[0] == "bash" and Path(s_linux.command[1]).is_file()
+def test_the_linux_journey_matches_install_sh_and_uses_script_files():
+    """Numbering is the shared contract: 1-3 mirror install.sh, WSL is absent (Linux journey,
+    ADR-0003), and steps 4-6 run the numbered script FILES (re-runnable by hand)."""
+    steps = tui.journey_steps()
+    assert [s.number for s in steps] == [1, 2, 3, 4, 5, 6]
+    assert not any("WSL" in s.title for s in steps)
+    assert steps[0].title == "Download the Wordslab installer payload"  # matches install.sh step 01
+    for s in steps[3:]:
+        assert s.command[0] == "bash" and Path(s.command[1]).is_file()
 
 
 def test_web_handoff_is_an_address_not_a_process_switch():
@@ -131,7 +128,7 @@ def test_tui_main_stops_loudly_on_a_failing_script(tmp_path: Path, capsys, monke
     original = tui.journey_steps  # captured before patching, so the wrapper cannot recurse
     monkeypatch.setattr(
         tui, "journey_steps",
-        lambda journey: (ScriptStep(1, "Fails", ("sh", "-c", "exit 9")),) + original(journey)[1:],
+        lambda: (ScriptStep(1, "Fails", ("sh", "-c", "exit 9")),) + original()[1:],
     )
 
     rc = tui.main(["--parameters", str(params_file)])
