@@ -24,6 +24,10 @@ public sealed class WebView2Host : IWebUiHost
     private readonly ManualResetEventSlim _windowClosed = new(false);
     private Thread? _uiThread;
 
+    /// <summary>Set when the WinUI 3 message pump could not start (headless / SSH session): the
+    /// caller falls back to printing the address instead of rendering a window.</summary>
+    public Exception? StartFailure { get; private set; }
+
     public void Show(string url)
     {
         if (!OperatingSystem.IsWindows())
@@ -31,8 +35,20 @@ public sealed class WebView2Host : IWebUiHost
                 "The embedded webview is a Windows-host surface; remote installs print the dashboard URL instead (ADR-0014 §3).");
 
         // WinUI 3 needs an STA thread with its own message pump; the console wizard stays alive
-        // and joins this thread via WaitUntilClosed().
-        _uiThread = new Thread(() => Application.Start(_ => new InstallApp(url, OnWindowClosed)))
+        // and joins this thread via WaitUntilClosed(). A headless/SSH session cannot start the
+        // pump — record it and unblock the caller rather than crash the journey's last step.
+        _uiThread = new Thread(() =>
+        {
+            try
+            {
+                Application.Start(_ => new InstallApp(url, OnWindowClosed));
+            }
+            catch (Exception ex)
+            {
+                StartFailure = ex;
+                _windowClosed.Set();
+            }
+        })
         {
             IsBackground = true,
             Name = "wordslab-webview-ui",

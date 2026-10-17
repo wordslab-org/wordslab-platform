@@ -23,28 +23,50 @@ step() {
   fi
 }
 
-# 01 — fetch the installer payload (the Python TUI + the numbered scripts live inside it)
-step 1 "Download the Wordslab installer payload" bash -c "echo 'payload download: placeholder until #88 (\$WORDSLAB_PAYLOAD_URL -> \$WORDSLAB_INSTALL_DIR)'"
-
-# 02 — network reachability (github, pypi)
-step 2 "Check network reachability (github, pypi)" bash -c "echo 'reachability check: placeholder until #88'"
-
-# 03 — uv + Python
-step 3 "Install uv + Python" bash -c "echo 'uv bootstrap: placeholder until #88'"
-
-# Handoff: once Python AND the payload exist, the Python TUI takes the journey over
-# (ADR-0014 §3 phase 2). The payload extraction and the Linux parameter prompts are #88's job;
-# until they exist the gap is named out loud, never papered over.
-TUI=""
-for candidate in "$WORDSLAB_INSTALL_DIR/python/tui.py" "$(dirname "$0")/../python/tui.py"; do
-  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi
+# The numbered scripts are real files (installer/scripts/linux/) so the re-run promise is
+# literal. Chicken-and-egg until #88 ships the payload: under `curl | bash` those very files are
+# what step 1 downloads, so when they are not on disk yet each step runs its visible inline
+# placeholder instead — named out loud, never silently.
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo .)"   # $0 is `bash` under curl|bash
+SCRIPTS=""
+for d in "$WORDSLAB_INSTALL_DIR/scripts/linux" "$SCRIPT_DIR/../scripts/linux"; do
+  if [ -d "$d" ]; then SCRIPTS="$d"; break; fi
 done
-if command -v python3 >/dev/null 2>&1 && [ -n "$TUI" ] && [[ " $* " == *" --parameters "* ]]; then
-  echo "[--] Python is available — handing the journey to the Python installer TUI."
-  exec python3 "$TUI" "$@"
+
+if [ -n "$SCRIPTS" ]; then
+  step 1 "Download the Wordslab installer payload" bash "$SCRIPTS/01-payload-download.sh"
+  step 2 "Check network reachability (github, pypi)" bash "$SCRIPTS/02-reachability.sh"
+  step 3 "Install uv + Python" bash "$SCRIPTS/03-uv-python.sh"
+else
+  # Payload not extracted yet (#88's job): the same numbered steps, visible inline placeholders.
+  step 1 "Download the Wordslab installer payload" bash -c "echo 'payload download: placeholder until #88 ($WORDSLAB_PAYLOAD_URL -> $WORDSLAB_INSTALL_DIR); the numbered scripts live inside the payload'"
+  step 2 "Check network reachability (github, pypi)" bash -c "echo 'reachability check: placeholder until #88'"
+  step 3 "Install uv + Python" bash -c "echo 'uv bootstrap: placeholder until #88'"
 fi
 
-echo "[--] Cannot hand off to the TUI yet — it needs a Python interpreter, the extracted installer payload"
-echo "[--] ($WORDSLAB_INSTALL_DIR — extraction ships with ticket #88) and a --parameters file."
-echo "[--] The journey stops here; nothing further is installed."
-exit 1
+# Handoff (ADR-0014 §3 phase 2): gated on ARTIFACTS (interpreter + extracted payload), never on
+# the user's command line — `curl … | bash` must be able to hand off once #88's payload exists.
+TUI=""
+for candidate in "$WORDSLAB_INSTALL_DIR/python/tui.py" "$SCRIPT_DIR/../python/tui.py"; do
+  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi
+done
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[--] Python is not available — step 3 above must complete first. The journey stops here; nothing further is installed."
+  exit 1
+fi
+if [ -z "$TUI" ]; then
+  echo "[--] The installer payload is not extracted at $WORDSLAB_INSTALL_DIR — payload extraction ships with ticket #88."
+  echo "[--] The journey stops here; nothing further is installed."
+  exit 1
+fi
+if [[ " $* " != *" --parameters "* ]]; then
+  # Linux parameter prompts arrive with #88's payload; until then a file can be passed through
+  # the pipe: curl … | bash -s -- --parameters <file>
+  echo "[--] No parameters file: Linux parameter prompts ship with ticket #88."
+  echo "[--] Until then pass one through: … | bash -s -- --parameters <file>. The journey stops here."
+  exit 1
+fi
+
+echo "[--] Python is available — handing the journey to the Python installer TUI."
+exec python3 "$TUI" --journey linux "$@"

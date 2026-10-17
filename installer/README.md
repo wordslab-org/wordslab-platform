@@ -18,7 +18,11 @@ service contract).
     via `EnableWindowsTargeting`; runs on the Windows host. The web phase keeps the installer
     process alive until the window closes (`WaitUntilClosed`).
   - `Wizard.Tests/` — xunit contract tests over the stub-process seam.
-- `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey, same handoff.
+- `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey, same handoff
+  (artifact-gated, never command-line gated); `linux/test_install_smoke.sh` is its smoke contract.
+- `scripts/` — the numbered bootstrap scripts as real files (per-platform `linux/`, `windows/`,
+  shared `distro/` for steps 4–6), so every numbered step is re-runnable by hand. #88 replaces
+  the placeholder content inside these files.
 - `python/` — the phase-2 installer API + TUI (uv project): `installer_api.py` (run/stream/
   interpret), `tui.py` (the wizard shell + the web handoff), `tests/` (pytest over the same
   stub-command seam).
@@ -36,15 +40,20 @@ service contract).
 
 The numbered-runner contract — `[NN]` labels, `! ` stderr prefix, `FAILED (exit N) — the journey
 stops here; nothing further is installed.` — is deliberately implemented three times (C#, Python,
-bash) because each entry point must run standalone before any other exists. The contract tests in
-each language pin the same strings; keep them in step.
+bash) because each entry point must run standalone before any other exists. The C# and Python
+contract tests pin the same strings and `linux/test_install_smoke.sh` checks the bash copy end to
+end; keep them in step. The journey numbering is also shared: the native phase owns steps 1–3
+(per-platform), the TUI re-shows them as completed context and runs steps 4–6
+(`tui.py::journey_steps`).
 
 ## Scope fence
 
 The **content** of the numbered bootstrap scripts (WSL + distro + virtual disks, uv/Python,
 network reachability, data volumes, first core, front door) is ticket **#88**'s home. #87 owns the
 entry points, the wizard shell, the runner + mirroring contract, the phase handoffs, and the
-webview host. The scripts here are visible numbered placeholders that say so.
+webview host. The scripts here are visible numbered placeholder FILES that say so. ADR-0014 §3
+also asks for per-step inline guidance in the TUI ("essential when SSH'd into a VM"): with
+placeholder scripts there is nothing to guide yet — it lands with the real steps in #88.
 
 ## Test seams (no HTTP surface — the installer is not a service)
 

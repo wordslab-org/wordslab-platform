@@ -3,7 +3,8 @@
 // Wordslab Platform — phase-1 native wizard (ADR-0014 §3 phase 1).
 // Thin by design: it collects the initial parameters, runs the numbered bootstrap scripts while
 // mirroring their output, then hands off to the Python TUI once Python exists. The bootstrap
-// scripts themselves are ticket #88's home; here they are the numbered slots the wizard drives.
+// scripts themselves are ticket #88's home; here they are the numbered script FILES the wizard
+// drives (installer/scripts/windows/) — real files so any step stays re-runnable by hand.
 
 string parametersFile = Path.Combine(AppContext.BaseDirectory, "wordslab-install-parameters.json");
 
@@ -17,6 +18,8 @@ if (args.Contains("--webview-preview"))
     previewHost.OpenInBrowser("https://wordslab.local/");
     Console.WriteLine("Webview preview open at https://wordslab.local/ — close the window to exit.");
     previewHost.WaitUntilClosed();
+    if (previewHost.StartFailure is not null)
+        Console.WriteLine($"Webview could not start in this session ({previewHost.StartFailure.GetType().Name}).");
     return 0;
 }
 #endif
@@ -31,13 +34,13 @@ Console.WriteLine();
 
 var collector = new ParameterCollector(spec => Console.ReadLine());
 
+// Only parameters with teeth in THIS ticket (ADR-0014 §5 data locations). The join decision
+// belongs to the join flow (#90), where it does something.
 var specs = new List<ParameterSpec>
 {
     new("data_disk", "Which disk should hold the Wordslab data volumes? (type a drive path, e.g. D:\\)",
         DriveInfo.GetDrives().FirstOrDefault(d => d.DriveType == DriveType.Fixed && d.Name != "C:\\")?.Name,
         ParameterCollector.ValidateDiskPath),
-    new("join_lan", "Join an existing Wordslab platform on this network if one is found? (y/n)",
-        "y", ParameterCollector.ValidateYesNo),
 };
 
 var answers = collector.Collect(specs);
@@ -45,15 +48,44 @@ ParameterCollector.WriteParameters(answers, parametersFile);
 Console.WriteLine($"Parameters saved to {parametersFile} — the later phases read the same file.");
 Console.WriteLine();
 
+// The wizard ships inside the checkout/payload; walk up from the binary to the root that holds
+// the installer layout (installer/ in a checkout, the payload root itself when installed).
+static string? FindInstallerDir()
+{
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+    {
+        if (File.Exists(Path.Combine(dir.FullName, "installer", "python", "tui.py")))
+            return Path.Combine(dir.FullName, "installer");
+        if (File.Exists(Path.Combine(dir.FullName, "python", "tui.py")))
+            return dir.FullName;
+        if (dir.Parent is null) break;
+    }
+    return null;
+}
+
+string? installerDir = FindInstallerDir();
+if (installerDir is null)
+{
+    Console.WriteLine("FAILED — the installer payload (python/tui.py + scripts/) was not found next to this wizard. Nothing further is installed.");
+    return 1;
+}
+string scriptsWindows = Path.Combine(installerDir, "scripts", "windows");
+
+// Step 3 runs inside the distro; translate its script path up front. Without WSL the path
+// cannot resolve — the step then fails loudly through wsl.exe's own error output, after
+// steps 1–2 have run, instead of silently skipping anything.
+string step3Script = Path.Combine(scriptsWindows, "03-uv-python.sh");
+string step3Path = handoff.ToDistroPath("wsl.exe", step3Script) ?? step3Script;
+
 // The numbered bootstrap scripts (their content is #88; the wizard owns the running + mirroring).
 var steps = new List<ScriptStep>
 {
     new(1, "Check network reachability (github, pypi)", "pwsh",
-        new[] { "-NoProfile", "-Command", "Write-Output 'reachability check: placeholder until #88'" }),
+        new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(scriptsWindows, "01-reachability.ps1") }),
     new(2, "Install WSL + the Wordslab distro + virtual disks", "pwsh",
-        new[] { "-NoProfile", "-Command", "Write-Output 'wsl bootstrap: placeholder until #88'" }),
+        new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(scriptsWindows, "02-wsl-distro-disks.ps1") }),
     new(3, "Install uv + Python inside the distro", "wsl.exe",
-        new[] { "--", "bash", "-c", "echo 'uv bootstrap: placeholder until #88'" }),
+        new[] { "--", "bash", step3Path }),
 };
 
 var results = runner.RunAll(steps);
@@ -70,38 +102,29 @@ if (!handoff.PythonAvailableInWsl())
     return 1;
 }
 
-static string? FindTuiScript()
-{
-    // The wizard ships inside the checkout/payload; walk up from the binary to the repo/payload
-    // root, where the Python TUI lives next to the entry points.
-    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null && dir.Parent is not null; dir = dir.Parent)
-    {
-        string candidate = Path.Combine(dir.FullName, "installer", "python", "tui.py");
-        if (File.Exists(candidate)) return candidate;
-        if (File.Exists(Path.Combine(dir.FullName, "python", "tui.py")))
-            return Path.Combine(dir.FullName, "python", "tui.py");
-    }
-    return null;
-}
-
-string? tuiScript = FindTuiScript();
-if (tuiScript is null)
-{
-    Console.WriteLine("FAILED — the Python TUI (installer/python/tui.py) was not found next to this wizard. Nothing further is installed.");
-    return 1;
-}
-int tuiExit = handoff.HandOffToPythonTuiInWsl(tuiScript, parametersFile);
+string tuiScript = Path.Combine(installerDir, "python", "tui.py");
+int tuiExit = handoff.HandOffToPythonTuiInWsl(tuiScript, parametersFile, journey: "windows");
 if (tuiExit != 0)
     return tuiExit;
 
 #if WINDOWS
 // Phase 3 (Windows host): the TUI finished the bootstrap and printed the dashboard address —
 // render the web UI phase in the installer's embedded WebView2 window, then open the browser
-// (ADR-0014 §2). Over SSH the TUI printed the URL only and this branch never runs.
+// (ADR-0014 §2). In a headless/SSH session the webview or browser cannot start: fall back to
+// printing the address — the handoff is an address, not a process switch, either way.
 const string dashboardUrl = "https://wordslab.local/";
 var webHost = new Wordslab.Wizard.WebUi.WebView2Host();
-handoff.HandOffToWeb(dashboardUrl, webHost);
+try
+{
+    handoff.HandOffToWeb(dashboardUrl, webHost);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Embedded webview/browser unavailable in this session ({ex.GetType().Name}).");
+}
 webHost.WaitUntilClosed(); // the web phase lasts exactly as long as its window
+if (webHost.StartFailure is not null)
+    Console.WriteLine($"The install continues at {dashboardUrl} — open it in your browser (no desktop session for the webview).");
 #endif
 return 0;
 

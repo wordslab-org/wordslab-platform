@@ -15,7 +15,7 @@ Expect: Build succeeded, 0 errors (no `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT` ne
 ```
 dotnet test
 ```
-Expect: Passed: 13, Failed: 0.
+Expect: Passed: 14, Failed: 0.
 
 ## S3 — the phase-1 console wizard runs
 
@@ -24,12 +24,13 @@ dotnet run --project Wizard
 ```
 Expect, in order:
 1. Header "Wordslab Platform installer — phase 1 (native)." + the transparency line.
-2. Two parameter prompts with visible defaults (`data_disk` defaults to the first non-C fixed
-   drive; `join_lan` defaults to y). Type a bogus disk path → expect "not a valid drive path"
-   and the prompt re-asked. Type `D:\` (or your data disk) → accepted.
+2. One parameter prompt with a visible default (`data_disk` defaults to the first non-C fixed
+   drive). Type a bogus disk path → expect "not a valid drive path" and the prompt re-asked.
+   Type `D:\` (or your data disk) → accepted.
 3. "Parameters saved to ...wordslab-install-parameters.json".
-4. Three numbered scripts `[01]..[03]` each printing its placeholder line (they say
-   "placeholder until #88" — the real steps are ticket #88).
+4. Three numbered scripts `[01]..[03]`, each running a real script FILE under
+   `installer\scripts\windows\` and printing its placeholder line (the files say
+   "placeholder until #88" — you can re-run any of them by hand).
 5. Handoff: the wizard probes `wsl -- python3 --version`.
    - No WSL distro / no python3 in it → "Python is not available in the distro yet — the bootstrap
      scripts above must complete first." (exit 1). Screenshot it.

@@ -29,9 +29,10 @@ public sealed class PhaseHandoff
         _process.Run(wslCommand, new[] { "--", "python3", "--version" }, null, null) == 0;
 
     /// <summary>Launches the Python TUI (phase 2) inside the distro with the collected parameters
-    /// file. Both Windows paths are translated via `wslpath -u` first; a failed translation stops
-    /// the journey loudly. Returns the TUI's exit code.</summary>
-    public int HandOffToPythonTuiInWsl(string tuiScriptWindowsPath, string parametersWindowsPath, string wslCommand = "wsl.exe")
+    /// file, telling the TUI which platform journey it continues. Both Windows paths are
+    /// translated via `wslpath -u` first; a failed translation stops the journey loudly.
+    /// Returns the TUI's exit code.</summary>
+    public int HandOffToPythonTuiInWsl(string tuiScriptWindowsPath, string parametersWindowsPath, string journey = "windows", string wslCommand = "wsl.exe")
     {
         string? tuiPath = ToDistroPath(wslCommand, tuiScriptWindowsPath);
         string? paramsPath = ToDistroPath(wslCommand, parametersWindowsPath);
@@ -42,7 +43,8 @@ public sealed class PhaseHandoff
             return 1;
         }
         _mirror("Python is available in the distro — handing the journey to the Python installer TUI.");
-        return _process.Run(wslCommand, new[] { "--", "python3", tuiPath, "--parameters", paramsPath },
+        return _process.Run(wslCommand, new[] { "--", "python3", tuiPath, "--parameters", paramsPath,
+            "--journey", journey },
             line => _mirror(line), line => _mirror($"! {line}"));
     }
 

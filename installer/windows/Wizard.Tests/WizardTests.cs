@@ -223,6 +223,7 @@ public class PhaseHandoffTests
         Assert.Equal(new[]
         {
             "--", "python3", "/mnt/c/repo/installer/python/tui.py", "--parameters", "/mnt/c/repo/params.json",
+            "--journey", "windows",
         }, proc.Calls[2].args);
         Assert.Contains(mirror, l => l.Contains("handing the journey to the Python installer TUI"));
         Assert.Contains("tui ran", mirror);

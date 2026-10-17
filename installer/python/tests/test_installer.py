@@ -89,6 +89,20 @@ def test_parameters_round_trip_from_the_phase1_wizard(tmp_path: Path):
     assert params == {"data_disk": "D:\\", "join_lan": "y"}
 
 
+def test_journeys_diverge_per_platform_with_stable_numbering():
+    """WSL belongs to the Windows journey only (ADR-0003); the numbering is the shared contract."""
+    windows = tui.journey_steps("windows")
+    linux = tui.journey_steps("linux")
+    assert [s.number for s in windows] == [s.number for s in linux] == [1, 2, 3, 4, 5, 6]
+    assert any("WSL" in s.title for s in windows)
+    assert not any("WSL" in s.title for s in linux)
+    assert linux[0].title == "Download the Wordslab installer payload"  # matches install.sh step 01
+    # steps 4-6 are the SAME numbered script files on both journeys, and they exist as files.
+    for s_windows, s_linux in zip(windows[3:], linux[3:]):
+        assert s_windows.title == s_linux.title
+        assert s_linux.command[0] == "bash" and Path(s_linux.command[1]).is_file()
+
+
 def test_web_handoff_is_an_address_not_a_process_switch():
     mirror: list[str] = []
 
@@ -114,9 +128,10 @@ def test_tui_main_runs_the_numbered_scripts_and_hands_off(tmp_path: Path, capsys
 def test_tui_main_stops_loudly_on_a_failing_script(tmp_path: Path, capsys, monkeypatch):
     params_file = tmp_path / "params.json"
     params_file.write_text(json.dumps({"data_disk": "/data"}))
+    original = tui.journey_steps  # captured before patching, so the wrapper cannot recurse
     monkeypatch.setattr(
-        tui, "BOOTSTRAP_STEPS",
-        (ScriptStep(1, "Fails", ("sh", "-c", "exit 9")),) + tui.BOOTSTRAP_STEPS[1:],
+        tui, "journey_steps",
+        lambda journey: (ScriptStep(1, "Fails", ("sh", "-c", "exit 9")),) + original(journey)[1:],
     )
 
     rc = tui.main(["--parameters", str(params_file)])

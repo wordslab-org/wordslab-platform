@@ -3,10 +3,14 @@
 Renders the install wizard on top of the installer API: numbered scripts stay visible/runnable
 beneath (transparency, no magic), progress is interpreted from streamed logs, and every decision
 is surfaced. The final act is the web handoff: an address, not a process switch — the TUI prints
-the reachable dashboard URL (remote/SSH) or hands the URL to the installer's embedded webview
-(Windows host, via the wizard process that launched this TUI).
+the dashboard URL to open elsewhere (remote/SSH) or the Windows wizard renders it in its embedded
+webview (via the wizard process that launched this TUI).
 
-The numbered bootstrap scripts themselves are ticket #88's home; this owns the journey shell.
+The numbered bootstrap scripts live as real files under `installer/scripts/` so the re-run
+promise is literal: the user can execute any numbered script by hand. The steps already run by
+the native phase (1–3) are re-shown as completed context, never silently skipped and never
+re-executed here. The scripts' real content is ticket #88's home; #87 owns the numbering, the
+journey shell, and the runner contract.
 """
 
 from __future__ import annotations
@@ -23,15 +27,48 @@ from installer_api import (
     run_all,
 )
 
-# The bootstrap script slots the wizard drives (content lands in #88; the numbering is the contract).
-BOOTSTRAP_STEPS: tuple[ScriptStep, ...] = (
-    ScriptStep(1, "Check network reachability (github, pypi)", ("echo", "reachability check: placeholder until #88")),
-    ScriptStep(2, "Install WSL + the Wordslab distro + virtual disks", ("echo", "wsl bootstrap: placeholder until #88")),
-    ScriptStep(3, "Install uv + Python", ("echo", "uv bootstrap: placeholder until #88")),
-    ScriptStep(4, "Provision data volumes on the chosen disks", ("echo", "data volumes: placeholder until #88")),
-    ScriptStep(5, "Install the first platform core", ("echo", "core install: placeholder until #88")),
-    ScriptStep(6, "Bring up the front door (wordslab.local)", ("echo", "front door: placeholder until #88")),
+# Steps run wherever the TUI runs (inside the WSL distro on Windows, natively on Linux);
+# script paths resolve relative to this file, so a /mnt/c checkout or an extracted payload work.
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+
+# Steps 1–3 belong to the native phase and differ per platform (WSL is Windows-only,
+# ADR-0003). The TUI re-shows them as completed context; numbering and titles match the
+# native runner exactly — the numbering is the contract.
+NATIVE_STEPS: dict[str, tuple[tuple[int, str], ...]] = {
+    "windows": (
+        (1, "Check network reachability (github, pypi)"),
+        (2, "Install WSL + the Wordslab distro + virtual disks"),
+        (3, "Install uv + Python inside the distro"),
+    ),
+    "linux": (
+        (1, "Download the Wordslab installer payload"),
+        (2, "Check network reachability (github, pypi)"),
+        (3, "Install uv + Python"),
+    ),
+}
+
+# Steps 4–6 run wherever the TUI runs, as the same numbered files for every journey.
+DISTRO_STEPS: tuple[tuple[int, str, str], ...] = (
+    (4, "Provision data volumes on the chosen disks", "04-data-volumes.sh"),
+    (5, "Install the first platform core", "05-first-core.sh"),
+    (6, "Bring up the front door (wordslab.local)", "06-front-door.sh"),
 )
+
+
+def journey_steps(journey: str) -> tuple[ScriptStep, ...]:
+    """The full numbered journey for a platform: native steps re-shown as completed context,
+    distro steps executed as their script FILES (re-runnable by hand — no magic)."""
+    native = tuple(
+        ScriptStep(n, title, ("echo", f"{title} — already completed by the native phase; "
+                                     "re-run its script yourself any time (placeholder until #88)"))
+        for n, title in NATIVE_STEPS[journey]
+    )
+    distro = tuple(
+        ScriptStep(n, title, ("bash", str(SCRIPTS_DIR / "distro" / script)))
+        for n, title, script in DISTRO_STEPS
+    )
+    return native + distro
+
 
 # Interpreted progress lines (ADR-0014 §3: "interpret the logs, render progress as lines are found").
 PROGRESS_RULES: tuple[tuple[str, str], ...] = (
@@ -61,10 +98,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Wordslab Platform installer TUI (phase 2)")
     parser.add_argument("--parameters", type=Path, required=True,
                         help="JSON parameters file collected by the phase-1 wizard")
+    parser.add_argument("--journey", choices=("windows", "linux"), default="linux",
+                        help="Which platform journey this TUI continues (the native phase says so)")
     parser.add_argument("--dashboard-url", default="https://wordslab.local/",
                         help="Front-door address for the web handoff")
     args = parser.parse_args(argv)
 
+    steps = journey_steps(args.journey)
     params = load_parameters(args.parameters)
     print("Wordslab Platform installer — phase 2 (Python TUI).")
     print("Collected parameters:")
@@ -73,8 +113,8 @@ def main(argv: list[str] | None = None) -> int:
     print("Every step below is a numbered script; you can re-run any of them yourself.")
     print()
 
-    results = run_all(BOOTSTRAP_STEPS, print, ProgressInterpreter(PROGRESS_RULES))
-    if len(results) != len(BOOTSTRAP_STEPS) or not all(r.success for r in results):
+    results = run_all(steps, print, ProgressInterpreter(PROGRESS_RULES))
+    if len(results) != len(steps) or not all(r.success for r in results):
         print("The journey stopped on a failed script. Fix the cause and re-run — re-running is safe "
               "(Update path, ADR-0014 §7).")
         return 1
