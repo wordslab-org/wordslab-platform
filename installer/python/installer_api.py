@@ -9,6 +9,7 @@ runnable beneath it — transparency, no magic).
 from __future__ import annotations
 
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Sequence
 
@@ -75,8 +76,12 @@ def run_step(
     assert proc.stdout is not None and proc.stderr is not None
     stdout: list[str] = []
     stderr: list[str] = []
-    # Read both pipes line by line; stderr lines are mirrored loudly.
-    for stream, sink, prefix in ((proc.stdout, stdout, ""), (proc.stderr, stderr, "! ")):
+
+    # Drain BOTH pipes concurrently: reading stdout to EOF first would deadlock whenever the
+    # process fills the stderr pipe buffer while still writing stdout. stderr lines are mirrored
+    # loudly. (Interpreter rules are plain set checks — a concurrent duplicate progress line is
+    # harmless.)
+    def drain(stream, sink, prefix):
         for raw in stream:
             line = raw.rstrip("\n")
             sink.append(line)
@@ -85,6 +90,15 @@ def run_step(
                 progress = interpreter.interpret(line)
                 if progress is not None:
                     mirror(f"{label} -> {progress}")
+
+    readers = [
+        threading.Thread(target=drain, args=(proc.stdout, stdout, "")),
+        threading.Thread(target=drain, args=(proc.stderr, stderr, "! ")),
+    ]
+    for t in readers:
+        t.start()
+    for t in readers:
+        t.join()
     proc.wait()
     if proc.returncode != 0:
         mirror(

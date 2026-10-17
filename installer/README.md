@@ -6,13 +6,17 @@ service contract).
 
 ## Layout
 
-- `windows/` — the Windows side (.NET 8 solution):
+- `windows/` — the Windows side (.NET 10 solution):
   - `Wizard/` — the thin phase-1 console wizard: parameter collection, the numbered-script runner
     that mirrors output line by line, and the phase-handoff decision (native → Python TUI once
-    Python exists → web handoff as an address).
+    the distro's Python exists → web handoff as an address). Python probes/launches go through
+    `wsl.exe -- python3 …`, with Windows paths translated via `wslpath -u`.
+  - `Wizard.Abstractions/` — the shared seams (`IWebUiHost`) so the wizard and the web host do
+    not depend on each other.
   - `Wizard.WebUi/` — the embedded web-UI host: **WinUI 3 (Windows App SDK) + WebView2**, pure C#
     (no WinForms, no WPF, no XAML markup), unpackaged (`WindowsPackageType=None`). Builds on Linux
-    via `EnableWindowsTargeting`; runs on the Windows host.
+    via `EnableWindowsTargeting`; runs on the Windows host. The web phase keeps the installer
+    process alive until the window closes (`WaitUntilClosed`).
   - `Wizard.Tests/` — xunit contract tests over the stub-process seam.
 - `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey, same handoff.
 - `python/` — the phase-2 installer API + TUI (uv project): `installer_api.py` (run/stream/
@@ -28,7 +32,12 @@ service contract).
    and runnable beneath, progress interpreted from streamed logs.
 3. **Web**: the handoff is **an address, not a process switch**. On Windows the installer renders
    the URL in its embedded WebView2 window and opens the dashboard in the browser itself; over
-   SSH/remote the TUI prints the reachable URL.
+   SSH/remote the TUI prints the dashboard URL to open elsewhere.
+
+The numbered-runner contract — `[NN]` labels, `! ` stderr prefix, `FAILED (exit N) — the journey
+stops here; nothing further is installed.` — is deliberately implemented three times (C#, Python,
+bash) because each entry point must run standalone before any other exists. The contract tests in
+each language pin the same strings; keep them in step.
 
 ## Scope fence
 

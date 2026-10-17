@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 from installer_api import (
+    Mirror,
     ProgressInterpreter,
     ScriptStep,
     run_all,
@@ -46,13 +47,13 @@ def load_parameters(path: Path) -> dict[str, str]:
     return json.loads(path.read_text())
 
 
-def web_handoff(dashboard_url: str, mirror) -> str:
+def web_handoff(dashboard_url: str, mirror: Mirror) -> str:
     """The journey's final act: hand off to the web UI as an address (ADR-0014 §3 phase 3).
 
     Returns the instruction line the TUI shows; the Windows installer additionally renders the
     URL in its embedded webview and opens the browser itself (the WebView2Host on the native side).
     """
-    mirror(f"The platform core and dashboard are up: {dashboard_url}")
+    mirror(f"The install now continues in the dashboard at: {dashboard_url}")
     return f"Open {dashboard_url} in your browser to continue the install (services, capabilities, activities)."
 
 

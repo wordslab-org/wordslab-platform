@@ -1,4 +1,5 @@
 using Wordslab.Wizard;
+using Wordslab.Wizard.Abstractions;
 using Xunit;
 
 namespace Wizard.Tests;
@@ -19,6 +20,24 @@ sealed class FakeProcess : IProcessRunner
         foreach (var l in entry.stdout) onStdout?.Invoke(l);
         foreach (var l in entry.stderr) onStderr?.Invoke(l);
         return entry.exit;
+    }
+}
+
+/// <summary>A fake whose responses depend on the argv, for commands called repeatedly
+/// (e.g. `wsl.exe wslpath -u …` twice with different paths).</summary>
+sealed class ArgAwareProcess : IProcessRunner
+{
+    private readonly Func<string, IReadOnlyList<string>, (int exit, string[] stdout)> _respond;
+    public List<(string command, string[] args)> Calls { get; } = new();
+
+    public ArgAwareProcess(Func<string, IReadOnlyList<string>, (int, string[])> respond) => _respond = respond;
+
+    public int Run(string command, IReadOnlyList<string> args, Action<string>? onStdout, Action<string>? onStderr)
+    {
+        Calls.Add((command, args.ToArray()));
+        var (exit, stdout) = _respond(command, args);
+        foreach (var l in stdout) onStdout?.Invoke(l);
+        return exit;
     }
 }
 
@@ -140,7 +159,9 @@ public class ParameterCollectorTests
     public void Disk_validation_accepts_drive_paths_and_rejects_junk()
     {
         Assert.Null(ParameterCollector.ValidateDiskPath("D:\\"));
+        Assert.Null(ParameterCollector.ValidateDiskPath("/data")); // POSIX roots (Linux wizard path)
         Assert.NotNull(ParameterCollector.ValidateDiskPath("not a path"));
+        Assert.NotNull(ParameterCollector.ValidateDiskPath("/")); // bare root is refused on purpose
     }
 
     [Fact]
@@ -150,9 +171,9 @@ public class ParameterCollectorTests
         try
         {
             ParameterCollector.WriteParameters(new Dictionary<string, string> { ["data_disk"] = "D:\\" }, path);
-            string json = File.ReadAllText(path);
-            Assert.Contains("\"data_disk\"", json);
-            Assert.Contains("D:\\\\", json);
+            var parsed = System.Text.Json.JsonSerializer
+                .Deserialize<Dictionary<string, string>>(File.ReadAllText(path))!;
+            Assert.Equal("D:\\", parsed["data_disk"]);
         }
         finally
         {
@@ -164,34 +185,62 @@ public class ParameterCollectorTests
 public class PhaseHandoffTests
 {
     [Fact]
-    public void Python_available_when_version_probe_exits_zero()
+    public void Python_probe_runs_python_INSIDE_the_distro_not_wsl_version()
     {
-        var proc = new FakeProcess(new() { ["python3"] = (0, new[] { "Python 3.12.4" }, Array.Empty<string>()) });
-        Assert.True(new PhaseHandoff(proc, _ => { }).PythonAvailable());
+        var proc = new FakeProcess(new() { ["wsl.exe"] = (0, new[] { "Python 3.12.4" }, Array.Empty<string>()) });
+        Assert.True(new PhaseHandoff(proc, _ => { }).PythonAvailableInWsl());
+        // The regression this pins: `wsl.exe --version` would only prove WSL exists.
+        Assert.Equal(new[] { "--", "python3", "--version" }, proc.Calls.Single().args);
     }
 
     [Fact]
-    public void Python_unavailable_when_probe_fails()
+    public void Python_unavailable_when_distro_probe_fails()
     {
         var proc = new FakeProcess(new Dictionary<string, (int, string[], string[])>());
-        Assert.False(new PhaseHandoff(proc, _ => { }).PythonAvailable());
+        Assert.False(new PhaseHandoff(proc, _ => { }).PythonAvailableInWsl());
     }
 
     [Fact]
-    public void Tui_handoff_launches_the_tui_with_the_parameters_file()
+    public void Tui_handoff_translates_both_paths_then_launches_python_in_the_distro()
     {
         var mirror = new List<string>();
-        var proc = new FakeProcess(new() { ["python3"] = (0, new[] { "tui ran" }, Array.Empty<string>()) });
+        var proc = new ArgAwareProcess((cmd, args) =>
+        {
+            if (args.Count > 0 && args[0] == "wslpath")
+                return (0, new[] { "/mnt/c/" + args[2][2..].TrimStart('\\').Replace('\\', '/') }); // C:\x\y -> /mnt/c/x/y
+            return (0, new[] { "tui ran" }); // wsl.exe -- python3 …
+        });
         var handoff = new PhaseHandoff(proc, mirror.Add);
 
-        int exit = handoff.HandOffToPythonTui("python3", "installer/tui.py", "/tmp/params.json");
+        int exit = handoff.HandOffToPythonTuiInWsl(
+            @"C:\repo\installer\python\tui.py", @"C:\repo\params.json");
 
         Assert.Equal(0, exit);
-        var call = proc.Calls.Single();
-        Assert.Equal("python3", call.command);
-        Assert.Equal(new[] { "installer/tui.py", "--parameters", "/tmp/params.json" }, call.args);
+        Assert.Equal(3, proc.Calls.Count);
+        Assert.Equal(new[] { "wslpath", "-u", @"C:\repo\installer\python\tui.py" }, proc.Calls[0].args);
+        Assert.Equal(new[] { "wslpath", "-u", @"C:\repo\params.json" }, proc.Calls[1].args);
+        Assert.Equal("wsl.exe", proc.Calls[2].command);
+        Assert.Equal(new[]
+        {
+            "--", "python3", "/mnt/c/repo/installer/python/tui.py", "--parameters", "/mnt/c/repo/params.json",
+        }, proc.Calls[2].args);
         Assert.Contains(mirror, l => l.Contains("handing the journey to the Python installer TUI"));
         Assert.Contains("tui ran", mirror);
+    }
+
+    [Fact]
+    public void Tui_handoff_stops_loudly_when_a_path_cannot_be_translated()
+    {
+        var mirror = new List<string>();
+        var proc = new FakeProcess(new() { ["wsl.exe"] = (1, Array.Empty<string>(), Array.Empty<string>()) });
+        var handoff = new PhaseHandoff(proc, mirror.Add);
+
+        int exit = handoff.HandOffToPythonTuiInWsl(@"C:\x\tui.py", @"C:\x\params.json");
+
+        Assert.Equal(1, exit);
+        Assert.Contains(mirror, l => l.Contains("could not translate a Windows path") && l.Contains("nothing further is installed"));
+        // Only translations ran — the TUI was never launched.
+        Assert.All(proc.Calls, c => Assert.Equal("wslpath", c.args[0]));
     }
 
     sealed class FakeWebHost : IWebUiHost
@@ -212,6 +261,8 @@ public class PhaseHandoffTests
 
         Assert.Equal("https://wordslab.local/", host.Shown);
         Assert.Equal("https://wordslab.local/", host.Opened);
-        Assert.Contains(mirror, l => l.Contains("https://wordslab.local/"));
+        // The handoff says where the install continues — it does not claim the core is reachable
+        // (reachability is the front door's concern, #88).
+        Assert.Contains(mirror, l => l.Contains("continues in the dashboard at: https://wordslab.local/"));
     }
 }

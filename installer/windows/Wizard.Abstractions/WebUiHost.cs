@@ -1,4 +1,4 @@
-namespace Wordslab.Wizard;
+namespace Wordslab.Wizard.Abstractions;
 
 /// <summary>The embedded web-UI host seam (ADR-0014 §2: the installer "renders the web-UI phase in an
 /// embedded webview; on completion opens the dashboard in the browser itself"). Implemented by the

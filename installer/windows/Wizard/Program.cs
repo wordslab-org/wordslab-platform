@@ -16,7 +16,7 @@ if (args.Contains("--webview-preview"))
     previewHost.Show("https://wordslab.local/");
     previewHost.OpenInBrowser("https://wordslab.local/");
     Console.WriteLine("Webview preview open at https://wordslab.local/ — close the window to exit.");
-    Thread.Sleep(Timeout.Infinite);
+    previewHost.WaitUntilClosed();
     return 0;
 }
 #endif
@@ -63,22 +63,45 @@ if (results.Count != steps.Count || !results.All(r => r.Success))
     return 1;
 }
 
-if (!handoff.PythonAvailable("wsl.exe"))
+// The distro's Python only exists once the uv/Python bootstrap (step 3, #88) has run.
+if (!handoff.PythonAvailableInWsl())
 {
-    Console.WriteLine("Python is not available yet — the bootstrap scripts above must complete first.");
+    Console.WriteLine("Python is not available in the distro yet — the bootstrap scripts above must complete first.");
     return 1;
 }
 
-int tuiExit = handoff.HandOffToPythonTui("wsl.exe", "installer/tui.py", parametersFile);
+static string? FindTuiScript()
+{
+    // The wizard ships inside the checkout/payload; walk up from the binary to the repo/payload
+    // root, where the Python TUI lives next to the entry points.
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null && dir.Parent is not null; dir = dir.Parent)
+    {
+        string candidate = Path.Combine(dir.FullName, "installer", "python", "tui.py");
+        if (File.Exists(candidate)) return candidate;
+        if (File.Exists(Path.Combine(dir.FullName, "python", "tui.py")))
+            return Path.Combine(dir.FullName, "python", "tui.py");
+    }
+    return null;
+}
+
+string? tuiScript = FindTuiScript();
+if (tuiScript is null)
+{
+    Console.WriteLine("FAILED — the Python TUI (installer/python/tui.py) was not found next to this wizard. Nothing further is installed.");
+    return 1;
+}
+int tuiExit = handoff.HandOffToPythonTuiInWsl(tuiScript, parametersFile);
 if (tuiExit != 0)
     return tuiExit;
 
 #if WINDOWS
-// Phase 3 (Windows host): the TUI finished the bootstrap and the core + dashboard are up —
+// Phase 3 (Windows host): the TUI finished the bootstrap and printed the dashboard address —
 // render the web UI phase in the installer's embedded WebView2 window, then open the browser
-// (ADR-0014 §2). Over SSH the TUI printed the URL instead and this branch never runs.
+// (ADR-0014 §2). Over SSH the TUI printed the URL only and this branch never runs.
 const string dashboardUrl = "https://wordslab.local/";
-handoff.HandOffToWeb(dashboardUrl, new Wordslab.Wizard.WebUi.WebView2Host());
+var webHost = new Wordslab.Wizard.WebUi.WebView2Host();
+handoff.HandOffToWeb(dashboardUrl, webHost);
+webHost.WaitUntilClosed(); // the web phase lasts exactly as long as its window
 #endif
 return 0;
 

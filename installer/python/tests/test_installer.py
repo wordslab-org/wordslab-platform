@@ -8,21 +8,18 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 from pathlib import Path
 
 from installer_api import ProgressInterpreter, ScriptStep, run_all, run_step
 import tui
 
 
-def _popen(command, **kwargs):  # noqa: ANN001 - mirror subprocess.Popen signature
-    return subprocess.Popen(command, **kwargs)
-
-
 def test_run_step_streams_and_mirrors_stdout_line_by_line():
     mirror: list[str] = []
     step = ScriptStep(1, "Greets", ("echo", "hello"))
 
-    result = run_step(step, mirror.append, popen=_popen)
+    result = run_step(step, mirror.append)
 
     assert result.success
     assert result.stdout_lines == ("hello",)
@@ -34,7 +31,7 @@ def test_run_step_mirrors_stderr_loudly():
     mirror: list[str] = []
     step = ScriptStep(2, "Warns", ("sh", "-c", "echo oops >&2"))
 
-    result = run_step(step, mirror.append, popen=_popen)
+    result = run_step(step, mirror.append)
 
     assert result.success
     assert result.stderr_lines == ("oops",)
@@ -45,7 +42,7 @@ def test_run_step_reports_failure_loudly():
     mirror: list[str] = []
     step = ScriptStep(3, "Fails", ("sh", "-c", "exit 7"))
 
-    result = run_step(step, mirror.append, popen=_popen)
+    result = run_step(step, mirror.append)
 
     assert result.exit_code == 7
     assert not result.success
@@ -59,7 +56,7 @@ def test_run_all_stops_at_first_failure():
         ScriptStep(2, "Never runs", ("echo", "should not appear")),
     )
 
-    results = run_all(steps, mirror.append, popen=_popen)
+    results = run_all(steps, mirror.append)
 
     assert len(results) == 1
     assert "should not appear" not in "".join(mirror)
@@ -69,7 +66,7 @@ def test_progress_interpreter_emits_once_per_rule_and_keeps_unknown_lines():
     mirror: list[str] = []
     step = ScriptStep(1, "Streams", ("sh", "-c", "printf 'Downloading x\\nDownloading y\\nother\\n'"))
 
-    run_step(step, mirror.append, ProgressInterpreter((("Downloading", "downloading..."),)), popen=_popen)
+    run_step(step, mirror.append, ProgressInterpreter((("Downloading", "downloading..."),)))
 
     assert mirror.count("[01] -> downloading...") == 1  # first match only
     assert "[01] Downloading y" in mirror  # unknown lines mirrored raw, never dropped
@@ -98,7 +95,7 @@ def test_web_handoff_is_an_address_not_a_process_switch():
     instruction = tui.web_handoff("https://wordslab.local/", mirror.append)
 
     assert "https://wordslab.local/" in instruction
-    assert any("are up: https://wordslab.local/" in line for line in mirror)
+    assert any("continues in the dashboard at: https://wordslab.local/" in line for line in mirror)
 
 
 def test_tui_main_runs_the_numbered_scripts_and_hands_off(tmp_path: Path, capsys):
@@ -128,3 +125,35 @@ def test_tui_main_stops_loudly_on_a_failing_script(tmp_path: Path, capsys, monke
     assert rc == 1
     assert "FAILED (exit 9)" in out
     assert "Open https://wordslab.local/" not in out  # no handoff after a failure
+
+
+def test_run_step_does_not_deadlock_when_stderr_fills_its_pipe():
+    """Regression: draining stdout to EOF *before* stderr deadlocks whenever the process writes
+    more than one pipe buffer to stderr while stdout is still open."""
+    mirror: list[str] = []
+    procs: list[subprocess.Popen] = []
+
+    def watch_popen(command, **kwargs):  # noqa: ANN001
+        proc = subprocess.Popen(command, **kwargs)
+        procs.append(proc)
+        return proc
+
+    step = ScriptStep(
+        4, "Floods stderr", ("sh", "-c",
+        'i=0; while [ $i -lt 4000 ]; do echo "err line $i paddingpaddingpadding" >&2; '
+        "i=$((i+1)); done; echo last-stdout"))
+
+    finished: list = []
+    t = threading.Thread(
+        target=lambda: finished.append(run_step(step, mirror.append, popen=watch_popen)),
+        daemon=True)
+    t.start()
+    t.join(timeout=15)
+    for proc in procs:
+        if proc.poll() is None:
+            proc.kill()
+
+    assert finished, "run_step deadlocked draining the two pipes"
+    assert finished[0].success
+    assert finished[0].stdout_lines == ("last-stdout",)
+    assert len(finished[0].stderr_lines) == 4000

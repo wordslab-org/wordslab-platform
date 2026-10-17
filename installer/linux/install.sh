@@ -32,11 +32,19 @@ step 2 "Check network reachability (github, pypi)" bash -c "echo 'reachability c
 # 03 — uv + Python
 step 3 "Install uv + Python" bash -c "echo 'uv bootstrap: placeholder until #88'"
 
-# Handoff: once Python exists, the Python TUI takes the journey over (ADR-0014 §3 phase 2).
-if command -v python3 >/dev/null 2>&1; then
+# Handoff: once Python AND the payload exist, the Python TUI takes the journey over
+# (ADR-0014 §3 phase 2). The payload extraction and the Linux parameter prompts are #88's job;
+# until they exist the gap is named out loud, never papered over.
+TUI=""
+for candidate in "$WORDSLAB_INSTALL_DIR/python/tui.py" "$(dirname "$0")/../python/tui.py"; do
+  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi
+done
+if command -v python3 >/dev/null 2>&1 && [ -n "$TUI" ] && [[ " $* " == *" --parameters "* ]]; then
   echo "[--] Python is available — handing the journey to the Python installer TUI."
-  exec python3 "$(dirname "$0")/../python/tui.py" "$@"
+  exec python3 "$TUI" "$@"
 fi
 
-echo "[--] Python is not available yet — the bootstrap scripts above must complete first."
+echo "[--] Cannot hand off to the TUI yet — it needs a Python interpreter, the extracted installer payload"
+echo "[--] ($WORDSLAB_INSTALL_DIR — extraction ships with ticket #88) and a --parameters file."
+echo "[--] The journey stops here; nothing further is installed."
 exit 1

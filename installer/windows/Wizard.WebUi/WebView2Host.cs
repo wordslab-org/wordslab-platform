@@ -1,7 +1,6 @@
-using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Wordslab.Wizard;
+using Wordslab.Wizard.Abstractions;
 
 namespace Wordslab.Wizard.WebUi;
 
@@ -16,9 +15,13 @@ namespace Wordslab.Wizard.WebUi;
 /// given URL; when the core + dashboard exist (stage 2) the same window renders the install web UI.
 /// Over SSH / without a local browser the caller never constructs this host and prints the URL
 /// instead (ADR-0014 §3: "the handoff is an address, not a process switch").
+///
+/// Lifetime: the web phase keeps the installer process alive exactly as long as its window is on
+/// screen — the caller blocks in <see cref="WaitUntilClosed"/> until the window is closed.
 /// </summary>
-public sealed class WebView2Host : IWebUiHost, IDisposable
+public sealed class WebView2Host : IWebUiHost
 {
+    private readonly ManualResetEventSlim _windowClosed = new(false);
     private Thread? _uiThread;
 
     public void Show(string url)
@@ -27,8 +30,9 @@ public sealed class WebView2Host : IWebUiHost, IDisposable
             throw new PlatformNotSupportedException(
                 "The embedded webview is a Windows-host surface; remote installs print the dashboard URL instead (ADR-0014 §3).");
 
-        // WinUI 3 needs an STA thread with its own message pump; the console wizard stays alive.
-        _uiThread = new Thread(() => Application.Start(_ => new InstallApp(url)))
+        // WinUI 3 needs an STA thread with its own message pump; the console wizard stays alive
+        // and joins this thread via WaitUntilClosed().
+        _uiThread = new Thread(() => Application.Start(_ => new InstallApp(url, OnWindowClosed)))
         {
             IsBackground = true,
             Name = "wordslab-webview-ui",
@@ -36,6 +40,12 @@ public sealed class WebView2Host : IWebUiHost, IDisposable
         _uiThread.SetApartmentState(ApartmentState.STA);
         _uiThread.Start();
     }
+
+    /// <summary>Blocks until the webview window is closed, so the installer does not exit while the
+    /// user is still reading it.</summary>
+    public void WaitUntilClosed() => _windowClosed.Wait();
+
+    private void OnWindowClosed() => _windowClosed.Set();
 
     public void OpenInBrowser(string url)
     {
@@ -47,21 +57,20 @@ public sealed class WebView2Host : IWebUiHost, IDisposable
             UseShellExecute = true,
         });
     }
-
-    public void Dispose()
-    {
-        // The UI thread is a background thread; closing its window ends the pump.
-        _uiThread = null;
-    }
 }
 
 /// <summary>The WinUI 3 application for the installer's web phase — pure C#, no XAML markup.</summary>
 sealed class InstallApp : Application
 {
     private readonly string _url;
+    private readonly Action _onWindowClosed;
     private Window? _window;
 
-    public InstallApp(string url) => _url = url;
+    public InstallApp(string url, Action onWindowClosed)
+    {
+        _url = url;
+        _onWindowClosed = onWindowClosed;
+    }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
@@ -75,6 +84,7 @@ sealed class InstallApp : Application
         var root = new Grid();
         root.Children.Add(view);
         _window.Content = root;
+        _window.Closed += (_, _) => _onWindowClosed();
 
         _ = NavigateAsync(view);
         _window.Activate();

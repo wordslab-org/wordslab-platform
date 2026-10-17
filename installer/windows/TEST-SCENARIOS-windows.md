@@ -1,6 +1,6 @@
 # Windows test scenarios — ticket #87 (for Laurent, native host)
 
-Run these on the Windows machine (the Hermes gateway there). The repo clone must have the .NET 8
+Run these on the Windows machine (the Hermes gateway there). The repo clone must have the .NET 10
 SDK (`winget install Microsoft.DotNet.SDK.10`). All commands from `installer\windows\`.
 
 ## S1 — the solution builds natively
@@ -30,9 +30,13 @@ Expect, in order:
 3. "Parameters saved to ...wordslab-install-parameters.json".
 4. Three numbered scripts `[01]..[03]` each printing its placeholder line (they say
    "placeholder until #88" — the real steps are ticket #88).
-5. Handoff line "Python is available — handing the journey to the Python installer TUI." —
-   then either the TUI output (if WSL+Python are installed: `wsl -- python3 ...`) or a loud
-   failure line if WSL/python3 is missing. Screenshot whichever you get.
+5. Handoff: the wizard probes `wsl -- python3 --version`.
+   - No WSL distro / no python3 in it → "Python is not available in the distro yet — the bootstrap
+     scripts above must complete first." (exit 1). Screenshot it.
+   - With a WSL distro containing Python 3 → "Python is available in the distro — handing the
+     journey to the Python installer TUI." then the phase-2 TUI output (`[01]..[06]` placeholders
+     + the web-handoff address line), then — on a GUI session — the WebView2 window. Screenshot
+     whichever you get.
 
 ## S4 — the embedded webview host (WinUI 3 + WebView2)
 
