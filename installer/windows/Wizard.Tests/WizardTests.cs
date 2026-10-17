@@ -123,13 +123,17 @@ public class ScriptRunnerTests
 
 public class ParameterCollectorTests
 {
+    // A validator with teeth only exists for real parameters (data_disk today); the yes/no
+    // tests supply their own inline rule — no production dead code for #90's future parameter.
+    private static string? YesNo(string value) => value is "y" or "n" ? null : "answer y or n";
+
     [Fact]
     public void Empty_answer_takes_the_default()
     {
         var collector = new ParameterCollector(_ => "");
         var answers = collector.Collect(new[]
         {
-            new ParameterSpec("join_lan", "Join?", "y", ParameterCollector.ValidateYesNo),
+            new ParameterSpec("join_lan", "Join?", "y", YesNo),
         });
         Assert.Equal("y", answers["join_lan"]);
     }
@@ -141,7 +145,7 @@ public class ParameterCollectorTests
         var collector = new ParameterCollector(_ => queue.Dequeue());
         var answers = collector.Collect(new[]
         {
-            new ParameterSpec("join_lan", "Join?", "y", ParameterCollector.ValidateYesNo),
+            new ParameterSpec("join_lan", "Join?", "y", YesNo),
         });
         Assert.Equal("n", answers["join_lan"]);
         Assert.Empty(queue); // both answers consumed: the invalid one was re-asked

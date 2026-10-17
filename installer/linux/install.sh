@@ -14,11 +14,13 @@ echo
 
 step() {
   local n="$1" title="$2"; shift 2
-  printf '[%02d] %s\n' "$n" "$title"
-  "$@" | sed "s/^/[$(printf '%02d' "$n")] /"
+  local label="[$(printf '%02d' "$n")]"
+  printf '%s %s\n' "$label" "$title"
+  # Same runner contract as the C# and Python sides: stdout mirrored with [NN], stderr with "[NN] !".
+  "$@" 2> >(sed "s|^|$label ! |" >&2) | sed "s|^|$label |"
   local rc=${PIPESTATUS[0]}
   if [ "$rc" -ne 0 ]; then
-    printf '[%02d] FAILED (exit %s) — the journey stops here; nothing further is installed.\n' "$n" "$rc"
+    printf '%s FAILED (exit %s) — the journey stops here; nothing further is installed.\n' "$label" "$rc"
     exit "$rc"
   fi
 }

@@ -13,11 +13,11 @@ namespace Wordslab.Wizard.WebUi;
 /// in code, so the project also compiles on Linux (EnableWindowsTargeting) and runs on the Windows
 /// host. Built now, ahead of the dashboard: <see cref="Show"/> opens the WebView2 window at the
 /// given URL; when the core + dashboard exist (stage 2) the same window renders the install web UI.
-/// Over SSH / without a local browser the caller never constructs this host and prints the URL
-/// instead (ADR-0014 §3: "the handoff is an address, not a process switch").
 ///
 /// Lifetime: the web phase keeps the installer process alive exactly as long as its window is on
-/// screen — the caller blocks in <see cref="WaitUntilClosed"/> until the window is closed.
+/// screen — the caller blocks in <see cref="WaitUntilClosed"/> until the window is closed. In a
+/// headless/SSH session the pump cannot start: <see cref="StartFailure"/> records it and the
+/// caller prints the URL instead (ADR-0014 §3: "the handoff is an address, not a process switch").
 /// </summary>
 public sealed class WebView2Host : IWebUiHost
 {

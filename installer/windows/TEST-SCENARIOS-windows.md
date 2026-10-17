@@ -20,7 +20,7 @@ Expect: Passed: 14, Failed: 0.
 ## S3 — the phase-1 console wizard runs
 
 ```
-dotnet run --project Wizard
+dotnet run --project Wizard --framework net10.0-windows10.0.19041.0
 ```
 Expect, in order:
 1. Header "Wordslab Platform installer — phase 1 (native)." + the transparency line.
@@ -45,7 +45,7 @@ The webview window only opens after the TUI phase succeeds (phase 3). To exercis
 run from `installer\windows\`:
 
 ```
-dotnet run --project Wizard -- --webview-preview
+dotnet run --project Wizard --framework net10.0-windows10.0.19041.0 -- --webview-preview
 ```
 
 Expect: a window titled "Wordslab Platform — install" rendering `https://wordslab.local/`

@@ -32,9 +32,6 @@ public sealed class ParameterCollector
         return windowsDrive || posixRoot ? null : "not a valid drive path (e.g. D:\\)";
     }
 
-    public static string? ValidateYesNo(string value) =>
-        value is "y" or "n" or "yes" or "no" ? null : "answer y or n";
-
     public IReadOnlyDictionary<string, string> Collect(IReadOnlyList<ParameterSpec> specs)
     {
         var answers = new Dictionary<string, string>();
