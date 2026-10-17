@@ -3,7 +3,7 @@
   <!-- Shared seams of the installer wizard: the interfaces both the console wizard core and the
        Windows webview host depend on, so neither depends on the other (no project cycle). -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Wordslab.Wizard</RootNamespace>

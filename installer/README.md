@@ -49,7 +49,7 @@ webview host. The scripts here are visible numbered placeholders that say so.
 
 ## Build notes
 
-- `dotnet` 8 SDK; on Linux set `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` if libicu is absent.
+- `dotnet` 10 SDK; on Linux set `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` if libicu is absent.
 - `Wizard.WebUi` sets `EnableCoreMrtTooling=false`: the WindowsAppSDK MrtCore/PRI MSBuild tasks
   ship only with the Visual Studio toolset; the project has no PRI resources, so Linux CI builds
   stay green.

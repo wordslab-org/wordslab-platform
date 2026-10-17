@@ -1,7 +1,7 @@
 # Windows test scenarios — ticket #87 (for Laurent, native host)
 
 Run these on the Windows machine (the Hermes gateway there). The repo clone must have the .NET 8
-SDK (`winget install Microsoft.DotNet.SDK.8`). All commands from `installer\windows\`.
+SDK (`winget install Microsoft.DotNet.SDK.10`). All commands from `installer\windows\`.
 
 ## S1 — the solution builds natively
 
