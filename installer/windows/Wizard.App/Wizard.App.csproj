@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Windows installer UI: a beautiful, simple WinUI 3 journey — no console, no TUI.
+       XAML markup window, Mica backdrop, numbered step cards with live streaming progress,
+       then a full-window WebView2 handoff (ADR-0014 §3 phase 3: an address, not a process switch).
+
+       NOTE: XAML markup compilation (XamlCompiler.exe) is Windows-only, so THIS project builds
+       on the Windows host (or CI on Windows). All journey logic lives in Wizard.Core, which
+       builds and is fully tested on any platform. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 2.x template shape (Microsoft.WindowsAppSDK.WinUI.CSharp.Templates, verified 2026-10):
+         compile against the 26100 (Win11 24H2) SDK, run down to 19041 (modern WSL floor). -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- Bundle the Windows App SDK native runtime with the app: nothing needs to be
+         installed on the target machine (no "Windows App Runtime" dependency). Together
+         with a self-contained publish this yields a standalone folder that runs on any
+         Windows 10/11 x64 with no .NET installed. -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>Wordslab.Wizard.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Current stable (NuGet-verified, not from memory): 2.5.1. Never pin below 1.8 — the 1.6
+         XamlCompiler dies silently (exit 1, no diagnostics) on dotnet CLI builds
+         (microsoft-ui-xaml #10947/#11183). -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wizard.Core\Wizard.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Brand mark: title-bar icon + welcome header (ms-appx resource). -->
+    <Content Include="Assets\wordslab-mark.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\wordslab-mark.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The wizard's brain: command execution library + numbered script classes + journey
+       runner. Cross-platform (builds and is fully tested on Linux); the WinUI app project
+       consumes it. Keeping the logic here means the install contract is verified wherever
+       `dotnet test` runs — the UI stays a thin renderer. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Wordslab.Wizard.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

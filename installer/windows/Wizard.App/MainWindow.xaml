@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="Wordslab.Wizard.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+        xmlns:local="using:Wordslab.Wizard.App"
+        Title="Wordslab Platform — Install">
+
+  <!-- v1 is light-only: white everywhere, cards white with a light border. No Mica
+       (it tinted the canvas gray against the white cards). -->
+  <Grid Background="White" Padding="32,24,32,20">
+
+    <!-- The journey and web panels overlay; exactly one is visible at a time. -->
+    <Grid x:Name="JourneyPanel">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="540" />
+        <ColumnDefinition Width="28" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Header: the wordslab-notebooks lab-flask mark, wordmark kept. -->
+      <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="16" Margin="0,0,0,18">
+        <Image Source="ms-appx:///Assets/wordslab-mark.png" Height="80" VerticalAlignment="Center" />
+        <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+
+      <!-- Left column: what Wordslab is, where it will live (fixed paths — one less
+           decision for a first-time user), and the Start button. -->
+      <StackPanel Grid.Row="1" Grid.Column="0" Spacing="14">
+        <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                   Text="Wordslab Platform brings a personal AI into your home — an assistant and apps for you and your family that you can also understand. It is 100% open source and runs on this computer: your data stays here, the choices stay yours, and nothing happens silently or invisibly. Like the home computers of the eighties that taught a generation what a computer is, Wordslab is here to teach a generation how AI works." />
+        <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Wordslab runs inside a Linux virtual machine — Linux is built into Windows, and this installer turns it on for you. It prepares that machine, installs the Wordslab programs into it, and finally opens your Wordslab home page right in this window — six visible steps, nothing installed silently." />
+
+        <Border Style="{StaticResource StepCard}">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Where Wordslab will live" FontWeight="SemiBold" />
+            <TextBlock x:Name="ProgramLine" TextWrapping="Wrap"
+                       Text="Program:  C:\wordslab\wordslab.exe" />
+            <TextBlock Text="Linux disks (one per drive):" FontWeight="SemiBold" Margin="0,4,0,0" />
+            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                       Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one virtual disk file per drive, so it can later use the free space and the speed of every drive in this PC. They live in fixed wordslab folders. Switch off a drive you would rather not use; you can add drives later too." />
+            <ItemsControl x:Name="DiskList">
+              <ItemsControl.ItemTemplate>
+                <!-- Classic Binding (Window root + #5902); TwoWay only for the tick. -->
+                <DataTemplate>
+                  <Grid ColumnSpacing="10" Margin="0,3">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="210" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox Content="{Binding DriveLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                              VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding VhdxPath}" FontFamily="Consolas" FontSize="12"
+                               VerticalAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock x:Name="SkipsLine" Visibility="Collapsed" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Button x:Name="StartButton" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    Style="{StaticResource AccentButtonStyle}" Content="Start install"
+                    Click="StartInstall_Click" MinWidth="200" Padding="24,10" />
+          </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="StatusLine" TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}" />
+        <TextBlock TextWrapping="Wrap" IsTextSelectionEnabled="True" Margin="0,4,0,0"
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Wordslab Platform is free and open source — github.com/wordslab-org/wordslab-platform" />
+      </StackPanel>
+
+      <!-- Right column: all six numbered steps stay visible, with live progress. -->
+      <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto">
+        <ItemsControl x:Name="StepsList" ItemsSource="{x:Bind Steps}">
+          <!-- ItemsControl has no Spacing in WinUI; the panel (only 6 items) provides it. -->
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="8" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <!-- Classic {Binding}, not x:Bind: x:Bind WITH a converter in a Window-rooted
+                 app hits microsoft-ui-xaml #5902 (generated SetConverterLookupRoot needs a
+                 FrameworkElement; Window is not one). StepVm is INotifyPropertyChanged, so
+                 OneWay Binding updates live exactly the same. -->
+            <DataTemplate x:DataType="local:StepVm">
+              <Border Style="{StaticResource StepCard}">
+                <StackPanel Spacing="8">
+                  <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="30" Height="30" CornerRadius="15"
+                            Background="{ThemeResource SystemControlBackgroundAccentBrush}">
+                      <TextBlock Text="{Binding NumberText}" Foreground="White" FontWeight="SemiBold"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
+                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <ProgressRing Grid.Column="2" Width="20" Height="20" IsIndeterminate="True"
+                                  Visibility="{Binding IsRunning, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                    <FontIcon Grid.Column="3" Glyph="&#xE73E;" FontSize="18" VerticalAlignment="Center"
+                              Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                              Visibility="{Binding IsDone, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                    <FontIcon Grid.Column="3" Glyph="&#xE783;" FontSize="18" VerticalAlignment="Center"
+                              Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                              Visibility="{Binding IsFailed, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                  </Grid>
+                  <TextBlock Text="{Binding StatusText, Mode=OneWay}"
+                             Style="{StaticResource CaptionTextBlockStyle}"
+                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                  <!-- The tail IS the log: last 3 lines stream live; "··· more" at the end of
+                       the last line (tap anywhere on the block) reveals the whole log. -->
+                  <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto"
+                                Visibility="{Binding HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding DisplayLog, Mode=OneWay}" FontFamily="Consolas"
+                               FontSize="12" TextWrapping="Wrap" IsTapEnabled="True"
+                               Tapped="LogTail_Tapped" IsTextSelectionEnabled="True"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  </ScrollViewer>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- The web handoff (phase 3): an address, not a process switch — the same window becomes
+         the dashboard. A TLS error page is expected before the front door exists. -->
+    <Grid x:Name="WebPanel" Visibility="Collapsed">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <StackPanel Spacing="4" Margin="0,0,0,12">
+        <TextBlock x:Name="WebTitle" Text="Wordslab is set up — the rest happens in your dashboard"
+                   Style="{StaticResource SubtitleTextBlockStyle}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button x:Name="OpenBrowserButton" Content="Open in a web browser" Click="OpenInBrowser_Click" />
+          <TextBlock x:Name="WebUrl" VerticalAlignment="Center"
+                     Style="{StaticResource CaptionTextBlockStyle}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+      </StackPanel>
+      <controls:WebView2 x:Name="Web" Grid.Row="1" />
+    </Grid>
+  </Grid>
+</Window>
