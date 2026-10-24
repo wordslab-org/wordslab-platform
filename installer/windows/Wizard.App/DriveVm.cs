@@ -10,7 +10,7 @@ public sealed class DriveVm
 {
     public string Drive { get; set; } = ""; // "C:"
     public long FreeGb { get; set; }
-    public string DriveLabel => $"{Drive} — {FreeGb} GB free";
+    public string DriveLabel => FreeGb >= 0 ? $"{Drive} — {FreeGb} GB free" : $"{Drive} — drive busy, will be probed at install";
     public bool Enabled { get; set; } = true;
     public string Folder { get; set; } = "";
     // v1 fixed layout: the exact virtual Linux disk file shown on screen and created by #88.

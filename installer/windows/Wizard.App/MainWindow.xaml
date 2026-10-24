@@ -24,7 +24,7 @@
 
       <!-- Header: the wordslab-notebooks lab-flask mark, wordmark kept. -->
       <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="16" Margin="0,0,0,18">
-        <Image Source="ms-appx:///Assets/wordslab-mark.png" Height="64" VerticalAlignment="Center" />
+        <Image Source="ms-appx:///Assets/wordslab-mark.png" Height="80" VerticalAlignment="Center" />
         <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}"
                    VerticalAlignment="Center" />
       </StackPanel>
@@ -65,6 +65,9 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <TextBlock x:Name="SkipsLine" Visibility="Collapsed" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <Button x:Name="StartButton" HorizontalAlignment="Left" Margin="0,6,0,0"
                     Style="{StaticResource AccentButtonStyle}" Content="Start install"
                     Click="StartInstall_Click" MinWidth="200" Padding="24,10" />

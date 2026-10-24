@@ -34,31 +34,42 @@ public sealed partial class MainWindow : Window
         // to the output). An icon failure is cosmetic, never fatal to the install.
         try
         {
-            // Window.AppWindow: Windows App SDK 1.4+.
-            AppWindow.SetIcon(
-                Path.Combine(AppContext.BaseDirectory, "Assets", "wordslab-mark.png"));
+            // Window.AppWindow: Windows App SDK 1.4+. The multi-size .ico is what SetIcon
+            // renders most reliably in the title bar and taskbar; PNG as fallback.
+            string stem = Path.Combine(AppContext.BaseDirectory, "Assets", "wordslab-mark");
+            AppWindow.SetIcon(File.Exists(stem + ".ico") ? stem + ".ico" : stem + ".png");
         }
-        catch (Exception) { }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"icon: {ex}"); }
         // The original complaint: the window must be wide enough to keep all six step
         // cards visible — the layout is left (intro + locations) / right (live steps).
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1220, 860));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1420, 1000));
         _runner = new JourneyRunner(_executor);
 
         foreach (var script in _journey)
             Steps.Add(new StepVm(script.Number, script.Title));
 
+        var skipped = new List<string>();
         foreach (var d in DriveInfo.GetDrives())
         {
-            if (d.DriveType != DriveType.Fixed || !d.IsReady) continue;
             string drive = d.Name.TrimEnd('\\'); // "C:"
-            Disks.Add(new DriveVm
+            if (d.DriveType is DriveType.CDRom or DriveType.Unknown) continue;
+            if (d.DriveType != DriveType.Fixed)
             {
-                Drive = drive,
-                FreeGb = d.AvailableFreeSpace / (1024 * 1024 * 1024),
-                Folder = drive + "\\wordslab",
-            });
+                skipped.Add($"{drive} ({d.DriveType.ToString().ToLower()} drive)");
+                continue;
+            }
+            long freeGb;
+            try { freeGb = d.AvailableFreeSpace / (1024 * 1024 * 1024); }
+            catch (Exception) { freeGb = -1; } // fixed but momentarily locked — still list it
+            Disks.Add(new DriveVm { Drive = drive, FreeGb = freeGb, Folder = drive + "\\wordslab" });
         }
         DiskList.ItemsSource = Disks;
+        if (skipped.Count > 0) // transparency over silence: say what was left out and why
+        {
+            SkipsLine.Text = "Not listed: " + string.Join(", ", skipped) +
+                " — Wordslab's Linux disks live on physical internal drives.";
+            SkipsLine.Visibility = Visibility.Visible;
+        }
         // v1: paths are fixed — <drive>:\wordslab everywhere (one less decision for a
         // first-time user). The window only informs: program exe + the exact VHDX files.
         string systemRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
