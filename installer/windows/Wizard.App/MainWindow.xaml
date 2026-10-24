@@ -55,6 +55,10 @@
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
+            <!-- Classic {Binding}, not x:Bind: x:Bind WITH a converter in a Window-rooted
+                 app hits microsoft-ui-xaml #5902 (generated SetConverterLookupRoot needs a
+                 FrameworkElement; Window is not one). StepVm is INotifyPropertyChanged, so
+                 OneWay Binding updates live exactly the same. -->
             <DataTemplate x:DataType="local:StepVm">
               <Border Style="{StaticResource StepCard}">
                 <StackPanel Spacing="8">
@@ -67,27 +71,27 @@
                     </Grid.ColumnDefinitions>
                     <Border Width="30" Height="30" CornerRadius="15"
                             Background="{ThemeResource SystemControlBackgroundAccentBrush}">
-                      <TextBlock Text="{x:Bind NumberText}" Foreground="White" FontWeight="SemiBold"
+                      <TextBlock Text="{Binding NumberText}" Foreground="White" FontWeight="SemiBold"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center"
+                    <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
                                FontWeight="SemiBold" TextWrapping="Wrap" />
                     <ProgressRing Grid.Column="2" Width="20" Height="20" IsIndeterminate="True"
-                                  Visibility="{x:Bind IsRunning, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                                  Visibility="{Binding IsRunning, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
                     <FontIcon Grid.Column="3" Glyph="&#xE73E;" FontSize="18" VerticalAlignment="Center"
                               Foreground="{ThemeResource SystemFillColorSuccessBrush}"
-                              Visibility="{x:Bind IsDone, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                              Visibility="{Binding IsDone, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
                     <FontIcon Grid.Column="3" Glyph="&#xE783;" FontSize="18" VerticalAlignment="Center"
                               Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                              Visibility="{x:Bind IsFailed, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
+                              Visibility="{Binding IsFailed, Mode=OneWay, Converter={StaticResource BoolToVis}}" />
                   </Grid>
-                  <TextBlock Text="{x:Bind StatusText, Mode=OneWay}"
+                  <TextBlock Text="{Binding StatusText, Mode=OneWay}"
                              Style="{StaticResource CaptionTextBlockStyle}"
                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                   <controls:Expander Header="output" IsExpanded="False"
-                                     Visibility="{x:Bind HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                                     Visibility="{Binding HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
                     <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
-                      <TextBlock Text="{x:Bind LogText, Mode=OneWay}" FontFamily="Consolas"
+                      <TextBlock Text="{Binding LogText, Mode=OneWay}" FontFamily="Consolas"
                                  FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     </ScrollViewer>
                   </controls:Expander>
