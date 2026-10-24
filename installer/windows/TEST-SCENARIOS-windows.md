@@ -2,6 +2,8 @@
 
 Run these on the Windows machine. The repo clone must have the .NET 10 SDK
 (`winget install Microsoft.DotNet.SDK.10`). All commands from `installer\windows\`.
+For the repeatable full-journey harness (reset → run → check, as many cycles as you want)
+see `TEST-E2E-windows.md` + `e2e\reset.ps1|check.ps1|loop.ps1`.
 
 ## S1 — everything builds natively
 

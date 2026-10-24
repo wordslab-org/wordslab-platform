@@ -116,7 +116,10 @@ there is nothing to guide yet — it lands with the real steps in #88.
 - Bash: `bash installer/linux/test_install_smoke.sh` — the Linux entry end to end (labels,
   `[NN] !` stderr, handoff, loud gaps); `bash installer/linux/test_distro_scripts_smoke.sh` —
   the shared distro scripts' documented contract (usage exits, no-op re-runs, stubbed engine).
-- Windows UI: verified by Laurent on the Windows host against `TEST-SCENARIOS-windows.md`.
+- Windows UI: verified by Laurent on the Windows host against `TEST-SCENARIOS-windows.md`;
+  the repeatable full-journey harness (`e2e/reset.ps1` + `e2e/check.ps1` + `e2e/loop.ps1`,
+  scenario doc `TEST-E2E-windows.md`) reverts the machine between cycles — the WSL feature
+  itself is deliberately never removed.
 
 ## Standalone build (no .NET needed on the target machine)
 
