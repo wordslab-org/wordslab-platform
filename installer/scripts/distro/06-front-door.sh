@@ -14,15 +14,8 @@
 # probe step fails with a plain sentence instead of pretending — nothing is installed silently.
 set -euo pipefail
 
-PARAMS=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --parameters) PARAMS="$2"; shift 2 ;;
-    *) echo "06: unknown argument '$1' — usage: 06-front-door.sh --parameters <file>" >&2; exit 2 ;;
-  esac
-done
-[ -n "$PARAMS" ] || { echo "06: no --parameters file given — usage: 06-front-door.sh --parameters <file>" >&2; exit 2; }
-[ -f "$PARAMS" ] || { echo "06: parameters file '$PARAMS' does not exist" >&2; exit 2; }
+# shellcheck source=_parameters.sh
+. "$(dirname "$0")/_parameters.sh"   # shared --parameters contract (#88)
 echo "06: install parameters read from $PARAMS"
 
 echo "front-door slot ready — one port, one certificate; the certificate and wordslab.local name arrive with ticket #92, the page behind them with ticket #62"

@@ -44,7 +44,7 @@ public static class PayloadLocator
 /// compute each path, so class and script bodies never re-derive them.</summary>
 public static class InstallDirs
 {
-    public static string EnsureProgramFolder(IReadOnlyDictionary<string, string> parameters)
+    public static string ProgramFolderOrThrow(IReadOnlyDictionary<string, string> parameters)
     {
         if (!parameters.TryGetValue("install_dir", out string? dir) || string.IsNullOrWhiteSpace(dir))
             throw new InvalidOperationException(

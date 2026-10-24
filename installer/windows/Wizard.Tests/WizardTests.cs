@@ -105,19 +105,22 @@ public class ScriptPlanTests
     public async Task Step2_switches_the_feature_on_then_imports_the_named_wordslab_vm()
     {
         var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
-        var cmds = await new Script02WslDistroDisks().PlanAsync(ctx);
+        var cmds = await new Script02WslFeatureAndVm().PlanAsync(ctx);
 
         Assert.Equal(2, cmds.Count);
         Assert.All(cmds, c => Assert.Equal(new[] { "-NoProfile", "-Command" }, c.Args.Take(2)));
         string feature = cmds[0].Args[2];
         Assert.Contains("wsl --status", feature);
         Assert.Contains("wsl --install --no-distribution", feature);
-        Assert.Contains("Restart the computer", feature);   // reboot path, explained not swallowed
+        // The documented exit that lets the window ask Windows for admin ONCE (one UAC) — and
+        // nothing else. A generic failure must not trigger the elevation dance.
+        Assert.Contains("exit 3", feature);
+        Assert.DoesNotContain("Restart the computer, then open Wordslab", feature);
         string vm = cmds[1].Args[2];
         // The #88 ruling: wsl --import (never wsl --install distro, never wsl --mount) — the disk
         // lands in a plain folder under the program folder WSL itself manages.
         Assert.Contains("wsl --import wordslab", vm);
-        Assert.Contains(Script02WslDistroDisks.UbuntuRootfsUrl, vm);
+        Assert.Contains(Script02WslFeatureAndVm.UbuntuRootfsUrl, vm);
         Assert.Contains(@"C:\wordslab\virtual-machines\wordslab", vm);
         Assert.Contains("systemd = true", vm);
         Assert.Contains("appendWindowsPath = false", vm);   // no interop: the VM never calls Windows
@@ -137,6 +140,7 @@ public class ScriptPlanTests
         Assert.Contains("UV_PYTHON_INSTALL_DIR=/opt/wordslab/python", body);
         Assert.Contains("uv python install 3.12", body);
         Assert.Contains("Wordslab engine ready", body);     // its own final human sentence
+        Assert.DoesNotContain("command -v uv", body);       // re-run upgrades uv: no skip-guard
         Assert.DoesNotContain("placeholder", body);
         Assert.Equal(System.Text.Encoding.Unicode, cmd.OutputEncoding);
     }
@@ -159,8 +163,10 @@ public class ScriptPlanTests
         string diskD = cmds[1].Args[2];
         Assert.Contains("wsl --import wordslab-d", diskD);
         Assert.Contains(Path.Combine(@"D:\wordslab", "wordslab-d"), diskD);
-        // The disk instance publishes /volume into the shared /mnt/wsl (notebooks mechanism):
+        // The disk instance publishes /volume into the shared /mnt/wsl (notebooks mechanism), and
+        // the instance is terminated after wsl.conf so the config actually applies at next start:
         Assert.Contains("mount --bind /volume /mnt/wsl/wordslab-d", diskD);
+        Assert.Contains("wsl --terminate wordslab-d", diskD);
         var shared = cmds[2];
         Assert.Equal(new[] { "-d", "wordslab", "--", "bash",
                              "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh",
@@ -240,7 +246,7 @@ public class ScriptPlanTests
     {
         var journey = new NumberedScript[]
         {
-            new Script01NetworkReachability(), new Script02WslDistroDisks(), new Script03UvPythonInDistro(),
+            new Script01NetworkReachability(), new Script02WslFeatureAndVm(), new Script03UvPythonInDistro(),
             new Script04DataVolumes(), new Script05FirstPlatformCore(), new Script06FrontDoor(),
         };
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, journey.Select(s => s.Number));
@@ -496,7 +502,7 @@ public class SupportTests
 
         // A missing program folder is a broken internal state, named as one — never a silent default.
         Assert.Throws<InvalidOperationException>(() =>
-            InstallDirs.EnsureProgramFolder(new Dictionary<string, string>()));
+            InstallDirs.ProgramFolderOrThrow(new Dictionary<string, string>()));
     }
 
     [Fact]

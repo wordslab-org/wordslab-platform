@@ -14,15 +14,8 @@
 # /mnt/wordslab/<letter> — one stable in-distro place for the core to keep data (ADR-0004 §8).
 set -euo pipefail
 
-PARAMS=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --parameters) PARAMS="$2"; shift 2 ;;
-    *) echo "04: unknown argument '$1' — usage: 04-data-volumes.sh --parameters <file>" >&2; exit 2 ;;
-  esac
-done
-[ -n "$PARAMS" ] || { echo "04: no --parameters file given — usage: 04-data-volumes.sh --parameters <file>" >&2; exit 2; }
-[ -f "$PARAMS" ] || { echo "04: parameters file '$PARAMS' does not exist" >&2; exit 2; }
+# shellcheck source=_parameters.sh
+. "$(dirname "$0")/_parameters.sh"   # shared --parameters contract (#88)
 echo "04: install parameters read from $PARAMS"
 
 found=0

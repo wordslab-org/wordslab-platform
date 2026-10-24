@@ -14,7 +14,7 @@ public sealed partial class MainWindow : Window
 
     private readonly NumberedScript[] _journey =
     {
-        new Script01NetworkReachability(), new Script02WslDistroDisks(), new Script03UvPythonInDistro(),
+        new Script01NetworkReachability(), new Script02WslFeatureAndVm(), new Script03UvPythonInDistro(),
         new Script04DataVolumes(), new Script05FirstPlatformCore(), new Script06FrontDoor(),
     };
 
@@ -147,14 +147,18 @@ public sealed partial class MainWindow : Window
         else
         {
             // One UAC prompt, zero console windows: switching Windows' built-in Linux on for the
-            // first time is the single moment this wizard ever needs Windows admin. When step 2
-            // failed and we are not elevated, the wizard restarts ITSELF with the approval asked
-            // from Windows directly (ADR-0014: no console, no "run me as admin" instructions).
-            bool wslStepFailed = results.Any(r => r.Script.Number == 2 && !r.Success);
-            if (wslStepFailed && !IsElevated())
+            // first time is the single moment this wizard ever needs Windows admin. ONLY the
+            // documented exit (feature switch itself failed, exit 3) asks Windows — a failed
+            // download or any other failure must not nag. When it fires and we are not elevated,
+            // the wizard restarts ITSELF (Elevation lives in Wizard.Core with the journey rules).
+            bool needsAdmin = results.Any(r =>
+                r.Script is Script02WslFeatureAndVm &&
+                r.ExitCodes.Count > 0 &&
+                r.ExitCodes[0] == Script02WslFeatureAndVm.ExitCodeNeedsAdminOrRestart);
+            if (needsAdmin && !Elevation.IsElevated())
             {
                 StatusLine.Text = "Windows' built-in Linux needs Windows admin approval the first time it is switched on — Wordslab asks Windows once, right now.";
-                if (TryRelaunchElevated())
+                if (Elevation.RelaunchSelfElevated())
                 {
                     Close(); // the elevated wizard takes over; same window, same six steps
                     return;
@@ -167,31 +171,6 @@ public sealed partial class MainWindow : Window
             StatusLine.Text = "The install stopped at the step marked in red. Open \"output\" on that card to see what went wrong, then press Start install again — starting over is safe.";
             _running = false;
             StartButton.IsEnabled = true;
-        }
-    }
-
-    private static bool IsElevated()
-    {
-        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-        return new System.Security.Principal.WindowsPrincipal(identity)
-            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-    }
-
-    private static bool TryRelaunchElevated()
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = Environment.ProcessPath!,
-                UseShellExecute = true,
-                Verb = "runas", // the one UAC prompt Windows itself shows
-            });
-            return true;
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            return false; // the approval was declined — say so plainly
         }
     }
 

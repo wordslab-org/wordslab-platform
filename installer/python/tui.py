@@ -58,7 +58,7 @@ def journey_steps(parameters_file: Path) -> tuple[ScriptStep, ...]:
     JSON the wizard or TUI wrote, so scripts re-run by hand read what the UI chose."""
     native = tuple(
         ScriptStep(n, title, ("echo", f"{title} — already completed by the native phase; "
-                                     "re-run its script yourself any time (placeholder until #88)"))
+                                     "re-run its script yourself any time (real content lands with #94)"))
         for n, title in NATIVE_STEPS
     )
     distro = tuple(

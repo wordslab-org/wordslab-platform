@@ -18,6 +18,10 @@ using System.Text;
 
 namespace Wordslab.Wizard.Core.Scripts;
 
+/// <summary>Contract (as documented per #88): in — nothing (parameters for paths only); out —
+/// one loud line per target + a final human sentence; exit — 0 both reachable · 1 anything
+/// unreachable (journey stops); re-run — read-only probe, always safe. Streams: every line
+/// mirrored by the runner, stderr prefixed "!".</summary>
 public sealed class Script01NetworkReachability : NumberedScript
 {
     public override int Number => 1;
@@ -52,8 +56,18 @@ public sealed class Script01NetworkReachability : NumberedScript
         });
 }
 
-public sealed class Script02WslDistroDisks : NumberedScript
+/// <summary>Switches Windows' built-in Linux on, then imports the named Wordslab virtual machine.
+/// Contract: in — install_dir (parameters); out — one state line per phase; exit — 0 feature on +
+/// VM present · 3 feature not enabled (needs Windows admin or a restart) · other non-zero = failed,
+/// journey stops; re-run — every phase guarded ("already switched on", "keeping it"), never
+/// re-downloads a cached rootfs, never recreates the VM. The exit-3 code is what lets the window
+/// ask Windows for admin once (one UAC) instead of nagging on unrelated failures.</summary>
+public sealed class Script02WslFeatureAndVm : NumberedScript
 {
+    /// <summary>Documented exit: the feature switch itself failed while not elevated or not
+    /// yet rebooted — the ONLY condition for which the window may ask Windows for admin.</summary>
+    public const int ExitCodeNeedsAdminOrRestart = 3;
+
     public override int Number => 2;
     public override string Title => "Turn on Windows' built-in Linux";
 
@@ -64,7 +78,7 @@ public sealed class Script02WslDistroDisks : NumberedScript
 
     public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx)
     {
-        string installDir = InstallDirs.EnsureProgramFolder(ctx.Parameters);
+        string installDir = InstallDirs.ProgramFolderOrThrow(ctx.Parameters);
         string vmDir = $@"{installDir}\virtual-machines\{Wsl.Distro}";
         string cacheDir = $@"{installDir}\cache";
 
@@ -81,8 +95,8 @@ public sealed class Script02WslDistroDisks : NumberedScript
               $ok = $false;
               try { wsl --status *>$null; $ok = ($LASTEXITCODE -eq 0) } catch {}
               if (-not $ok) {
-                Write-Error 'Windows needs one restart to finish switching on its built-in Linux. Restart the computer, then open Wordslab and press Start install again - nothing is lost.';
-                exit 1
+                  Write-Error 'Windows needs Windows admin approval (and possibly one restart) to finish switching on its built-in Linux. Nothing else was changed.';
+                  exit 3   // = Script02WslFeatureAndVm.ExitCodeNeedsAdminOrRestart (contract above)
               }
               Write-Output "Windows' built-in Linux is switched on."
             }
@@ -120,18 +134,24 @@ public sealed class Script02WslDistroDisks : NumberedScript
     }
 }
 
+/// <summary>Installs the Wordslab engine INSIDE the named VM. Contract: in — nothing; out —
+/// version lines + a final human sentence; exit — non-zero = engine missing, journey stops;
+/// re-run — the uv installer re-runs on purpose (it upgrades uv in place: this step IS the
+/// engine layer of the update lane, ADR-0016 §8 host lane), uv python install is a no-op when
+/// 3.12 is already present.</summary>
 public sealed class Script03UvPythonInDistro : NumberedScript
 {
     public override int Number => 3;
     public override string Title => "Install the Wordslab engine (Python)";
 
     /// <summary>The engine landing place (#88 ruling): uv in /usr/local/bin, uv-managed CPython
-    /// and cache under /opt/wordslab. Ticket #62's core plugs into the same slot.</summary>
+    /// and cache under /opt/wordslab. Ticket #62's core plugs into the same slot. The uv
+    /// installer is NOT guarded away on re-runs — re-running this step updates uv itself.</summary>
     public const string EngineBody =
         """
         set -e
         if ! command -v curl >/dev/null 2>&1; then apt-get update -qq && apt-get install -y -qq curl ca-certificates; fi
-        if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --install-dir /usr/local/bin; fi
+        curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --install-dir /usr/local/bin
         grep -q UV_PYTHON_INSTALL_DIR /etc/environment 2>/dev/null || printf 'UV_PYTHON_INSTALL_DIR=/opt/wordslab/python\nUV_CACHE_DIR=/opt/wordslab/uv-cache\n' >> /etc/environment
         export UV_PYTHON_INSTALL_DIR=/opt/wordslab/python UV_CACHE_DIR=/opt/wordslab/uv-cache
         uv python install 3.12
@@ -144,6 +164,12 @@ public sealed class Script03UvPythonInDistro : NumberedScript
         new[] { Wsl.RunBashInline(EngineBody, "Installing the Wordslab engine (uv and Python) inside the virtual machine") });
 }
 
+/// <summary>Windows half: create one Wordslab Linux disk per enabled drive (host commands below);
+/// distro half: the shared script bind-mounts them inside the VM. Contract: in — volume_&lt;DRIVE&gt;
+/// keys + install_dir; out — per-disk state lines, then the shared script's lines; exit — 0 all
+/// disks created+published · non-zero = a disk failed (journey stops) · 2 = shared script usage;
+/// re-run — existing disks kept, publishes re-applied (idempotent). Full contract of the distro
+/// half: header of scripts/distro/04-data-volumes.sh.</summary>
 public sealed class Script04DataVolumes : DistroShellScript
 {
     public override int Number => 4;
@@ -160,10 +186,13 @@ public sealed class Script04DataVolumes : DistroShellScript
     /// publishing its /volume folder into the shared /mnt/wsl. Guarded: a re-run keeps existing
     /// disks untouched (the data-volume invariant, ADR-0014 §7). The /mnt/wsl publish is re-run
     /// outside the guard because WSL re-attaches instances at every start but bind mounts do not
-    /// survive — idempotent re-publish, never a silent skip.</summary>
-    public static IEnumerable<Command> DiskCommands(InstallContext ctx)
+    /// survive — idempotent re-publish, never a silent skip. After writing wsl.conf the instance
+    /// is TERMINATED (config applies at its next start); the publish line then starts it again.
+    /// (Re-binding after a whole-WSL shutdown at every Wordslab launch is the resident launcher's
+    /// job — ticket #94, recorded on #88.)</summary>
+    private static IEnumerable<Command> DiskCommands(InstallContext ctx)
     {
-        string installDir = InstallDirs.EnsureProgramFolder(ctx.Parameters);
+        string installDir = InstallDirs.ProgramFolderOrThrow(ctx.Parameters);
         string cacheDir = $@"{installDir}\cache";
         foreach (var (drive, folder) in InstallDirs.EnabledVolumes(ctx.Parameters))
         {
@@ -186,6 +215,7 @@ public sealed class Script04DataVolumes : DistroShellScript
                       wsl --import {{name}} '{{dir}}' $tar;
                       if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab Linux disk on drive {{letter}}: could not be created - see the lines above.'; exit 1 };
                       wsl -d {{name}} -- sh -c "printf '[automount]\nenabled = false\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
+                      wsl --terminate {{name}};   // config applies at the instance's next start
                       Write-Output 'The Wordslab Linux disk on drive {{letter}}: is ready (its disk file lives in {{dir}})'
                     };
                     wsl -d {{name}} -- sh -c "mkdir -p /volume /mnt/wsl/{{name}}; mountpoint -q /mnt/wsl/{{name}} || mount --bind /volume /mnt/wsl/{{name}}";
@@ -200,6 +230,7 @@ public sealed class Script04DataVolumes : DistroShellScript
         DiskCommands(ctx).Concat(await base.PlanAsync(ctx)).ToArray();
 }
 
+/// <summary>Shared script step — full contract in the script's own header (05-first-core.sh).</summary>
 public sealed class Script05FirstPlatformCore : DistroShellScript
 {
     public override int Number => 5;
@@ -207,6 +238,10 @@ public sealed class Script05FirstPlatformCore : DistroShellScript
     protected override string ScriptFile => "distro/05-first-core.sh";
 }
 
+/// <summary>Distro half: shared script (contract in 06-front-door.sh's header); Windows half: an
+/// after-the-script probe. Probe contract: in — nothing; out — the answered address line; exit —
+/// 0 home page answers (and writes the handoff address file) · 1 no address or no answer, with a
+/// plain sentence (red card, journey stops — never a fake green until #62/#92 land).</summary>
 public sealed class Script06FrontDoor : DistroShellScript
 {
     public override int Number => 6;
@@ -215,8 +250,10 @@ public sealed class Script06FrontDoor : DistroShellScript
 
     /// <summary>The front door answers on the VM's own address for now (#88 ruling — mDNS naming
     /// and CA trust land with #92/#94). The probe writes the address file the window navigates to,
-    /// then its own final line becomes the card's success sentence.</summary>
-    public static Command FrontDoorProbeCommand(InstallContext ctx)
+    /// then its own final line becomes the card's success sentence. The certificate callback is
+    /// deliberately scoped to this single throwaway PowerShell process until #92's CA-trusted cert
+    /// exists — no other traffic passes through it.</summary>
+    private static Command FrontDoorProbeCommand(InstallContext ctx)
     {
         string urlFile = Path.Combine(
             Path.GetDirectoryName(ctx.ParametersFile) ?? ".", "wordslab-front-door.url");

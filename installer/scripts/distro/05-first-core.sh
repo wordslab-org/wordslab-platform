@@ -12,15 +12,8 @@
 # line that installs it — the slot, the parameters and the numbering already exist.
 set -euo pipefail
 
-PARAMS=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --parameters) PARAMS="$2"; shift 2 ;;
-    *) echo "05: unknown argument '$1' — usage: 05-first-core.sh --parameters <file>" >&2; exit 2 ;;
-  esac
-done
-[ -n "$PARAMS" ] || { echo "05: no --parameters file given — usage: 05-first-core.sh --parameters <file>" >&2; exit 2; }
-[ -f "$PARAMS" ] || { echo "05: parameters file '$PARAMS' does not exist" >&2; exit 2; }
+# shellcheck source=_parameters.sh
+. "$(dirname "$0")/_parameters.sh"   # shared --parameters contract (#88)
 echo "05: install parameters read from $PARAMS"
 
 command -v uv >/dev/null 2>&1 || { echo "05 ! uv is missing — step 03 must complete first" >&2; exit 1; }
