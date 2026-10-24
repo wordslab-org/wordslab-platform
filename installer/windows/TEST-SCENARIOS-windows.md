@@ -36,11 +36,12 @@ columns (left: intro + "Where Wordslab will live" card; right: all six step card
 3. Six numbered cards are visible from the start (right column), each with a number badge and
    its title — no status text before the install starts.
 4. Press **Start install**: cards activate one by one — progress ring spins, the status sentence
-   updates ("Checking the internet connection"…), and the "output" expander appears with
+   updates ("Checking the internet connection"…), and the last 3 output lines stream live on
+   the card (a longer log ends with "··· more"; tapping it shows everything, "··· show less" folds back);
    the streamed placeholder lines ("placeholder until #88").
 5. Without a WSL distro installed: steps 2–6 show the loud `FAILED (exit …)` line in their card
    and the bottom line says the journey stopped and re-running is safe. Screenshot this.
-6. With WSL + a distro containing Python 3: all six cards turn done, then the window becomes the
+6. With WSL + a distro containing Python 3: all six cards turn green and each shows the step's own final report line as its result, then the window becomes the
    dashboard handoff. Screenshot whichever of 5/6 you get.
 
 ## S4 — the WebView2 handoff alone
@@ -56,8 +57,8 @@ Expect: the same window showing the dashboard area rendering `https://wordslab.l
 
 - No console window at any point of S3/S4 (the UI is pure WinUI 3 — XAML, Mica, rounded cards);
   no WinForms/WPF window (check window styles / task manager).
-- Nothing installed silently: every command has a visible numbered status and streamed output.
+- Nothing installed silently: every command has a visible numbered status and streamed output lines.
 - The TUI is never shown on Windows — it exists only for the Linux journey.
 
-Send screenshots of S3 (journey cards, ideally one mid-run with the expander open) and S4
+Send screenshots of S3 (journey cards, ideally one mid-run streaming output) and S4
 (webview handoff).

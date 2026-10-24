@@ -124,13 +124,15 @@
                   <TextBlock Text="{Binding StatusText, Mode=OneWay}"
                              Style="{StaticResource CaptionTextBlockStyle}"
                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                  <controls:Expander Header="output" IsExpanded="False"
-                                     Visibility="{Binding HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
-                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
-                      <TextBlock Text="{Binding LogText, Mode=OneWay}" FontFamily="Consolas"
-                                 FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                    </ScrollViewer>
-                  </controls:Expander>
+                  <!-- The tail IS the log: last 3 lines stream live; "··· more" at the end of
+                       the last line (tap anywhere on the block) reveals the whole log. -->
+                  <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto"
+                                Visibility="{Binding HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding DisplayLog, Mode=OneWay}" FontFamily="Consolas"
+                               FontSize="12" TextWrapping="Wrap" IsTapEnabled="True"
+                               Tapped="LogTail_Tapped" IsTextSelectionEnabled="True"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  </ScrollViewer>
                 </StackPanel>
               </Border>
             </DataTemplate>

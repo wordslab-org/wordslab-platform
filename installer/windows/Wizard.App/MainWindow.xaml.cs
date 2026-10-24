@@ -164,9 +164,8 @@ public sealed partial class MainWindow : Window
                 vm.AppendLog(report.Kind == ReportKind.Stderr ? $"! {report.Text}" : report.Text);
                 break;
             case ReportKind.Success:
-                vm.IsRunning = false;
-                vm.IsDone = true;
-                vm.StatusText = "done";
+                // "done" says nothing — show the step's own final report line instead.
+                vm.MarkSuccess();
                 break;
             case ReportKind.Failure:
                 vm.IsRunning = false;
@@ -175,6 +174,12 @@ public sealed partial class MainWindow : Window
                 vm.AppendLog(report.Text);
                 break;
         }
+    }
+
+    // "··· more" / "··· show less": the log tail toggles in place (DataTemplate DataContext).
+    private void LogTail_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: StepVm vm }) vm.ToggleLog();
     }
 
     private async Task ShowWebHandoffAsync(string title)
