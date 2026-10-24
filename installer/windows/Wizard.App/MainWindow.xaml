@@ -47,7 +47,13 @@
       </Border>
 
       <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-        <ItemsControl x:Name="StepsList" ItemsSource="{x:Bind Steps}" Spacing="8">
+        <ItemsControl x:Name="StepsList" ItemsSource="{x:Bind Steps}">
+          <!-- ItemsControl has no Spacing in WinUI; the panel (only 6 items) provides it. -->
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="8" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="local:StepVm">
               <Border Style="{StaticResource StepCard}">
