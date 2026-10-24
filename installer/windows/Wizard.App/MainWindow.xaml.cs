@@ -141,7 +141,7 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            StatusLine.Text = "The install stopped at the step marked with a red ✗. Open \"output\" on that card to see what went wrong, then press Start install again — starting over is safe.";
+            StatusLine.Text = "The install stopped at the step marked in red. Open \"output\" on that card to see what went wrong, then press Start install again — starting over is safe.";
             _running = false;
             StartButton.IsEnabled = true;
         }

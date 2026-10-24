@@ -301,7 +301,7 @@ public class SupportTests
     {
         string tmp = Path.Combine(Path.GetTempPath(), "pshost-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
-        string saved = Environment.GetEnvironmentVariable("PATH");
+        string? saved = Environment.GetEnvironmentVariable("PATH");
         try
         {
             string pwsh = OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh";
@@ -323,7 +323,7 @@ public class SupportTests
     {
         string tmp = Path.Combine(Path.GetTempPath(), "psnone-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
-        string saved = Environment.GetEnvironmentVariable("PATH");
+        string? saved = Environment.GetEnvironmentVariable("PATH");
         try
         {
             Environment.SetEnvironmentVariable("PATH", tmp);
