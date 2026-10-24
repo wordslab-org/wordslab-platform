@@ -256,7 +256,7 @@ def test_the_shipped_map_passes_the_checker_end_to_end():
     green with no fixture meddling (the acceptance shared with the canary).
 
     Discovered through the loader's own location constant, never a literal
-    `src/<service>/` path: the copy-to-start ritual renames that directory,
+    `src/_service_/` path: the copy-to-start ritual renames that directory,
     and a hard-coded placeholder would make a copied service's suite red.
     """
     report = check_consent_controls(DEFAULT_MAP_PATH)

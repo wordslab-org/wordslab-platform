@@ -373,9 +373,9 @@ def test_the_checker_is_not_a_declared_capability():
 def test_the_shipped_map_and_loader_carry_no_service_name():
     """Rename-safety: the map's keys are capability/service names from the
     platform's own model, stable across the copy ritual — never the
-    placeholder service name (`template-service` / `<service>`)."""
+    placeholder service name (`template-service` / `_service_`)."""
     text = DEFAULT_MAP_PATH.read_text()
-    for forbidden in ("<service>", "template-service"):
+    for forbidden in ("_service_", "<service>", "template-service"):
         assert forbidden not in text
     assert set(CONTROL_KEYS) == {"id", "adr", "home", "seam", "backs"}
     assert set(FRAME_KEYS) == {"id", "adr", "boundary"}
