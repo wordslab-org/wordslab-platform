@@ -338,6 +338,22 @@ public class SupportTests
     }
 
     [Fact]
+    public async Task ProcessCommandExecutor_streams_stdout_with_no_window()
+    {
+        // Real process (no fake): the shared executor must capture output invisibly —
+        // CreateNoWindow=true is what stops console apps flashing a window per command.
+        var lines = new List<ReportLine>();
+        var exe = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/echo";
+        var args = OperatingSystem.IsWindows()
+            ? new[] { "/c", "echo", "hello" }
+            : new[] { "hello" };
+        int exit = await new ProcessCommandExecutor()
+            .RunAsync(new Command(exe, args, "say hello"), lines.Add);
+        Assert.Equal(0, exit);
+        Assert.Contains(lines, l => l.Kind == ReportKind.Stdout && l.Text.Trim() == "hello");
+    }
+
+    [Fact]
     public void wsl_commands_declare_their_utf16le_output_encoding()
     {
         // wsl.exe (incl. wslpath) emits UTF-16LE; without the explicit encoding a real Windows

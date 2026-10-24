@@ -72,6 +72,9 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            // Without this, every console app we run (pwsh, wsl.exe) pops its own console
+            // window — the wizard must run everything invisibly in the background.
+            CreateNoWindow = true,
             // null for system-default tools; set for UTF-16LE emitters like wsl.exe/wslpath
             StandardOutputEncoding = command.OutputEncoding,
             StandardErrorEncoding = command.OutputEncoding,
