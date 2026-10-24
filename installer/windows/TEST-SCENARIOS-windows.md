@@ -23,18 +23,18 @@ Expect: Passed: 18, Failed: 0.
 ```
 dotnet run --project Wizard.App
 ```
-Expect a single modern WinUI window (Mica backdrop, rounded cards) — **no console window, no
-TUI**:
+Expect a single modern WinUI window — white background, white cards with light borders, two
+columns (left: intro + "Where Wordslab will live" card; right: all six step cards visible) —
+**no console window, no TUI**:
 1. Title "Welcome to Wordslab Platform" (brand is plain "Wordslab", lowercase lab) with the
-   Wordslab lab-flask mark in the title bar and beside the heading +
-
-   two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
-2. An install-locations card: a prefilled program-folder text box (default `C:\wordslab`), then
-   one row per fixed drive (checkbox ticked + "<drive> — N GB free" + a prefilled folder, default
-   `<drive>:\wordslab`). Untick one drive → it must be
-   absent from the written parameters JSON. Type a folder on the wrong drive → red
-   "The Wordslab folder for drive D: must be on that drive…" (multiple problems join on one line).
-3. Six numbered cards are visible from the start, each with a number badge and its title.
+   Wordslab lab-flask mark (wordmark included) in the title bar, taskbar and beside the heading,
+   plus two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
+2. The locations card is inform-only (v1 fixed paths, no text boxes): a "Program:
+   C:\wordslab\wordslab.exe" line, then one checkbox row per fixed drive showing the exact VHDX
+   path it will create (`<drive>:\wordslab\wordslab-<drive>.vhdx`). Untick a drive → it must be
+   absent from the written parameters JSON (`wordslab-install-parameters.json` next to the exe).
+3. Six numbered cards are visible from the start (right column), each with a number badge and
+   its title — no status text before the install starts.
 4. Press **Start install**: cards activate one by one — progress ring spins, the status sentence
    updates ("Checking the internet connection"…), and the "output" expander appears with
    the streamed placeholder lines ("placeholder until #88").

@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
 
     public ObservableCollection<StepVm> Steps { get; } = new();
     public ObservableCollection<DriveVm> Disks { get; } = new();
+    private string _installDir = "";
     private readonly ICommandExecutor _executor = new ProcessCommandExecutor();
     private readonly JourneyRunner _runner;
     private bool _running;
@@ -38,6 +39,9 @@ public sealed partial class MainWindow : Window
                 Path.Combine(AppContext.BaseDirectory, "Assets", "wordslab-mark.png"));
         }
         catch (Exception) { }
+        // The original complaint: the window must be wide enough to keep all six step
+        // cards visible — the layout is left (intro + locations) / right (live steps).
+        AppWindow.Resize(new Windows.Foundation.Size(1220, 860));
         _runner = new JourneyRunner(_executor);
 
         foreach (var script in _journey)
@@ -55,8 +59,11 @@ public sealed partial class MainWindow : Window
             });
         }
         DiskList.ItemsSource = Disks;
+        // v1: paths are fixed — <drive>:\wordslab everywhere (one less decision for a
+        // first-time user). The window only informs: program exe + the exact VHDX files.
         string systemRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
-        InstallDirBox.Text = systemRoot.TrimEnd('\\') + "\\wordslab";
+        _installDir = systemRoot.TrimEnd('\\') + "\\wordslab";
+        ProgramLine.Text = $"Program:  {_installDir}\\wordslab.exe";
 
         if (webViewPreview)
             _ = ShowWebHandoffAsync("Webview preview — the dashboard will live here");
@@ -66,23 +73,7 @@ public sealed partial class MainWindow : Window
     {
         if (_running) return;
 
-        var problems = new List<string>();
-        string installDir = InstallDirBox.Text.Trim();
-        string? installError = Parameters.ValidateInstallDir(installDir);
-        if (installError is not null) problems.Add(installError);
-        foreach (var vm in Disks.Where(d => d.Enabled))
-        {
-            string? volumeError = Parameters.ValidateVolumeFolder(vm.Folder.Trim(), vm.Drive);
-            if (volumeError is not null) problems.Add(volumeError);
-        }
-        if (problems.Count > 0)
-        {
-            DiskError.Text = string.Join("  ", problems);
-            DiskError.Visibility = Visibility.Visible;
-            return;
-        }
-        DiskError.Visibility = Visibility.Collapsed;
-
+        // No free-text fields in v1: the paths shown on screen ARE the paths used.
         string? installerDir = PayloadLocator.FindInstallerDir(AppContext.BaseDirectory);
         if (installerDir is null)
         {
@@ -91,8 +82,8 @@ public sealed partial class MainWindow : Window
         }
 
         var parameters = Parameters.ForWindows(
-            installDir,
-            Disks.Where(d => d.Enabled).Select(d => (d.Drive, d.Folder.Trim())));
+            _installDir,
+            Disks.Where(d => d.Enabled).Select(d => (d.Drive, d.Folder)));
         string parametersFile = Path.Combine(AppContext.BaseDirectory, "wordslab-install-parameters.json");
         Parameters.Write(parameters, parametersFile);
 

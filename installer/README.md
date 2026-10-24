@@ -32,7 +32,10 @@ WPF remain banned).
     (`XamlCompiler.exe`) is Windows tooling; all logic it renders lives in `Wizard.Core`.
     It writes `wordslab-install-parameters.json` with `install_dir` plus `volume_<DRIVE>` keys
     (one per enabled drive — the drive's wordslab folder holding its VHDX; disabled drives get
-    no key). #88's scripts consume this contract; a data volume per disk, named after the disk.
+    no key). v1 paths are FIXED (`<drive>:\wordslab`; the UI informs, it does not ask — one less
+    decision for a first-timer), and the card shows the exact VHDX file names
+    (`<drive>:\wordslab\wordslab-<drive>.vhdx`). #88's scripts consume this contract; a data
+    volume per disk, named after the disk.
   - `Wizard.Tests/` — xunit contract tests over the command-executor seam (no UI needed).
 - `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey (terminal
   output), artifact-gated handoff (never command-line gated); `linux/test_install_smoke.sh`

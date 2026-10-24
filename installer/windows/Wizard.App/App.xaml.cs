@@ -1,10 +1,20 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 
 namespace Wordslab.Wizard.App;
 
 public partial class App : Application
 {
-    public App() => InitializeComponent();
+    public App()
+    {
+        InitializeComponent();
+        // Without an explicit AppUserModelID an unpackaged WinUI 3 app groups under the
+        // generic host in the taskbar and its window icon is ignored there.
+        try { SetCurrentProcessExplicitAppUserModelID("org.wordslab.installer"); } catch { }
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {

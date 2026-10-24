@@ -7,7 +7,7 @@ namespace Wordslab.Wizard.App;
 /// streaming log. The view binds to this; nothing else in the XAML knows about processes.</summary>
 public sealed class StepVm : INotifyPropertyChanged
 {
-    private string _statusText = "ready";
+    private string _statusText = ""; // blank until it starts — "ready" read as odd
     private bool _isRunning;
     private bool _isFailed;
     private bool _isDone;

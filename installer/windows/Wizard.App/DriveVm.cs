@@ -13,4 +13,6 @@ public sealed class DriveVm
     public string DriveLabel => $"{Drive} — {FreeGb} GB free";
     public bool Enabled { get; set; } = true;
     public string Folder { get; set; } = "";
+    // v1 fixed layout: the exact virtual Linux disk file shown on screen and created by #88.
+    public string VhdxPath => $"{Drive}\\wordslab\\wordslab-{Drive.Length > 0 ? char.ToLowerInvariant(Drive[0]) : "?"}.vhdx";
 }

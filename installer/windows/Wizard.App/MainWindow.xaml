@@ -6,84 +6,80 @@
         xmlns:local="using:Wordslab.Wizard.App"
         Title="Wordslab Platform — Install">
 
-  <Window.SystemBackdrop>
-    <MicaBackdrop />
-  </Window.SystemBackdrop>
+  <!-- v1 is light-only: white everywhere, cards white with a light border. No Mica
+       (it tinted the canvas gray against the white cards). -->
+  <Grid Background="White" Padding="32,24,32,20">
 
-
-  <!-- The journey and web panels overlay; exactly one is visible at a time. -->
-  <Grid Padding="28,20,28,20">
-    <!-- The journey panel: everything a Windows user ever sees before the web handoff.
-         Copy rule: written for a first-time user who has never read a word about the
-         platform and is not technical. No jargon without a plain-language gloss. -->
-    <Grid x:Name="JourneyPanel" MaxWidth="760" HorizontalAlignment="Center">
+    <!-- The journey and web panels overlay; exactly one is visible at a time. -->
+    <Grid x:Name="JourneyPanel">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
-        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
-        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="540" />
+        <ColumnDefinition Width="28" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
 
-      <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,18">
-        <StackPanel Orientation="Horizontal" Spacing="14">
-          <Image Source="ms-appx:///Assets/wordslab-mark.png" Height="52" VerticalAlignment="Center" />
-          <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}"
-                     VerticalAlignment="Center" />
-        </StackPanel>
+      <!-- Header: the wordslab-notebooks lab-flask mark, wordmark kept. -->
+      <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="16" Margin="0,0,0,18">
+        <Image Source="ms-appx:///Assets/wordslab-mark.png" Height="64" VerticalAlignment="Center" />
+        <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+
+      <!-- Left column: what Wordslab is, where it will live (fixed paths — one less
+           decision for a first-time user), and the Start button. -->
+      <StackPanel Grid.Row="1" Grid.Column="0" Spacing="14">
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Text="Wordslab Platform brings a personal AI into your home — an assistant and apps for you and your family that you can also understand. It is 100% open source and runs on this computer: your data stays here, the choices stay yours, and nothing happens silently or invisibly. Like the home computers of the eighties that taught a generation what a computer is, Wordslab is here to teach a generation how AI works." />
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Wordslab runs inside a Linux virtual machine — Linux is built into Windows, and this installer turns it on for you. It prepares that machine, installs the Wordslab programs into it, and finally opens your Wordslab home page right in this window — six visible steps, nothing installed silently: press Start install and watch each one happen live below." />
-      </StackPanel>
+                   Text="Wordslab runs inside a Linux virtual machine — Linux is built into Windows, and this installer turns it on for you. It prepares that machine, installs the Wordslab programs into it, and finally opens your Wordslab home page right in this window — six visible steps, nothing installed silently." />
 
-      <Border Grid.Row="1" Style="{StaticResource StepCard}" Margin="0,0,0,14">
-        <StackPanel Spacing="12">
-          <TextBlock Text="Where should Wordslab live?" FontWeight="SemiBold" />
-
-          <StackPanel Spacing="4">
-            <TextBlock Text="Wordslab's program folder (on Windows)" FontWeight="SemiBold" />
+        <Border Style="{StaticResource StepCard}">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Where Wordslab will live" FontWeight="SemiBold" />
+            <TextBlock x:Name="ProgramLine" TextWrapping="Wrap"
+                       Text="Program:  C:\wordslab\wordslab.exe" />
+            <TextBlock Text="Linux disks (one per drive):" FontWeight="SemiBold" Margin="0,4,0,0" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                       Text="The Wordslab programs that run on Windows are installed in this folder." />
-            <TextBox x:Name="InstallDirBox" PlaceholderText="e.g. C:\Wordslab" />
-          </StackPanel>
-
-          <StackPanel Spacing="4">
-            <TextBlock Text="Wordslab's Linux disks (one on each drive)" FontWeight="SemiBold" />
-            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                       Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one virtual disk file per drive in this PC. With a Linux disk on every drive, Wordslab can later store each program and your data on the drive with the most free space and the best speed. Switch off a drive you would rather not use; you can add drives later too." />
-            <ItemsControl x:Name="DiskList" Margin="0,6,0,0">
+                       Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one virtual disk file per drive, so it can later use the free space and the speed of every drive in this PC. They live in fixed wordslab folders. Switch off a drive you would rather not use; you can add drives later too." />
+            <ItemsControl x:Name="DiskList">
               <ItemsControl.ItemTemplate>
-                <!-- Classic Binding (Window root + #5902); TwoWay so the tick and folder land on the row. -->
+                <!-- Classic Binding (Window root + #5902); TwoWay only for the tick. -->
                 <DataTemplate>
                   <Grid ColumnSpacing="10" Margin="0,3">
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="250" />
+                      <ColumnDefinition Width="210" />
                       <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <CheckBox Content="{Binding DriveLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"
                               VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding Folder, Mode=TwoWay}"
-                             PlaceholderText="folder for this drive's Linux disk" />
+                    <TextBlock Grid.Column="1" Text="{Binding VhdxPath}" FontFamily="Consolas" FontSize="12"
+                               VerticalAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <Button x:Name="StartButton" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    Style="{StaticResource AccentButtonStyle}" Content="Start install"
+                    Click="StartInstall_Click" MinWidth="200" Padding="24,10" />
           </StackPanel>
+        </Border>
 
-          <TextBlock x:Name="DiskError" Visibility="Collapsed"
-                     Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                     Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+        <TextBlock x:Name="StatusLine" TextWrapping="Wrap" Style="{StaticResource BodyTextBlockStyle}" />
+        <TextBlock TextWrapping="Wrap" IsTextSelectionEnabled="True" Margin="0,4,0,0"
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Wordslab Platform is free and open source — github.com/wordslab-org/wordslab-platform" />
+      </StackPanel>
 
-          <Button x:Name="StartButton" HorizontalAlignment="Left"
-                  Style="{StaticResource AccentButtonStyle}" Content="Start install"
-                  Click="StartInstall_Click" MinWidth="180" Padding="24,10" />
-        </StackPanel>
-      </Border>
-
-      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+      <!-- Right column: all six numbered steps stay visible, with live progress. -->
+      <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto">
         <ItemsControl x:Name="StepsList" ItemsSource="{x:Bind Steps}">
           <!-- ItemsControl has no Spacing in WinUI; the panel (only 6 items) provides it. -->
           <ItemsControl.ItemsPanel>
@@ -127,7 +123,7 @@
                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                   <controls:Expander Header="output" IsExpanded="False"
                                      Visibility="{Binding HasLog, Mode=OneWay, Converter={StaticResource BoolToVis}}">
-                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
                       <TextBlock Text="{Binding LogText, Mode=OneWay}" FontFamily="Consolas"
                                  FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     </ScrollViewer>
@@ -138,15 +134,6 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
-
-      <StackPanel Grid.Row="3" Spacing="8">
-        <TextBlock x:Name="StatusLine" Margin="0,12,0,0" TextWrapping="Wrap"
-                   Style="{StaticResource BodyTextBlockStyle}" />
-        <TextBlock Margin="0,0,0,4" TextWrapping="Wrap" IsTextSelectionEnabled="True"
-                   Style="{StaticResource CaptionTextBlockStyle}"
-                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="Wordslab Platform is free and open source — github.com/wordslab-org/wordslab-platform" />
-      </StackPanel>
     </Grid>
 
     <!-- The web handoff (phase 3): an address, not a process switch — the same window becomes
