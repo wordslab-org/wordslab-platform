@@ -64,7 +64,7 @@ def test_a_good_map_loads_with_its_sections_and_placed_controls(tmp_path):
 def test_the_shipped_map_is_the_consent_model_as_data():
     """AC 1: the shipped map names each ADR-0026 consent control and pins it
     to its home — discovered through the loader's own location constant
-    (rename-safety), never a literal `src/<service>/` path."""
+    (rename-safety), never a literal `src/_service_/` path."""
     controls_map = load_consent_controls_map()
     assert controls_map.path == DEFAULT_MAP_PATH
     assert controls_map.homes_used == ("chat-and-agents", "core", "template")
@@ -281,7 +281,7 @@ def test_the_shipped_map_and_loader_carry_no_service_name():
     platform's own model, stable across the copy ritual — never the
     placeholder service name."""
     text = DEFAULT_MAP_PATH.read_text()
-    for forbidden in ("<service>", "template-service"):
+    for forbidden in ("_service_", "<service>", "template-service"):
         assert forbidden not in text
     assert set(CONTROL_KEYS) == {"id", "adr", "home", "seam"}
     assert set(SECTION_KEYS) == {"id", "adr"}

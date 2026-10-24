@@ -99,7 +99,7 @@ ADR_0026 = "ADR-0026"
 
 #: The map's shipped data file, module-adjacent. Discovered by *location*
 #: (the same convention the security-controls map uses): the copy-to-start
-#: ritual renames `src/<service>/` but never `contract/consent_controls_map.toml`,
+#: ritual renames `src/_service_/` but never `contract/consent_controls_map.toml`,
 #: so the default path survives the rename — and a copied service carries its
 #: own copy.
 DEFAULT_MAP_PATH = Path(__file__).resolve().with_name("consent_controls_map.toml")

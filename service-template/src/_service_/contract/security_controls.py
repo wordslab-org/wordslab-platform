@@ -100,7 +100,7 @@ ADR_0017 = "ADR-0017"
 
 #: The map's shipped data file, module-adjacent. Discovered by *location*
 #: (the same convention the bar uses): the copy-to-start ritual renames
-#: `src/<service>/` but never `contract/security_controls_map.toml`, so the
+#: `src/_service_/` but never `contract/security_controls_map.toml`, so the
 #: default path survives the rename — and a copied service carries its own
 #: copy.
 DEFAULT_MAP_PATH = Path(__file__).resolve().with_name("security_controls_map.toml")
