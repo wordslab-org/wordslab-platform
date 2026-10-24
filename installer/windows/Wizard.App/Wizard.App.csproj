@@ -9,12 +9,18 @@
        builds and is fully tested on any platform. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <!-- 2.x template shape (Microsoft.WindowsAppSDK.WinUI.CSharp.Templates, verified 2026-10):
+         compile against the 26100 (Win11 24H2) SDK, run down to 19041 (modern WSL floor). -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <UseWinUI>true</UseWinUI>
+    <WinUISDKReferences>false</WinUISDKReferences>
     <WindowsPackageType>None</WindowsPackageType>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>Wordslab.Wizard.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
