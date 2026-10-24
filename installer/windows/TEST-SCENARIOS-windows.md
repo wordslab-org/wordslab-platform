@@ -6,6 +6,7 @@ Run these on the Windows machine. The repo clone must have the .NET 10 SDK
 ## S1 — everything builds natively
 
 ```
+Remove-Item -Recurse -Force Wizard.App\bin, Wizard.App\obj -ErrorAction SilentlyContinue
 dotnet build
 ```
 Expect: Build succeeded, 0 errors — including `Wizard.App` (XAML markup compiles on Windows).
