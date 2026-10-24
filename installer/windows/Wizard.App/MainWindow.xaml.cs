@@ -40,12 +40,11 @@ public sealed partial class MainWindow : Window
             {
                 Drive = drive,
                 FreeGb = d.AvailableFreeSpace / (1024 * 1024 * 1024),
-                Folder = drive + "\\Wordslab",
+                Folder = drive + "\\wordslab",
             });
         }
         DiskList.ItemsSource = Disks;
-        InstallDirBox.Text = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wordslab");
+        InstallDirBox.Text = Path.GetPathRoot(Environment.SystemDirectory).TrimEnd('\\') + "\\wordslab";
 
         if (webViewPreview)
             _ = ShowWebHandoffAsync("Webview preview — the dashboard will live here");

@@ -25,10 +25,11 @@ dotnet run --project Wizard.App
 ```
 Expect a single modern WinUI window (Mica backdrop, rounded cards) — **no console window, no
 TUI**:
-1. Title "Welcome to Wordslab Platform" ("lab" in small caps where the font supports it) +
+1. Title "Welcome to Wordslab Platform" (brand is plain "Wordslab", lowercase lab) +
    two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
-2. An install-locations card: a prefilled program-folder text box, then one row per fixed drive
-   (checkbox ticked + "<drive> — N GB free" + a prefilled folder). Untick one drive → it must be
+2. An install-locations card: a prefilled program-folder text box (default `C:\wordslab`), then
+   one row per fixed drive (checkbox ticked + "<drive> — N GB free" + a prefilled folder, default
+   `<drive>:\wordslab`). Untick one drive → it must be
    absent from the written parameters JSON. Type a folder on the wrong drive → red
    "The Wordslab folder for drive D: must be on that drive…" (multiple problems join on one line).
 3. Six numbered cards are visible from the start, each with a number badge and its title.

@@ -67,13 +67,13 @@ public static class Parameters
     public static string? ValidateInstallDir(string value) =>
         value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/')
             ? null
-            : "Please type a full folder path for the Wordslab program, like C:\\Wordslab.";
+            : "Please type a full folder path for the Wordslab program, like C:\\wordslab.";
 
     /// <summary>A volume folder must sit on the drive it names.</summary>
     public static string? ValidateVolumeFolder(string folder, string drive) =>
         folder.Length >= 3 && folder[0] == drive[0] && folder[1] == ':' && (folder[2] == '\\' || folder[2] == '/')
             ? null
-            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\Wordslab.";
+            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\wordslab.";
 
     public static void Write(IReadOnlyDictionary<string, string> answers, string path) =>
         File.WriteAllText(path, JsonSerializer.Serialize(answers, new JsonSerializerOptions { WriteIndented = true }));

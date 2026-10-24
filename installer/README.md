@@ -31,7 +31,7 @@ WPF remain banned).
     (`WindowsPackageType=None`). **Builds on Windows only** — XAML markup compilation
     (`XamlCompiler.exe`) is Windows tooling; all logic it renders lives in `Wizard.Core`.
     It writes `wordslab-install-parameters.json` with `install_dir` plus `volume_<DRIVE>` keys
-    (one per enabled drive — the drive's Wordslab folder holding its VHDX; disabled drives get
+    (one per enabled drive — the drive's wordslab folder holding its VHDX; disabled drives get
     no key). #88's scripts consume this contract; a data volume per disk, named after the disk.
   - `Wizard.Tests/` — xunit contract tests over the command-executor seam (no UI needed).
 - `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey (terminal

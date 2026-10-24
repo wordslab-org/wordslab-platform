@@ -24,7 +24,7 @@
       </Grid.RowDefinitions>
 
       <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,18">
-        <TextBlock Style="{StaticResource TitleLargeTextBlockStyle}"><Run Text="Welcome to Words"/><Run Text="lab" FontFeature="smcp=True"/><Run Text=" Platform"/></TextBlock>
+        <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}" />
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Text="Wordslab Platform brings a personal AI into your home — an assistant and apps for you and your family that you can also understand. It is 100% open source and runs on this computer: your data stays here, the choices stay yours, and nothing happens silently or invisibly. Like the home computers of the eighties that taught a generation what a computer is, Wordslab is here to teach a generation how AI works." />
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
@@ -34,7 +34,7 @@
 
       <Border Grid.Row="1" Style="{StaticResource StepCard}" Margin="0,0,0,14">
         <StackPanel Spacing="12">
-          <TextBlock FontWeight="SemiBold"><Run Text="Where should Words"/><Run Text="lab" FontFeature="smcp=True"/><Run Text=" live?"/></TextBlock>
+          <TextBlock Text="Where should Wordslab live?" FontWeight="SemiBold" />
 
           <StackPanel Spacing="4">
             <TextBlock Text="Wordslab's program folder (on Windows)" FontWeight="SemiBold" />
@@ -45,7 +45,7 @@
           </StackPanel>
 
           <StackPanel Spacing="4">
-            <TextBlock FontWeight="SemiBold"><Run Text="Words"/><Run Text="lab" FontFeature="smcp=True"/><Run Text="’s Linux disks (one on each drive)"/></TextBlock>
+            <TextBlock Text="Wordslab's Linux disks (one on each drive)" FontWeight="SemiBold" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
                        Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one virtual disk file per drive in this PC. With a Linux disk on every drive, Wordslab can later store each program and your data on the drive with the most free space and the best speed. Switch off a drive you would rather not use; you can add drives later too." />
