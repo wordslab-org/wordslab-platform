@@ -46,7 +46,7 @@
             <TextBlock Text="Linux disks (one per drive):" FontWeight="SemiBold" Margin="0,4,0,0" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                       Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one virtual disk file per drive, so it can later use the free space and the speed of every drive in this PC. They live in fixed wordslab folders. Switch off a drive you would rather not use; you can add drives later too." />
+                       Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one Wordslab Linux disk per drive, so it can later use the free space and the speed of every drive in this PC. Each one is a folder Windows manages itself; its Linux disk file lives inside it. They live in fixed wordslab folders. Switch off a drive you would rather not use; you can add drives later too." />
             <ItemsControl x:Name="DiskList">
               <ItemsControl.ItemTemplate>
                 <!-- Classic Binding (Window root + #5902); TwoWay only for the tick. -->
@@ -58,7 +58,7 @@
                     </Grid.ColumnDefinitions>
                     <CheckBox Content="{Binding DriveLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"
                               VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="{Binding VhdxPath}" FontFamily="Consolas" FontSize="12"
+                    <TextBlock Grid.Column="1" Text="{Binding DiskFolderPath}" FontFamily="Consolas" FontSize="12"
                                VerticalAlignment="Center" TextWrapping="Wrap"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                   </Grid>

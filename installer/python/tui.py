@@ -50,16 +50,20 @@ DISTRO_STEPS: tuple[tuple[int, str, str], ...] = (
 )
 
 
-def journey_steps() -> tuple[ScriptStep, ...]:
+def journey_steps(parameters_file: Path) -> tuple[ScriptStep, ...]:
     """The full numbered Linux journey: native steps re-shown as completed context, distro
-    steps executed as their script FILES (re-runnable by hand — no magic)."""
+    steps executed as their script FILES (re-runnable by hand — no magic).
+
+    #88 shared contract: every distro script receives `--parameters <file>` — the very same
+    JSON the wizard or TUI wrote, so scripts re-run by hand read what the UI chose."""
     native = tuple(
         ScriptStep(n, title, ("echo", f"{title} — already completed by the native phase; "
                                      "re-run its script yourself any time (placeholder until #88)"))
         for n, title in NATIVE_STEPS
     )
     distro = tuple(
-        ScriptStep(n, title, ("bash", str(SCRIPTS_DIR / "distro" / script)))
+        ScriptStep(n, title, ("bash", str(SCRIPTS_DIR / "distro" / script),
+                              "--parameters", str(parameters_file)))
         for n, title, script in DISTRO_STEPS
     )
     return native + distro
@@ -97,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="Front-door address for the web handoff")
     args = parser.parse_args(argv)
 
-    steps = journey_steps()
+    steps = journey_steps(args.parameters)
     params = load_parameters(args.parameters)
     print("Wordslab Platform installer — phase 2 (Python TUI).")
     print("Collected parameters:")

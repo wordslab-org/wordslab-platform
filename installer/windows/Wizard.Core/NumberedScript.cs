@@ -26,7 +26,10 @@ public abstract class DistroShellScript : NumberedScript
         // Without WSL the path cannot translate; the step then fails loudly with the distro's own
         // error rather than silently skipping — nothing is ever hidden from the user.
         string distroPath = await ctx.WslPaths.ToDistroPathAsync(windowsPath) ?? windowsPath;
-        return new[] { Wsl.RunBash(distroPath) };
+        // #88: the shared scripts read the same parameters contract the wizard wrote — the file
+        // crosses the distro boundary translated, exactly like the script path.
+        string paramsDistro = await ctx.WslPaths.ToDistroPathAsync(ctx.ParametersFile) ?? ctx.ParametersFile;
+        return new[] { Wsl.RunBash(distroPath, new[] { "--parameters", paramsDistro }) };
     }
 }
 

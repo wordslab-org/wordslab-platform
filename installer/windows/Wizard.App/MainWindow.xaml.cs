@@ -21,6 +21,8 @@ public sealed partial class MainWindow : Window
     public ObservableCollection<StepVm> Steps { get; } = new();
     public ObservableCollection<DriveVm> Disks { get; } = new();
     private string _installDir = "";
+    private string _parametersFile = "";
+    private string _handoffUrl = DashboardUrl;
     private readonly ICommandExecutor _executor = new ProcessCommandExecutor();
     private readonly JourneyRunner _runner;
     private bool _running;
@@ -71,7 +73,7 @@ public sealed partial class MainWindow : Window
             SkipsLine.Visibility = Visibility.Visible;
         }
         // v1: paths are fixed — <drive>:\wordslab everywhere (one less decision for a
-        // first-time user). The window only informs: program exe + the exact VHDX files.
+        // first-time user). The window only informs: program exe + the exact Linux disk folders.
         string systemRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
         _installDir = systemRoot.TrimEnd('\\') + "\\wordslab";
         ProgramLine.Text = $"Program:  {_installDir}\\wordslab.exe";
@@ -97,6 +99,7 @@ public sealed partial class MainWindow : Window
             Disks.Where(d => d.Enabled).Select(d => (d.Drive, d.Folder)));
         string parametersFile = Path.Combine(AppContext.BaseDirectory, "wordslab-install-parameters.json");
         Parameters.Write(parameters, parametersFile);
+        _parametersFile = parametersFile;
 
         var ctx = new InstallContext
         {
@@ -135,15 +138,60 @@ public sealed partial class MainWindow : Window
 
         if (complete)
         {
-            // The front-door step printed the address; from here the handoff is an address,
-            // not a process switch (ADR-0014 §3 phase 3).
+            // The front-door step wrote its answered address next to the parameters file (#88
+            // ruling: hand off to the VM's own address until #92/#94 land mDNS naming + CA trust).
+            // From here the handoff stays an address, never a process switch (ADR-0014 §3 phase 3).
+            _handoffUrl = FrontDoorAddress.ReadFor(_parametersFile, DashboardUrl);
             await ShowWebHandoffAsync("Wordslab is set up — the rest happens in your dashboard");
         }
         else
         {
+            // One UAC prompt, zero console windows: switching Windows' built-in Linux on for the
+            // first time is the single moment this wizard ever needs Windows admin. When step 2
+            // failed and we are not elevated, the wizard restarts ITSELF with the approval asked
+            // from Windows directly (ADR-0014: no console, no "run me as admin" instructions).
+            bool wslStepFailed = results.Any(r => r.Script.Number == 2 && !r.Success);
+            if (wslStepFailed && !IsElevated())
+            {
+                StatusLine.Text = "Windows' built-in Linux needs Windows admin approval the first time it is switched on — Wordslab asks Windows once, right now.";
+                if (TryRelaunchElevated())
+                {
+                    Close(); // the elevated wizard takes over; same window, same six steps
+                    return;
+                }
+                StatusLine.Text = "The Windows approval was declined. Press Start install again to be asked once, or start Wordslab once with right-click → Run as administrator.";
+                _running = false;
+                StartButton.IsEnabled = true;
+                return;
+            }
             StatusLine.Text = "The install stopped at the step marked in red. Open \"output\" on that card to see what went wrong, then press Start install again — starting over is safe.";
             _running = false;
             StartButton.IsEnabled = true;
+        }
+    }
+
+    private static bool IsElevated()
+    {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        return new System.Security.Principal.WindowsPrincipal(identity)
+            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+    }
+
+    private static bool TryRelaunchElevated()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Environment.ProcessPath!,
+                UseShellExecute = true,
+                Verb = "runas", // the one UAC prompt Windows itself shows
+            });
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false; // the approval was declined — say so plainly
         }
     }
 
@@ -187,7 +235,7 @@ public sealed partial class MainWindow : Window
         JourneyPanel.Visibility = Visibility.Collapsed;
         WebPanel.Visibility = Visibility.Visible;
         WebTitle.Text = title;
-        WebUrl.Text = DashboardUrl;
+        WebUrl.Text = _handoffUrl;
         try
         {
             // WinAppSDK's bundled WebView2 projection has no named 'userDataFolder' CreateAsync
@@ -196,12 +244,12 @@ public sealed partial class MainWindow : Window
                 "WEBVIEW2_USER_DATA_FOLDER",
                 Path.Combine(Path.GetTempPath(), "wordslab-installer-webview"));
             await Web.EnsureCoreWebView2Async();
-            Web.CoreWebView2.Navigate(DashboardUrl);
+            Web.CoreWebView2.Navigate(_handoffUrl);
         }
         catch (Exception ex)
         {
             // No WebView2 runtime / no desktop session: the handoff is an address — say so plainly.
-            WebUrl.Text = $"{DashboardUrl}  (the embedded browser is unavailable: {ex.GetType().Name} — use “Open in a web browser”)";
+            WebUrl.Text = $"{_handoffUrl}  (the embedded browser is unavailable: {ex.GetType().Name} — use “Open in a web browser”)";
         }
     }
 
@@ -211,13 +259,13 @@ public sealed partial class MainWindow : Window
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = DashboardUrl,
+                FileName = _handoffUrl,
                 UseShellExecute = true,
             });
         }
         catch (Exception ex)
         {
-            WebUrl.Text = $"{DashboardUrl}  (could not open the browser: {ex.Message} — copy the address)";
+            WebUrl.Text = $"{_handoffUrl}  (could not open the browser: {ex.Message} — copy the address)";
         }
     }
 }
