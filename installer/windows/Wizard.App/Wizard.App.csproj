@@ -35,4 +35,8 @@
     <ProjectReference Include="..\Wizard.Core\Wizard.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Brand mark: title-bar icon + welcome header (ms-appx resource). -->
+    <Content Include="Assets\wordslab-mark.png" />
+  </ItemGroup>
 </Project>

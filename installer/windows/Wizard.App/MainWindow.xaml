@@ -10,6 +10,7 @@
     <MicaBackdrop />
   </Window.SystemBackdrop>
 
+
   <!-- The journey and web panels overlay; exactly one is visible at a time. -->
   <Grid Padding="28,20,28,20">
     <!-- The journey panel: everything a Windows user ever sees before the web handoff.
@@ -24,7 +25,11 @@
       </Grid.RowDefinitions>
 
       <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,18">
-        <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}" />
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <Image Source="ms-appx:///Assets/wordslab-mark.png" Height="52" VerticalAlignment="Center" />
+          <TextBlock Text="Welcome to Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}"
+                     VerticalAlignment="Center" />
+        </StackPanel>
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Text="Wordslab Platform brings a personal AI into your home — an assistant and apps for you and your family that you can also understand. It is 100% open source and runs on this computer: your data stays here, the choices stay yours, and nothing happens silently or invisibly. Like the home computers of the eighties that taught a generation what a computer is, Wordslab is here to teach a generation how AI works." />
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"

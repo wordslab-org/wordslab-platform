@@ -27,6 +27,13 @@ public sealed partial class MainWindow : Window
     public MainWindow(bool webViewPreview)
     {
         InitializeComponent();
+        // The Wordslab lab-flask mark (from wordslab-notebooks, cropped + transparent):
+        // title bar + taskbar. Set in code: XAML Window.Icon markup is unreliable in WinUI 3.
+        Icon = new Microsoft.UI.Xaml.BitmapIcon
+        {
+            UriSource = new Uri("ms-appx:///Assets/wordslab-mark.png"),
+            ShowAsMonochrome = false,
+        };
         _runner = new JourneyRunner(_executor);
 
         foreach (var script in _journey)

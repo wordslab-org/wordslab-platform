@@ -25,7 +25,9 @@ dotnet run --project Wizard.App
 ```
 Expect a single modern WinUI window (Mica backdrop, rounded cards) — **no console window, no
 TUI**:
-1. Title "Welcome to Wordslab Platform" (brand is plain "Wordslab", lowercase lab) +
+1. Title "Welcome to Wordslab Platform" (brand is plain "Wordslab", lowercase lab) with the
+   Wordslab lab-flask mark in the title bar and beside the heading +
+
    two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
 2. An install-locations card: a prefilled program-folder text box (default `C:\wordslab`), then
    one row per fixed drive (checkbox ticked + "<drive> — N GB free" + a prefilled folder, default
