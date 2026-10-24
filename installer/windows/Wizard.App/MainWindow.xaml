@@ -12,8 +12,10 @@
 
   <!-- The journey and web panels overlay; exactly one is visible at a time. -->
   <Grid Padding="28,20,28,20">
-    <!-- The journey panel: everything a Windows user ever sees before the web handoff. -->
-    <Grid x:Name="JourneyPanel">
+    <!-- The journey panel: everything a Windows user ever sees before the web handoff.
+         Copy rule: written for a first-time user who has never read a word about the
+         platform and is not technical. No jargon without a plain-language gloss. -->
+    <Grid x:Name="JourneyPanel" MaxWidth="760" HorizontalAlignment="Center">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
@@ -21,28 +23,34 @@
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
-      <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,16">
-        <TextBlock Text="Install Wordslab Platform" Style="{StaticResource TitleLargeTextBlockStyle}" />
-        <TextBlock Text="Every step is a numbered script, shown live while it runs. Nothing is installed silently — you can re-run any step yourself."
-                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+      <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,18">
+        <TextBlock Text="Welcome to WordsLab Platform" Style="{StaticResource TitleLargeTextBlockStyle}" />
+        <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                   Text="WordsLab Platform is your own private AI that runs at home: a personal assistant plus your own apps, documents and photos, on this computer, for you and your family. Nothing lives in someone else's cloud and nothing is hidden from you — everything WordsLab does can be opened and understood." />
+        <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="This installer sets WordsLab up on this PC in six visible steps. It turns on a free Microsoft feature called WSL (Linux built into Windows), downloads the WordsLab programs into it, and finally opens your WordsLab home page right in this window. Nothing is installed silently: press Start install and watch each step happen live below." />
       </StackPanel>
 
-      <Border Grid.Row="1" Style="{StaticResource StepCard}" Margin="0,0,0,12">
-        <Grid ColumnSpacing="12">
+      <Border Grid.Row="1" Style="{StaticResource StepCard}" Margin="0,0,0,14">
+        <Grid ColumnSpacing="16">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
-          <StackPanel Spacing="4">
-            <TextBlock Text="Which disk should hold the Wordslab data volumes?" />
-            <TextBox x:Name="DataDiskBox" PlaceholderText="e.g. D:\" />
+          <StackPanel Spacing="6">
+            <TextBlock Text="Where should WordsLab keep your files?" FontWeight="SemiBold" />
+            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                       Text="Your documents, photos, apps and your assistant's memory will be saved on this drive. Pick a drive with plenty of free space (50 GB or more). If this computer only has one drive, leave the suggested C:\." />
+            <TextBox x:Name="DataDiskBox" PlaceholderText="e.g. C:\" />
             <TextBlock x:Name="DiskError" Visibility="Collapsed"
                        Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                        Style="{StaticResource CaptionTextBlockStyle}" />
           </StackPanel>
           <Button x:Name="StartButton" Grid.Column="1" VerticalAlignment="Bottom"
-                  Style="{StaticResource AccentButtonStyle}" Content="Install"
-                  Click="StartInstall_Click" MinWidth="120" />
+                  Style="{StaticResource AccentButtonStyle}" Content="Start install"
+                  Click="StartInstall_Click" MinWidth="150" Padding="24,8" />
         </Grid>
       </Border>
 
@@ -102,8 +110,14 @@
         </ItemsControl>
       </ScrollViewer>
 
-      <TextBlock x:Name="StatusLine" Grid.Row="3" Margin="0,12,0,0" TextWrapping="Wrap"
-                 Style="{StaticResource BodyTextBlockStyle}" />
+      <StackPanel Grid.Row="3" Spacing="8">
+        <TextBlock x:Name="StatusLine" Margin="0,12,0,0" TextWrapping="Wrap"
+                   Style="{StaticResource BodyTextBlockStyle}" />
+        <TextBlock Margin="0,0,0,4" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="WordsLab Platform is free and open source — github.com/wordslab-org/wordslab-platform" />
+      </StackPanel>
     </Grid>
 
     <!-- The web handoff (phase 3): an address, not a process switch — the same window becomes
@@ -114,10 +128,10 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
       <StackPanel Spacing="4" Margin="0,0,0,12">
-        <TextBlock x:Name="WebTitle" Text="The install now continues in the dashboard"
+        <TextBlock x:Name="WebTitle" Text="WordsLab is set up — the rest happens in your dashboard"
                    Style="{StaticResource SubtitleTextBlockStyle}" />
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button x:Name="OpenBrowserButton" Content="Open in your browser instead" Click="OpenInBrowser_Click" />
+          <Button x:Name="OpenBrowserButton" Content="Open in a web browser" Click="OpenInBrowser_Click" />
           <TextBlock x:Name="WebUrl" VerticalAlignment="Center"
                      Style="{StaticResource CaptionTextBlockStyle}"
                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

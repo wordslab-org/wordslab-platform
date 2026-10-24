@@ -39,7 +39,7 @@ public sealed partial class MainWindow : Window
 
     private static string SuggestDataDisk() =>
         DriveInfo.GetDrives()
-            .FirstOrDefault(d => d.DriveType == DriveType.Fixed && d.Name != "C:\\")?.Name ?? "D:\\";
+            .FirstOrDefault(d => d.DriveType == DriveType.Fixed && d.Name != "C:\\")?.Name ?? "C:\\";
 
     private async void StartInstall_Click(object sender, RoutedEventArgs e)
     {
@@ -58,7 +58,7 @@ public sealed partial class MainWindow : Window
         string? installerDir = PayloadLocator.FindInstallerDir(AppContext.BaseDirectory);
         if (installerDir is null)
         {
-            StatusLine.Text = "FAILED — the installer payload (python/tui.py + scripts/) was not found next to this wizard. Nothing further is installed.";
+            StatusLine.Text = "Something is missing: the WordsLab installer files were not found next to this window, so nothing was installed. Copy the whole installer folder (not just this file), then try again.";
             return;
         }
 
@@ -76,7 +76,7 @@ public sealed partial class MainWindow : Window
 
         _running = true;
         StartButton.IsEnabled = false;
-        StatusLine.Text = "Parameters saved — the later phases read the same file. Running the numbered scripts…";
+        StatusLine.Text = "Starting the six steps below. Nothing is installed silently — each one runs live, and starting again is always safe.";
 
         IReadOnlyList<StepResult> results;
         try
@@ -95,7 +95,7 @@ public sealed partial class MainWindow : Window
         bool complete = results.Count == _journey.Length && results.All(r => r.Success);
         if (complete && !await _runner.PythonAvailableInDistroAsync())
         {
-            StatusLine.Text = "Python is not available in the distro yet — the bootstrap scripts above must complete first. Re-running the installer is safe.";
+            StatusLine.Text = "Almost there — the WordsLab engine (Python) is not ready inside Linux yet. Press Start install again to continue; starting over is safe.";
             _running = false;
             StartButton.IsEnabled = true;
             return;
@@ -105,11 +105,11 @@ public sealed partial class MainWindow : Window
         {
             // The front-door step printed the address; from here the handoff is an address,
             // not a process switch (ADR-0014 §3 phase 3).
-            await ShowWebHandoffAsync("The install now continues in the dashboard");
+            await ShowWebHandoffAsync("WordsLab is set up — the rest happens in your dashboard");
         }
         else
         {
-            StatusLine.Text = "The journey stopped on a failed script. Fix the cause and press Install again — re-running is safe (Update path, ADR-0014 §7).";
+            StatusLine.Text = "The install stopped at the step marked with a red ✗. Open \"output\" on that card to see what went wrong, then press Start install again — starting over is safe.";
             _running = false;
             StartButton.IsEnabled = true;
         }
@@ -164,7 +164,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             // No WebView2 runtime / no desktop session: the handoff is an address — say so plainly.
-            WebUrl.Text = $"{DashboardUrl}  (webview unavailable: {ex.GetType().Name} — use “Open in your browser instead”)";
+            WebUrl.Text = $"{DashboardUrl}  (the embedded browser is unavailable: {ex.GetType().Name} — use “Open in a web browser”)";
         }
     }
 

@@ -48,7 +48,7 @@ public static class Parameters
     {
         bool windowsDrive = value.Length is 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/');
         bool posixRoot = value.Length > 1 && value[0] == '/';
-        return windowsDrive || posixRoot ? null : "not a valid drive path (e.g. D:\\)";
+        return windowsDrive || posixRoot ? null : "Please type a drive letter followed by a colon, like C:\\ or D:\\ (including the backslash).";
     }
 
     public static void Write(IReadOnlyDictionary<string, string> answers, string path) =>
