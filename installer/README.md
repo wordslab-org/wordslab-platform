@@ -87,6 +87,21 @@ there is nothing to guide yet — it lands with the real steps in #88.
   `[NN] !` stderr, handoff, loud gaps).
 - Windows UI: verified by Laurent on the Windows host against `TEST-SCENARIOS-windows.md`.
 
+## Standalone build (no .NET needed on the target machine)
+
+```powershell
+dotnet publish Wizard.App -c Release -r win-x64 --self-contained
+```
+
+Produces `Wizard.App\bin\Release\net10.0-windows10.0.26100.0\win-x64\publish\` —
+copy the **whole folder** anywhere; `Wizard.App.exe` runs on any Windows 10/11 x64 with
+nothing installed: the .NET runtime is bundled, and `WindowsAppSDKSelfContained=true` in
+the csproj bundles the Windows App SDK native runtime too (no "Windows App Runtime"
+dependency). WebView2 needs no extra install — the runtime ships with Edge on Windows 10/11.
+Real packaging (#94): final exe name, `installer/` payload copied next to the exe (the
+wizard locates the payload by walking up from the exe for `installer/python/tui.py`),
+icon metadata.
+
 ## Build notes
 
 - `dotnet` 10 SDK; on Linux set `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` if libicu is absent.

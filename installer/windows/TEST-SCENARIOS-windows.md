@@ -60,5 +60,15 @@ Expect: the same window showing the dashboard area rendering `https://wordslab.l
 - Nothing installed silently: every command has a visible numbered status and streamed output lines.
 - The TUI is never shown on Windows — it exists only for the Linux journey.
 
+## S6 — standalone publish (no .NET installed)
+
+```powershell
+dotnet publish Wizard.App -c Release -r win-x64 --self-contained
+```
+
+Expected: a publish folder whose `Wizard.App.exe` launches the same journey on any Windows
+10/11 x64 with **no .NET and no Windows App Runtime installed**. (Final exe name, payload
+copy and icon metadata are #94's packaging job.)
+
 Send screenshots of S3 (journey cards, ideally one mid-run streaming output) and S4
 (webview handoff).

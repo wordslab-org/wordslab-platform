@@ -16,6 +16,11 @@
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <WindowsPackageType>None</WindowsPackageType>
+    <!-- Bundle the Windows App SDK native runtime with the app: nothing needs to be
+         installed on the target machine (no "Windows App Runtime" dependency). Together
+         with a self-contained publish this yields a standalone folder that runs on any
+         Windows 10/11 x64 with no .NET installed. -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>Wordslab.Wizard.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
