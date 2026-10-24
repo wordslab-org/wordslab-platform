@@ -215,7 +215,9 @@ public class ExecutorTests
             new Command("sh", new[] { "-c", "i=0; while [ $i -lt 4000 ]; do echo e$i >&2; i=$((i+1)); done; echo last" }, "flood"),
             lines.Add);
 
-        Assert.True(task.Wait(TimeSpan.FromSeconds(15)), "ProcessCommandExecutor deadlocked");
+        // async timeout: the deadlock regression must not block a test thread (xUnit1031)
+        var winner = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(15)));
+        Assert.True(winner == task, "ProcessCommandExecutor deadlocked");
         Assert.Equal(0, await task);
         Assert.Contains("last", lines.Select(l => l.Text));
         Assert.Equal(4000, lines.Count(l => l.Kind == ReportKind.Stderr));
