@@ -7,12 +7,27 @@ no HTTP surface exists for the installer (it is not a base-contract service, ADR
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 from pathlib import Path
 
+import pytest
+
 from installer_api import ProgressInterpreter, ScriptStep, run_all, run_step
 import tui
+
+
+@pytest.fixture
+def stubbed_os(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Contract tests run the real numbered scripts against a stubbed OS (the #88 exit
+    criterion): a fake `uv` on PATH — no network, no machine assumptions."""
+    stub = tmp_path / "osstub"
+    stub.mkdir()
+    uv = stub / "uv"
+    uv.write_text('#!/bin/sh\necho "uv 9.9.9 (stub)"\n')
+    uv.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
 
 
 def test_run_step_streams_and_mirrors_stdout_line_by_line():
@@ -89,15 +104,18 @@ def test_parameters_round_trip_from_the_phase1_wizard(tmp_path: Path):
     assert params == {"data_disk": "D:\\", "join_lan": "y"}
 
 
-def test_the_linux_journey_matches_install_sh_and_uses_script_files():
+def test_the_linux_journey_matches_install_sh_and_uses_script_files(tmp_path: Path):
     """Numbering is the shared contract: 1-3 mirror install.sh, WSL is absent (Linux journey,
-    ADR-0003), and steps 4-6 run the numbered script FILES (re-runnable by hand)."""
-    steps = tui.journey_steps()
+    ADR-0003), and steps 4-6 run the numbered script FILES (re-runnable by hand) with the same
+    --parameters contract the Windows wizard passes them (#88)."""
+    params_file = tmp_path / "params.json"
+    steps = tui.journey_steps(params_file)
     assert [s.number for s in steps] == [1, 2, 3, 4, 5, 6]
     assert not any("WSL" in s.title for s in steps)
     assert steps[0].title == "Download the Wordslab installer payload"  # matches install.sh step 01
     for s in steps[3:]:
         assert s.command[0] == "bash" and Path(s.command[1]).is_file()
+        assert list(s.command[2:4]) == ["--parameters", str(params_file)]
 
 
 def test_web_handoff_is_an_address_not_a_process_switch():
@@ -109,7 +127,7 @@ def test_web_handoff_is_an_address_not_a_process_switch():
     assert any("continues in the dashboard at: https://wordslab.local/" in line for line in mirror)
 
 
-def test_tui_main_runs_the_numbered_scripts_and_hands_off(tmp_path: Path, capsys):
+def test_tui_main_runs_the_numbered_scripts_and_hands_off(tmp_path: Path, capsys, stubbed_os):
     params_file = tmp_path / "params.json"
     params_file.write_text(json.dumps({"data_disk": "/data"}))
 
@@ -122,13 +140,13 @@ def test_tui_main_runs_the_numbered_scripts_and_hands_off(tmp_path: Path, capsys
     assert "Open https://wordslab.local/" in out
 
 
-def test_tui_main_stops_loudly_on_a_failing_script(tmp_path: Path, capsys, monkeypatch):
+def test_tui_main_stops_loudly_on_a_failing_script(tmp_path: Path, capsys, monkeypatch, stubbed_os):
     params_file = tmp_path / "params.json"
     params_file.write_text(json.dumps({"data_disk": "/data"}))
     original = tui.journey_steps  # captured before patching, so the wrapper cannot recurse
     monkeypatch.setattr(
         tui, "journey_steps",
-        lambda: (ScriptStep(1, "Fails", ("sh", "-c", "exit 9")),) + original()[1:],
+        lambda pf: (ScriptStep(1, "Fails", ("sh", "-c", "exit 9")),) + original(pf)[1:],
     )
 
     rc = tui.main(["--parameters", str(params_file)])

@@ -38,6 +38,58 @@ public static class PayloadLocator
     }
 }
 
+/// <summary>The fixed v1 path layout the UI promises and every step consumes (ADR-0014 §5, #88):
+/// the program folder, one Wordslab Linux disk per enabled drive — a WSL-managed ext4.vhdx inside
+/// the drive's Wordslab folder — and the shared cache for imported rootfs images. One place to
+/// compute each path, so class and script bodies never re-derive them.</summary>
+public static class InstallDirs
+{
+    public static string ProgramFolderOrThrow(IReadOnlyDictionary<string, string> parameters)
+    {
+        if (!parameters.TryGetValue("install_dir", out string? dir) || string.IsNullOrWhiteSpace(dir))
+            throw new InvalidOperationException(
+                "the parameters file has no install_dir - the wizard writes it before the journey starts");
+        return dir.TrimEnd('\\');
+    }
+
+    /// <summary>Enabled drives (the wizard writes one volume_&lt;DRIVE&gt; key per enabled drive;
+    /// disabled drives get no key at all), sorted by drive letter.</summary>
+    public static IEnumerable<(string drive, string folder)> EnabledVolumes(
+        IReadOnlyDictionary<string, string> parameters) =>
+        parameters
+            .Where(kv => kv.Key.StartsWith("volume_") && kv.Key.Length == "volume_X".Length)
+            .Select(kv => (drive: kv.Key["volume_".Length..] + ":", folder: kv.Value))
+            .OrderBy(v => v.drive, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    public static string VolumeDistroName(string drive) =>
+        "wordslab-" + drive.TrimEnd(':', '\\').ToLowerInvariant();
+
+    /// <summary>The disk's folder on its own drive: <c>&lt;drive&gt;:\wordslab\wordslab-&lt;letter&gt;\</c>
+    /// (the UI card promises exactly this — a folder, the WSL-managed ext4.vhdx lives inside it).</summary>
+    public static string VolumeDistroFolder(string volumeFolder, string drive) =>
+        Path.Combine(volumeFolder.TrimEnd('\\'), VolumeDistroName(drive));
+}
+
+/// <summary>The front-door address file step 6's probe writes next to the parameters file.
+/// #88 ruling: the wizard hands off to the VM's own address until #92/#94 land mDNS naming and
+/// CA trust — the handoff stays an address, never a process switch (ADR-0014 §3 phase 3).</summary>
+public static class FrontDoorAddress
+{
+    public const string UrlFileName = "wordslab-front-door.url";
+
+    public static string ReadFor(string parametersFile, string fallback)
+    {
+        string path = Path.Combine(Path.GetDirectoryName(parametersFile) ?? ".", UrlFileName);
+        if (File.Exists(path))
+        {
+            string url = File.ReadAllText(path).Trim();
+            if (url.StartsWith("https://")) return url;
+        }
+        return fallback;
+    }
+}
+
 /// <summary>Install parameters (ADR-0014 §3): surfaced with defaults and validation in the UI,
 /// written as JSON for the later phases (the distro TUI and scripts read the same file).</summary>
 public static class Parameters

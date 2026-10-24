@@ -5,6 +5,12 @@ set -uo pipefail   # deliberately NOT -e: the failure paths under test exit non-
 cd "$(dirname "$0")"
 TMPDIR_STUB="$(mktemp -d)"
 
+# Stubbed OS (contract smoke, not an integration run): a fake `uv` on PATH so step 05's engine
+# check passes on any machine. The real distro scripts still run for real — honest no-op mounts.
+STUB_UV="$TMPDIR_STUB/uvbin"; mkdir -p "$STUB_UV"
+printf '#!/bin/sh\necho "uv 9.9.9 (stub)"\n' > "$STUB_UV/uv"; chmod +x "$STUB_UV/uv"
+export PATH="$STUB_UV:$PATH"
+
 pass=0; fail=0
 check() { if [ "$1" = "$2" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL: expected '$2', got '$1'"; fi; }
 has() { if grep -q -- "$2" <<<"$1"; then echo ok; else echo no; fi; }

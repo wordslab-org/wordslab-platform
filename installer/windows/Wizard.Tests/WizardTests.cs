@@ -41,10 +41,10 @@ sealed class ArgAwareProcess : ICommandExecutor
     }
 
     public static ArgAwareProcess WslWithTranslatedPaths() => new(c =>
-        c.Args.Count > 0 && c.Args[0] == "wslpath"
-            ? (0, new[] { c.Args[2][0] == '/'
-                ? "/mnt/c" + c.Args[2]                                        // /repo/x -> /mnt/c/repo/x
-                : "/mnt/c/" + c.Args[2][2..].TrimStart('\\').Replace('\\', '/') }) // C:\x\y -> /mnt/c/x/y
+        c.Args.Count > 4 && c.Args[2] == "wslpath"
+            ? (0, new[] { c.Args[4][0] == '/'
+                ? "/mnt/c" + c.Args[4]                                        // /repo/x -> /mnt/c/repo/x
+                : "/mnt/c/" + c.Args[4][2..].TrimStart('\\').Replace('\\', '/') }) // C:\x\y -> /mnt/c/x/y
             : (0, Array.Empty<string>()));
 }
 
@@ -53,7 +53,14 @@ static class Contexts
     public static InstallContext Make(ICommandExecutor executor, string installerDir = "/repo/installer") => new()
     {
         InstallerDir = installerDir,
-        Parameters = new Dictionary<string, string> { ["data_disk"] = "D:\\" },
+        // The real v1 parameters the wizard writes (#87 contract): program folder + one
+        // volume_<DRIVE> key per enabled drive.
+        Parameters = new Dictionary<string, string>
+        {
+            ["install_dir"] = @"C:\wordslab",
+            ["volume_C"] = @"C:\wordslab",
+            ["volume_D"] = @"D:\wordslab",
+        },
         ParametersFile = "/tmp/wordslab-install-parameters.json",
         WslPaths = new WslPathTranslator(executor),
     };
@@ -73,21 +80,133 @@ public class ScriptPlanTests
 
         var s3 = await new Script03UvPythonInDistro().PlanAsync(ctx);
         Assert.Equal(Wsl.Exe, s3.Single().Program);
-        Assert.Equal(new[] { "--", "bash", "-c", "echo 'uv bootstrap: placeholder until #88'" }, s3.Single().Args);
+        Assert.Equal(new[] { "-d", "wordslab", "--", "bash", "-c" }, s3.Single().Args.Take(5));
+    }
+
+    // ---- #88: every step's real command plan, pinned as argv ----
+
+    [Fact]
+    public async Task Step1_checks_reachability_of_github_AND_pypi_and_fails_loudly()
+    {
+        var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
+        var cmd = (await new Script01NetworkReachability().PlanAsync(ctx)).Single();
+
+        Assert.Equal(new[] { "-NoProfile", "-Command" }, cmd.Args.Take(2));
+        string body = cmd.Args[2];
+        Assert.Contains("https://github.com", body);
+        Assert.Contains("https://pypi.org", body);
+        Assert.Contains("-Method Head", body);          // probes, not just resolves DNS
+        Assert.Contains("exit 1", body);                // unreachable -> loud non-zero exit
+        Assert.Contains("Internet connection OK", body); // its own final human sentence
+        Assert.DoesNotContain("placeholder", body);
     }
 
     [Fact]
-    public async Task Distro_shell_steps_translate_the_path_then_run_bash()
+    public async Task Step2_switches_the_feature_on_then_imports_the_named_wordslab_vm()
+    {
+        var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
+        var cmds = await new Script02WslFeatureAndVm().PlanAsync(ctx);
+
+        Assert.Equal(2, cmds.Count);
+        Assert.All(cmds, c => Assert.Equal(new[] { "-NoProfile", "-Command" }, c.Args.Take(2)));
+        string feature = cmds[0].Args[2];
+        Assert.Contains("wsl --status", feature);
+        Assert.Contains("wsl --install --no-distribution", feature);
+        // The documented exit that lets the window ask Windows for admin ONCE (one UAC) — and
+        // nothing else. A generic failure must not trigger the elevation dance.
+        Assert.Contains("exit 3", feature);
+        Assert.DoesNotContain("Restart the computer, then open Wordslab", feature);
+        string vm = cmds[1].Args[2];
+        // The #88 ruling: wsl --import (never wsl --install distro, never wsl --mount) — the disk
+        // lands in a plain folder under the program folder WSL itself manages.
+        Assert.Contains("wsl --import wordslab", vm);
+        Assert.Contains(Script02WslFeatureAndVm.UbuntuRootfsUrl, vm);
+        Assert.Contains(@"C:\wordslab\virtual-machines\wordslab", vm);
+        Assert.Contains("systemd = true", vm);
+        Assert.Contains("appendWindowsPath = false", vm);   // no interop: the VM never calls Windows
+        Assert.Contains("wsl --shutdown", vm);              // applies wsl.conf visibly
+        Assert.DoesNotContain("placeholder", feature + vm);
+    }
+
+    [Fact]
+    public async Task Step3_installs_uv_and_managed_python_at_the_ruled_landing_place()
+    {
+        var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
+        var cmd = (await new Script03UvPythonInDistro().PlanAsync(ctx)).Single();
+
+        string body = cmd.Args[5]; // -d wordslab -- bash -c <body>
+        Assert.Contains("https://astral.sh/uv/install.sh", body);
+        Assert.Contains("--install-dir /usr/local/bin", body);
+        Assert.Contains("UV_PYTHON_INSTALL_DIR=/opt/wordslab/python", body);
+        Assert.Contains("uv python install 3.12", body);
+        Assert.Contains("Wordslab engine ready", body);     // its own final human sentence
+        Assert.DoesNotContain("command -v uv", body);       // re-run upgrades uv: no skip-guard
+        Assert.DoesNotContain("placeholder", body);
+        Assert.Equal(System.Text.Encoding.Unicode, cmd.OutputEncoding);
+    }
+
+    [Fact]
+    public async Task Step4_creates_one_linux_disk_instance_per_enabled_volume_then_runs_the_shared_script()
+    {
+        var proc = ArgAwareProcess.WslWithTranslatedPaths();
+        var ctx = Contexts.Make(proc);
+        var cmds = await new Script04DataVolumes().PlanAsync(ctx);
+
+        // C: and D: each get their own guarded import command; the shared script runs last.
+        Assert.Equal(3, cmds.Count);
+        string diskC = cmds[0].Args[2];
+        Assert.Contains("wsl --import wordslab-c", diskC);
+        // Path.Combine is host-native: backslashes on Windows where this runs, slashes if a Linux
+        // box runs the tests - pin the formula, not one separator.
+        Assert.Contains(Path.Combine(@"C:\wordslab", "wordslab-c"), diskC);
+        Assert.Contains(Script04DataVolumes.AlpineRootfsUrl, diskC);
+        string diskD = cmds[1].Args[2];
+        Assert.Contains("wsl --import wordslab-d", diskD);
+        Assert.Contains(Path.Combine(@"D:\wordslab", "wordslab-d"), diskD);
+        // The disk instance publishes /volume into the shared /mnt/wsl (notebooks mechanism), and
+        // the instance is terminated after wsl.conf so the config actually applies at next start:
+        Assert.Contains("mount --bind /volume /mnt/wsl/wordslab-d", diskD);
+        Assert.Contains("wsl --terminate wordslab-d", diskD);
+        var shared = cmds[2];
+        Assert.Equal(new[] { "-d", "wordslab", "--", "bash",
+                             "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh",
+                             "--parameters", "/mnt/c/tmp/wordslab-install-parameters.json" }, shared.Args);
+    }
+
+    [Fact]
+    public async Task Step6_appends_the_front_door_probe_after_the_shared_script()
+    {
+        var proc = ArgAwareProcess.WslWithTranslatedPaths();
+        var ctx = Contexts.Make(proc);
+        var cmds = await new Script06FrontDoor().PlanAsync(ctx);
+
+        Assert.Equal(2, cmds.Count);
+        Assert.Equal(new[] { "-d", "wordslab", "--", "bash" }, cmds[0].Args.Take(4));
+        string probe = cmds[1].Args[2];
+        Assert.Contains($"-d {Wsl.Distro} -- hostname -I", probe);
+        Assert.Contains("wordslab-front-door.url", probe);   // the handoff address the window reads
+        Assert.Contains("one port, one certificate", probe); // its own final human sentence
+    }
+
+    [Fact]
+    public async Task Distro_shell_steps_translate_script_AND_parameters_then_run_bash()
     {
         var proc = ArgAwareProcess.WslWithTranslatedPaths();
         var ctx = Contexts.Make(proc);
 
         var commands = await new Script04DataVolumes().PlanAsync(ctx);
 
-        Assert.Single(proc.Calls); // planning itself runs one visible command: the translation
-        Assert.Equal(new[] { "wslpath", "-u" }, proc.Calls[0].Args.Take(2));
-        Assert.Equal(new[] { "--", "bash", "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh" },
-                     commands.Single().Args);
+        // Planning runs two visible translations: the script file and the parameters file.
+        Assert.Equal(2, proc.Calls.Count);
+        Assert.Equal(new[] { "wslpath", "-u" }, proc.Calls[0].Args.Skip(2).Take(2));
+        Assert.Equal(new[] { "wslpath", "-u" }, proc.Calls[1].Args.Skip(2).Take(2));
+        // The shared script file reads the same parameters contract the UI wrote (#88): the
+        // parameters file crosses the boundary translated, exactly like the script path. Step 4
+        // prepends its disk commands, so the shared script is the LAST command of the plan.
+        Assert.Equal(new[] { "-d", "wordslab", "--", "bash",
+                             "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh",
+                             "--parameters", "/mnt/c/tmp/wordslab-install-parameters.json" },
+                     commands.Last().Args);
     }
 
     [Fact]
@@ -100,7 +219,7 @@ public class ScriptPlanTests
 
         var commands = await new Script04DataVolumes().PlanAsync(ctx);
 
-        Assert.Equal(ctx.DistroScript("distro/04-data-volumes.sh"), commands.Single().Args[2]);
+        Assert.Equal(ctx.DistroScript("distro/04-data-volumes.sh"), commands.Last().Args[4]);
     }
 
     [Fact]
@@ -112,7 +231,7 @@ public class ScriptPlanTests
         var step = new TestStep();
         var commands = await step.PlanAsync(ctx);
 
-        Assert.Equal(new[] { "--", "python3", "/mnt/c/repo/installer/python/steps/step99_demo.py" }, commands.Single().Args);
+        Assert.Equal(new[] { "-d", "wordslab", "--", "python3", "/mnt/c/repo/installer/python/steps/step99_demo.py" }, commands.Single().Args);
     }
 
     sealed class TestStep : DistroPythonScript
@@ -127,7 +246,7 @@ public class ScriptPlanTests
     {
         var journey = new NumberedScript[]
         {
-            new Script01NetworkReachability(), new Script02WslDistroDisks(), new Script03UvPythonInDistro(),
+            new Script01NetworkReachability(), new Script02WslFeatureAndVm(), new Script03UvPythonInDistro(),
             new Script04DataVolumes(), new Script05FirstPlatformCore(), new Script06FrontDoor(),
         };
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, journey.Select(s => s.Number));
@@ -177,12 +296,14 @@ public class JourneyRunnerTests
     }
 
     [Fact]
-    public async Task Python_probe_runs_python_INSIDE_the_distro_not_wsl_version()
+    public async Task Python_probe_runs_python_INSIDE_the_named_wordslab_distro_not_wsl_version()
     {
         var proc = new FakeProcess(new() { [Wsl.Exe] = (0, new[] { "Python 3.12.4" }, Array.Empty<string>()) });
         Assert.True(await new JourneyRunner(proc).PythonAvailableInDistroAsync());
-        // The regression this pins: `wsl.exe --version` would only prove WSL exists.
-        Assert.Equal(new[] { "--", "python3", "--version" }, proc.Calls.Single().args);
+        // The regression this pins: `wsl.exe --version` would only prove WSL exists — and the live
+        // Windows run proved the DEFAULT distro can lack the interpreter entirely ("bash: not found",
+        // exit 127). Every distro-facing command must target the named Wordslab distro.
+        Assert.Equal(new[] { "-d", "wordslab", "--", "python3", "--version" }, proc.Calls.Single().args);
     }
 
     sealed class SingleCommandScript(int number, string title, string program) : NumberedScript
@@ -365,9 +486,67 @@ public class SupportTests
     }
 
     [Fact]
+    public void the_path_layout_helpers_answer_the_ui_promise()
+    {
+        var volumes = InstallDirs.EnabledVolumes(new Dictionary<string, string>
+        {
+            ["install_dir"] = @"C:\wordslab",
+            ["volume_D"] = @"D:\wordslab",
+            ["volume_C"] = @"C:\wordslab",
+        });
+        Assert.Equal(new[] { ("C:", @"C:\wordslab"), ("D:", @"D:\wordslab") }, volumes);
+
+        Assert.Equal("wordslab-d", InstallDirs.VolumeDistroName("d:"));
+        Assert.Equal(Path.Combine(@"D:\wordslab", "wordslab-c"),
+                     InstallDirs.VolumeDistroFolder(@"D:\wordslab", "C:"));
+
+        // A missing program folder is a broken internal state, named as one — never a silent default.
+        Assert.Throws<InvalidOperationException>(() =>
+            InstallDirs.ProgramFolderOrThrow(new Dictionary<string, string>()));
+    }
+
+    [Fact]
+    public void front_door_address_reads_the_step6_file_and_falls_back_loudly_safely()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "wsfd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string parametersFile = Path.Combine(dir, "wordslab-install-parameters.json");
+            File.WriteAllText(parametersFile, "{}");
+            Assert.Equal("https://wordslab.local/",
+                FrontDoorAddress.ReadFor(parametersFile, "https://wordslab.local/")); // absent -> fallback
+
+            File.WriteAllText(Path.Combine(dir, FrontDoorAddress.UrlFileName), "https://172.21.0.4/ \n");
+            Assert.Equal("https://172.21.0.4/",
+                FrontDoorAddress.ReadFor(parametersFile, "https://wordslab.local/"));
+
+            File.WriteAllText(Path.Combine(dir, FrontDoorAddress.UrlFileName), "not-a-url");
+            Assert.Equal("https://wordslab.local/",
+                FrontDoorAddress.ReadFor(parametersFile, "https://wordslab.local/")); // junk -> fallback
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void RunPython_keeps_duplicate_argv_entries()
     {
         var args = Wsl.RunPython("/t.py", new[] { "--flag", "--flag" }).Args;
-        Assert.Equal(new[] { "--", "python3", "/t.py", "--flag", "--flag" }, args);
+        Assert.Equal(new[] { "-d", "wordslab", "--", "python3", "/t.py", "--flag", "--flag" }, args);
+    }
+
+    [Fact]
+    public void every_wsl_command_targets_the_named_wordslab_distro()
+    {
+        // #88: the live Windows run died on the DEFAULT distro lacking bash. One distro name,
+        // one place to change it (Wsl.Distro), every factory honors it.
+        Assert.Equal("wordslab", Wsl.Distro);
+        Assert.Equal(new[] { "-d", "wordslab" }, Wsl.PythonProbe().Args.Take(2));
+        Assert.Equal(new[] { "-d", "wordslab" }, Wsl.PathTranslate("C:\\x").Args.Take(2));
+        Assert.Equal(new[] { "-d", "wordslab" }, Wsl.RunBash("/x/y.sh").Args.Take(2));
+        Assert.Equal(new[] { "-d", "wordslab" }, Wsl.RunPython("/x/t.py").Args.Take(2));
     }
 }

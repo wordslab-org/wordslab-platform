@@ -31,19 +31,24 @@ WPF remain banned).
     (`WindowsPackageType=None`). **Builds on Windows only** — XAML markup compilation
     (`XamlCompiler.exe`) is Windows tooling; all logic it renders lives in `Wizard.Core`.
     It writes `wordslab-install-parameters.json` with `install_dir` plus `volume_<DRIVE>` keys
-    (one per enabled drive — the drive's wordslab folder holding its VHDX; disabled drives get
+    (one per enabled drive — the drive's wordslab folder; disabled drives get
     no key). v1 paths are FIXED (`<drive>:\wordslab`; the UI informs, it does not ask — one less
-    decision for a first-timer), and the card shows the exact VHDX file names
-    (`<drive>:\wordslab\wordslab-<drive>.vhdx`). #88's scripts consume this contract; a data
-    volume per disk, named after the disk.
+    decision for a first-timer), and the card shows the exact Linux-disk folder each install step
+    will create (`<drive>:\wordslab\wordslab-<drive>\` — a folder WSL manages: its ext4.vhdx
+    lives inside it, created by `wsl --import`, never a loose VHDX needing admin to attach — the
+    #88 ruling). #88's scripts consume this contract; a data volume per disk, named after the disk.
   - `Wizard.Tests/` — xunit contract tests over the command-executor seam (no UI needed).
 - `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey (terminal
   output), artifact-gated handoff (never command-line gated); `linux/test_install_smoke.sh`
   is its smoke contract.
 - `scripts/` — the numbered shared scripts as real files (`linux/` prefix steps, shared
-  `distro/` steps 4–6) so every shared step is re-runnable by hand. #88 replaces the
-  placeholder content inside these files. The Windows-only steps 1–3 have no script files:
-  they are C# classes in `Wizard.Core/Scripts/`.
+  `distro/` steps 4–6) so every shared step is re-runnable by hand. Since #88 the `distro/`
+  steps 4–6 carry their real machinery, and every one documents its contract (in / out / exit
+  codes / re-run behaviour) in its file header; they all take `--parameters <file>` — the very
+  JSON the wizard or TUI wrote (the shared parameters contract). Linux steps 1–3 keep visible
+  placeholders until the payload download lands (#94 packaging). The Windows-only steps 1–3
+  have no script files: they are C# classes in `Wizard.Core/Scripts/`, and their command plans
+  are pinned as argv in `Wizard.Tests`.
 - `python/` — the phase-2 installer API + TUI (uv project), the **Linux** phase-2 UI:
   `installer_api.py` (run/stream/interpret), `tui.py` (Linux journey shell + web handoff),
   `tests/` (pytest over the same stub-command seam).
@@ -66,6 +71,31 @@ the bash copy end to end; keep them in step. The numbering is shared: Linux nati
 mirror `install.sh`, steps 4–6 are the same distro script files on both platforms
 (`tui.py::journey_steps` ↔ `Wizard.Core/Scripts/`).
 
+## The #88 machinery (the bootstrap's real content on Windows)
+
+Design rulings, recorded on #88 (Laurent, 2026-10-24) — they shape every step:
+
+- **No admin except turning Windows' built-in Linux on itself.** The app machine and every data
+  disk are created with `wsl --import` (the proven wordslab-notebooks mechanism): WSL places and
+  manages a dynamic `ext4.vhdx` inside a plain folder on the chosen drive, auto-attached at every
+  future start — no diskpart, no loose VHDX, no `wsl --mount` (which needs admin AND detaches at
+  each reboot). The single elevation moment (first-time feature switch) asks Windows once via the
+  wizard relaunching ITSELF elevated (`runas`, one UAC dialog, zero console windows).
+- **One named distro: `wordslab`.** Every distro-facing C# command carries `-d wordslab` (a live
+  Windows run proved the default distro can lack bash entirely — `/bin/sh: bash: not found`).
+  One constant, `Wsl.Distro`, every factory honors it; pinned by `every_wsl_command_targets_the_named_wordslab_distro`.
+- **The disk model:** one minimal WSL instance per enabled drive (`wordslab-<letter>`, imported
+  from a pinned Alpine minirootfs URL), folder `<drive>:\wordslab\wordslab-<letter>\`; each
+  instance publishes `/volume` into `/mnt/wsl/wordslab-<letter>` (shared across distros), and
+  the shared `04-data-volumes.sh` bind-mounts those into the app machine at `/mnt/wordslab/<letter>`.
+- **Engine landing place:** uv in `/usr/local/bin`, uv-managed CPython 3.12 under
+  `/opt/wordslab/python` — ticket #62's core plugs into the same slot (`05-first-core.sh` is the
+  line that installs it once #62 ships).
+- **Handoff stays an address:** step 6's probe proves the home page answers and writes
+  `wordslab-front-door.url` next to the parameters file; the window navigates to that. The
+  `wordslab.local` name + one TLS cert land with #92 — until then step 6 fails with a plain
+  sentence rather than pretending (nothing installed silently).
+
 ## Scope fence
 
 The **content** of the numbered bootstrap scripts (WSL + distro + virtual disks, uv/Python,
@@ -84,8 +114,12 @@ there is nothing to guide yet — it lands with the real steps in #88.
 - Python: `uv sync && uv run pytest` in `python/` — the installer API (streaming,
   interpretation, stop-on-failure) and the TUI main flow against stub commands.
 - Bash: `bash installer/linux/test_install_smoke.sh` — the Linux entry end to end (labels,
-  `[NN] !` stderr, handoff, loud gaps).
-- Windows UI: verified by Laurent on the Windows host against `TEST-SCENARIOS-windows.md`.
+  `[NN] !` stderr, handoff, loud gaps); `bash installer/linux/test_distro_scripts_smoke.sh` —
+  the shared distro scripts' documented contract (usage exits, no-op re-runs, stubbed engine).
+- Windows UI: verified by Laurent on the Windows host against `TEST-SCENARIOS-windows.md`;
+  the repeatable full-journey harness (`e2e/reset.ps1` + `e2e/check.ps1` + `e2e/loop.ps1`,
+  scenario doc `TEST-E2E-windows.md`) reverts the machine between cycles — the WSL feature
+  itself is deliberately never removed.
 
 ## Standalone build (no .NET needed on the target machine)
 

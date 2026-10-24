@@ -10,21 +10,35 @@ public static class Wsl
 {
     public const string Exe = "wsl.exe";
 
+    /// <summary>The named Wordslab distro the journey itself installs (#88). Every distro-facing
+    /// command targets it — the live Windows run proved the machine's DEFAULT distro can lack even
+    /// bash ("/bin/sh: bash: not found", exit 127), so the default is never good enough.</summary>
+    public const string Distro = "wordslab";
+
     // wsl.exe (and wslpath) write UTF-16LE — decoding as the system default corrupts the output.
     private static readonly Encoding WslConsoleEncoding = Encoding.Unicode;
 
+    private static string[] Targeted(params string[] rest) =>
+        new[] { "-d", Distro }.Concat(rest).ToArray(); // Concat, not Union: argv duplicates are significant
+
     public static Command PythonProbe() =>
-        new(Exe, new[] { "--", "python3", "--version" }, "Checking for Python in the distro", WslConsoleEncoding);
+        new(Exe, Targeted("--", "python3", "--version"), "Checking for Python in the Wordslab virtual machine", WslConsoleEncoding);
 
     public static Command PathTranslate(string windowsPath) =>
-        new(Exe, new[] { "wslpath", "-u", windowsPath }, "Translating a Windows path for the distro", WslConsoleEncoding);
+        new(Exe, Targeted("wslpath", "-u", windowsPath), "Translating a Windows path for the Wordslab virtual machine", WslConsoleEncoding);
 
-    public static Command RunBash(string distroPath) =>
-        new(Exe, new[] { "--", "bash", distroPath }, $"Running {System.IO.Path.GetFileName(distroPath)} inside the distro", WslConsoleEncoding);
+    public static Command RunBash(string distroPath, IReadOnlyList<string>? args = null) =>
+        new(Exe, Targeted("--", "bash", distroPath).Concat(args ?? []).ToArray(), // Concat, not Union: argv duplicates are significant
+            $"Running {System.IO.Path.GetFileName(distroPath)} inside the Wordslab virtual machine", WslConsoleEncoding);
 
     public static Command RunPython(string distroPath, IReadOnlyList<string>? args = null) =>
-        new(Exe, new[] { "--", "python3", distroPath }.Concat(args ?? []).ToArray(), // Concat, not Union: argv duplicates are significant
-            $"Running {System.IO.Path.GetFileName(distroPath)} in the distro Python", WslConsoleEncoding);
+        new(Exe, Targeted("--", "python3", distroPath).Concat(args ?? []).ToArray(), // Concat, not Union: argv duplicates are significant
+            $"Running {System.IO.Path.GetFileName(distroPath)} in the Wordslab virtual machine's Python", WslConsoleEncoding);
+
+    /// <summary>An inline bash body inside the named distro (Windows-only steps have no script
+    /// files — the C# class carries the readable body).</summary>
+    public static Command RunBashInline(string bashBody, string? status = null) =>
+        new(Exe, Targeted("--", "bash", "-c", bashBody), status ?? "Working inside the Wordslab virtual machine", WslConsoleEncoding);
 }
 
 /// <summary>Runs <c>wslpath -u</c> through the executor seam so even path translation is visible
