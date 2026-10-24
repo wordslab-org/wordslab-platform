@@ -28,12 +28,16 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         // The Wordslab lab-flask mark (from wordslab-notebooks, cropped + transparent):
-        // title bar + taskbar. Set in code: XAML Window.Icon markup is unreliable in WinUI 3.
-        Icon = new Microsoft.UI.Xaml.BitmapIcon
+        // title bar + taskbar. WinUI 3 has no Window.Icon/BitmapIcon (UWP-ism) — the desktop
+        // window icon goes through AppWindow.SetIcon with a real file path (asset is copied
+        // to the output). An icon failure is cosmetic, never fatal to the install.
+        try
         {
-            UriSource = new Uri("ms-appx:///Assets/wordslab-mark.png"),
-            ShowAsMonochrome = false,
-        };
+            // Window.AppWindow: Windows App SDK 1.4+.
+            AppWindow.SetIcon(
+                Path.Combine(AppContext.BaseDirectory, "Assets", "wordslab-mark.png"));
+        }
+        catch (Exception) { }
         _runner = new JourneyRunner(_executor);
 
         foreach (var script in _journey)
@@ -51,7 +55,8 @@ public sealed partial class MainWindow : Window
             });
         }
         DiskList.ItemsSource = Disks;
-        InstallDirBox.Text = Path.GetPathRoot(Environment.SystemDirectory).TrimEnd('\\') + "\\wordslab";
+        string systemRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+        InstallDirBox.Text = systemRoot.TrimEnd('\\') + "\\wordslab";
 
         if (webViewPreview)
             _ = ShowWebHandoffAsync("Webview preview — the dashboard will live here");
