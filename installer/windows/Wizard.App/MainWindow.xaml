@@ -24,34 +24,58 @@
       </Grid.RowDefinitions>
 
       <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,18">
-        <TextBlock Text="Welcome to WordsLab Platform" Style="{StaticResource TitleLargeTextBlockStyle}" />
+        <TextBlock Style="{StaticResource TitleLargeTextBlockStyle}"><Run Text="Welcome to Words"/><Run Text="lab" FontFeature="smcp=True"/><Run Text=" Platform"/></TextBlock>
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
-                   Text="WordsLab Platform is your own private AI that runs at home: a personal assistant plus your own apps, documents and photos, on this computer, for you and your family. Nothing lives in someone else's cloud and nothing is hidden from you — everything WordsLab does can be opened and understood." />
+                   Text="Wordslab Platform brings a personal AI into your home — an assistant and apps for you and your family that you can also understand. It is 100% open source and runs on this computer: your data stays here, the choices stay yours, and nothing happens silently or invisibly. Like the home computers of the eighties that taught a generation what a computer is, Wordslab is here to teach a generation how AI works." />
         <TextBlock Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="This installer sets WordsLab up on this PC in six visible steps. It turns on a free Microsoft feature called WSL (Linux built into Windows), downloads the WordsLab programs into it, and finally opens your WordsLab home page right in this window. Nothing is installed silently: press Start install and watch each step happen live below." />
+                   Text="Wordslab runs inside a Linux virtual machine — Linux is built into Windows, and this installer turns it on for you. It prepares that machine, installs the Wordslab programs into it, and finally opens your Wordslab home page right in this window — six visible steps, nothing installed silently: press Start install and watch each one happen live below." />
       </StackPanel>
 
       <Border Grid.Row="1" Style="{StaticResource StepCard}" Margin="0,0,0,14">
-        <Grid ColumnSpacing="16">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <StackPanel Spacing="6">
-            <TextBlock Text="Where should WordsLab keep your files?" FontWeight="SemiBold" />
+        <StackPanel Spacing="12">
+          <TextBlock FontWeight="SemiBold"><Run Text="Where should Words"/><Run Text="lab" FontFeature="smcp=True"/><Run Text=" live?"/></TextBlock>
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Wordslab's program folder (on Windows)" FontWeight="SemiBold" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                       Text="Your documents, photos, apps and your assistant's memory will be saved on this drive. Pick a drive with plenty of free space (50 GB or more). If this computer only has one drive, leave the suggested C:\." />
-            <TextBox x:Name="DataDiskBox" PlaceholderText="e.g. C:\" />
-            <TextBlock x:Name="DiskError" Visibility="Collapsed"
-                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                       Style="{StaticResource CaptionTextBlockStyle}" />
+                       Text="The Wordslab programs that run on Windows are installed in this folder." />
+            <TextBox x:Name="InstallDirBox" PlaceholderText="e.g. C:\Wordslab" />
           </StackPanel>
-          <Button x:Name="StartButton" Grid.Column="1" VerticalAlignment="Bottom"
+
+          <StackPanel Spacing="4">
+            <TextBlock FontWeight="SemiBold"><Run Text="Words"/><Run Text="lab" FontFeature="smcp=True"/><Run Text="’s Linux disks (one on each drive)"/></TextBlock>
+            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                       Text="Inside its Linux virtual machine, Wordslab keeps your files on Linux disks — one virtual disk file per drive in this PC. With a Linux disk on every drive, Wordslab can later store each program and your data on the drive with the most free space and the best speed. Switch off a drive you would rather not use; you can add drives later too." />
+            <ItemsControl x:Name="DiskList" Margin="0,6,0,0">
+              <ItemsControl.ItemTemplate>
+                <!-- Classic Binding (Window root + #5902); TwoWay so the tick and folder land on the row. -->
+                <DataTemplate>
+                  <Grid ColumnSpacing="10" Margin="0,3">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="250" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox Content="{Binding DriveLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"
+                              VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding Folder, Mode=TwoWay}"
+                             PlaceholderText="folder for this drive's Linux disk" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <TextBlock x:Name="DiskError" Visibility="Collapsed"
+                     Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                     Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+
+          <Button x:Name="StartButton" HorizontalAlignment="Left"
                   Style="{StaticResource AccentButtonStyle}" Content="Start install"
-                  Click="StartInstall_Click" MinWidth="150" Padding="24,8" />
-        </Grid>
+                  Click="StartInstall_Click" MinWidth="180" Padding="24,10" />
+        </StackPanel>
       </Border>
 
       <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
@@ -116,7 +140,7 @@
         <TextBlock Margin="0,0,0,4" TextWrapping="Wrap" IsTextSelectionEnabled="True"
                    Style="{StaticResource CaptionTextBlockStyle}"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                   Text="WordsLab Platform is free and open source — github.com/wordslab-org/wordslab-platform" />
+                   Text="Wordslab Platform is free and open source — github.com/wordslab-org/wordslab-platform" />
       </StackPanel>
     </Grid>
 
@@ -128,7 +152,7 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
       <StackPanel Spacing="4" Margin="0,0,0,12">
-        <TextBlock x:Name="WebTitle" Text="WordsLab is set up — the rest happens in your dashboard"
+        <TextBlock x:Name="WebTitle" Text="Wordslab is set up — the rest happens in your dashboard"
                    Style="{StaticResource SubtitleTextBlockStyle}" />
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button x:Name="OpenBrowserButton" Content="Open in a web browser" Click="OpenInBrowser_Click" />

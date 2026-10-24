@@ -23,11 +23,16 @@ WPF remain banned).
       shared with Linux) as C# classes, plus the shared steps 4–6.
     - `JourneyRunner.cs` — runs the numbered scripts in order, streaming every status/output
       line out as reports for the UI, stop-on-first-failure loudly.
-  - `Wizard.App/` — the WinUI 3 UI (XAML markup, Mica backdrop): parameter card, six numbered
+  - `Wizard.App/` — the WinUI 3 UI (XAML markup, Mica backdrop): install-locations card (the
+    Windows program folder + one Linux disk per chosen drive, each switchable off — ADR-0014 §5),
+    six numbered
     step cards with **live streaming progress** (progress ring, current status sentence,
     expandable output log), then a full-window WebView2 handoff. Unpackaged
     (`WindowsPackageType=None`). **Builds on Windows only** — XAML markup compilation
     (`XamlCompiler.exe`) is Windows tooling; all logic it renders lives in `Wizard.Core`.
+    It writes `wordslab-install-parameters.json` with `install_dir` plus `volume_<DRIVE>` keys
+    (one per enabled drive — the drive's Wordslab folder holding its VHDX; disabled drives get
+    no key). #88's scripts consume this contract; a data volume per disk, named after the disk.
   - `Wizard.Tests/` — xunit contract tests over the command-executor seam (no UI needed).
 - `linux/install.sh` — the `curl … | bash` entry point: the same numbered journey (terminal
   output), artifact-gated handoff (never command-line gated); `linux/test_install_smoke.sh`

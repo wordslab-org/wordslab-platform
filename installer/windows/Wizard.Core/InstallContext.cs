@@ -51,6 +51,30 @@ public static class Parameters
         return windowsDrive || posixRoot ? null : "Please type a drive letter followed by a colon, like C:\\ or D:\\ (including the backslash).";
     }
 
+    /// <summary>Windows install parameters: the program folder, plus one data volume per
+    /// chosen drive — each volume is a folder on that drive holding its virtual Linux disk
+    /// (VHDX), named after the drive (ADR-0014 §5). Disabled drives simply get no key.</summary>
+    public static Dictionary<string, string> ForWindows(
+        string installDir, IEnumerable<(string drive, string folder)> volumes)
+    {
+        var answers = new Dictionary<string, string> { ["install_dir"] = installDir };
+        foreach (var (drive, folder) in volumes)
+            answers["volume_" + drive.TrimEnd('\\', ':').ToUpperInvariant()] = folder;
+        return answers;
+    }
+
+    /// <summary>A full Windows folder path (drive letter + colon + separator).</summary>
+    public static string? ValidateInstallDir(string value) =>
+        value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/')
+            ? null
+            : "Please type a full folder path for the Wordslab program, like C:\\Wordslab.";
+
+    /// <summary>A volume folder must sit on the drive it names.</summary>
+    public static string? ValidateVolumeFolder(string folder, string drive) =>
+        folder.Length >= 3 && folder[0] == drive[0] && folder[1] == ':' && (folder[2] == '\\' || folder[2] == '/')
+            ? null
+            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\Wordslab.";
+
     public static void Write(IReadOnlyDictionary<string, string> answers, string path) =>
         File.WriteAllText(path, JsonSerializer.Serialize(answers, new JsonSerializerOptions { WriteIndented = true }));
 

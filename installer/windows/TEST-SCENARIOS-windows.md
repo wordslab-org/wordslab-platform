@@ -16,7 +16,7 @@ Expect: Build succeeded, 0 errors — including `Wizard.App` (XAML markup compil
 ```
 dotnet test Wizard.Tests
 ```
-Expect: Passed: 16, Failed: 0.
+Expect: Passed: 18, Failed: 0.
 
 ## S3 — the WinUI journey (the whole Windows experience)
 
@@ -25,12 +25,15 @@ dotnet run --project Wizard.App
 ```
 Expect a single modern WinUI window (Mica backdrop, rounded cards) — **no console window, no
 TUI**:
-1. Title "Install Wordslab Platform" + the transparency caption line.
-2. A parameter card: the data disk text box pre-filled with the first non-C fixed drive.
-   Type a bogus path → red "not a valid drive path (e.g. D:\)" under the box; a real drive → accepted.
+1. Title "Welcome to Wordslab Platform" ("lab" in small caps where the font supports it) +
+   two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
+2. An install-locations card: a prefilled program-folder text box, then one row per fixed drive
+   (checkbox ticked + "<drive> — N GB free" + a prefilled folder). Untick one drive → it must be
+   absent from the written parameters JSON. Type a folder on the wrong drive → red
+   "The Wordslab folder for drive D: must be on that drive…" (multiple problems join on one line).
 3. Six numbered cards are visible from the start, each with a number badge and its title.
-4. Press **Install**: cards activate one by one — progress ring spins, the status sentence
-   updates ("Checking github and pypi reachability"…), and the "output" expander appears with
+4. Press **Start install**: cards activate one by one — progress ring spins, the status sentence
+   updates ("Checking the internet connection"…), and the "output" expander appears with
    the streamed placeholder lines ("placeholder until #88").
 5. Without a WSL distro installed: steps 2–6 show the loud `FAILED (exit …)` line in their card
    and the bottom line says the journey stopped and re-running is safe. Screenshot this.

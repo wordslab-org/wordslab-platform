@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     };
 
     public ObservableCollection<StepVm> Steps { get; } = new();
+    public ObservableCollection<DriveVm> Disks { get; } = new();
     private readonly ICommandExecutor _executor = new ProcessCommandExecutor();
     private readonly JourneyRunner _runner;
     private bool _running;
@@ -31,25 +32,41 @@ public sealed partial class MainWindow : Window
         foreach (var script in _journey)
             Steps.Add(new StepVm(script.Number, script.Title));
 
-        DataDiskBox.Text = SuggestDataDisk();
+        foreach (var d in DriveInfo.GetDrives())
+        {
+            if (d.DriveType != DriveType.Fixed || !d.IsReady) continue;
+            string drive = d.Name.TrimEnd('\\'); // "C:"
+            Disks.Add(new DriveVm
+            {
+                Drive = drive,
+                FreeGb = d.AvailableFreeSpace / (1024 * 1024 * 1024),
+                Folder = drive + "\\Wordslab",
+            });
+        }
+        DiskList.ItemsSource = Disks;
+        InstallDirBox.Text = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wordslab");
 
         if (webViewPreview)
             _ = ShowWebHandoffAsync("Webview preview — the dashboard will live here");
     }
 
-    private static string SuggestDataDisk() =>
-        DriveInfo.GetDrives()
-            .FirstOrDefault(d => d.DriveType == DriveType.Fixed && d.Name != "C:\\")?.Name ?? "C:\\";
-
     private async void StartInstall_Click(object sender, RoutedEventArgs e)
     {
         if (_running) return;
 
-        string disk = DataDiskBox.Text.Trim();
-        string? error = Parameters.ValidateDiskPath(disk);
-        if (error is not null)
+        var problems = new List<string>();
+        string installDir = InstallDirBox.Text.Trim();
+        string? installError = Parameters.ValidateInstallDir(installDir);
+        if (installError is not null) problems.Add(installError);
+        foreach (var vm in Disks.Where(d => d.Enabled))
         {
-            DiskError.Text = error;
+            string? volumeError = Parameters.ValidateVolumeFolder(vm.Folder.Trim(), vm.Drive);
+            if (volumeError is not null) problems.Add(volumeError);
+        }
+        if (problems.Count > 0)
+        {
+            DiskError.Text = string.Join("  ", problems);
             DiskError.Visibility = Visibility.Visible;
             return;
         }
@@ -58,11 +75,13 @@ public sealed partial class MainWindow : Window
         string? installerDir = PayloadLocator.FindInstallerDir(AppContext.BaseDirectory);
         if (installerDir is null)
         {
-            StatusLine.Text = "Something is missing: the WordsLab installer files were not found next to this window, so nothing was installed. Copy the whole installer folder (not just this file), then try again.";
+            StatusLine.Text = "Something is missing: the Wordslab installer files were not found next to this window, so nothing was installed. Copy the whole installer folder (not just this file), then try again.";
             return;
         }
 
-        var parameters = new Dictionary<string, string> { ["data_disk"] = disk };
+        var parameters = Parameters.ForWindows(
+            installDir,
+            Disks.Where(d => d.Enabled).Select(d => (d.Drive, d.Folder.Trim())));
         string parametersFile = Path.Combine(AppContext.BaseDirectory, "wordslab-install-parameters.json");
         Parameters.Write(parameters, parametersFile);
 
@@ -95,7 +114,7 @@ public sealed partial class MainWindow : Window
         bool complete = results.Count == _journey.Length && results.All(r => r.Success);
         if (complete && !await _runner.PythonAvailableInDistroAsync())
         {
-            StatusLine.Text = "Almost there — the WordsLab engine (Python) is not ready inside Linux yet. Press Start install again to continue; starting over is safe.";
+            StatusLine.Text = "Almost there — the Wordslab engine (Python) is not ready inside the Linux virtual machine yet. Press Start install again to continue; starting over is safe.";
             _running = false;
             StartButton.IsEnabled = true;
             return;
@@ -105,7 +124,7 @@ public sealed partial class MainWindow : Window
         {
             // The front-door step printed the address; from here the handoff is an address,
             // not a process switch (ADR-0014 §3 phase 3).
-            await ShowWebHandoffAsync("WordsLab is set up — the rest happens in your dashboard");
+            await ShowWebHandoffAsync("Wordslab is set up — the rest happens in your dashboard");
         }
         else
         {

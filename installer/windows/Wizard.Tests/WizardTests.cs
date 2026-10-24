@@ -236,6 +236,26 @@ public class SupportTests
     }
 
     [Fact]
+    public void Windows_parameters_name_each_data_volume_after_its_drive()
+    {
+        var p = Parameters.ForWindows(@"C:\Users\me\AppData\Local\Wordslab",
+            new[] { ("C:", @"C:\Wordslab"), ("d:", @"D:\Wordslab") });
+        Assert.Equal(@"C:\Users\me\AppData\Local\Wordslab", p["install_dir"]);
+        Assert.Equal(@"C:\Wordslab", p["volume_C"]);
+        Assert.Equal(@"D:\Wordslab", p["volume_D"]); // drive letters normalize to upper case
+        Assert.Equal(3, p.Count); // a disabled drive simply gets no key
+    }
+
+    [Fact]
+    public void Volume_folders_must_sit_on_the_drive_they_name()
+    {
+        Assert.Null(Parameters.ValidateVolumeFolder(@"D:\Wordslab", "D:"));
+        Assert.NotNull(Parameters.ValidateVolumeFolder(@"C:\Wordslab", "D:"));
+        Assert.Null(Parameters.ValidateInstallDir(@"C:\Wordslab"));
+        Assert.NotNull(Parameters.ValidateInstallDir("Wordslab"));
+    }
+
+    [Fact]
     public void Parameters_round_trip_as_json()
     {
         string path = Path.Combine(Path.GetTempPath(), $"wsparams-{Guid.NewGuid():N}.json");
