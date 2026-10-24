@@ -41,7 +41,7 @@ public sealed partial class MainWindow : Window
         catch (Exception) { }
         // The original complaint: the window must be wide enough to keep all six step
         // cards visible — the layout is left (intro + locations) / right (live steps).
-        AppWindow.Resize(new Windows.Foundation.Size(1220, 860));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1220, 860));
         _runner = new JourneyRunner(_executor);
 
         foreach (var script in _journey)
