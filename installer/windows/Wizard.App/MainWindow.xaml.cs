@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
-using Microsoft.Web.WebView2.Core;
 using Wordslab.Wizard.Core;
 using Wordslab.Wizard.Core.Scripts;
 
@@ -154,9 +153,12 @@ public sealed partial class MainWindow : Window
         WebUrl.Text = DashboardUrl;
         try
         {
-            var environment = await CoreWebView2Environment.CreateAsync(
-                userDataFolder: Path.Combine(Path.GetTempPath(), "wordslab-installer-webview"));
-            await Web.EnsureCoreWebView2Async(environment);
+            // WinAppSDK's bundled WebView2 projection has no named 'userDataFolder' CreateAsync
+            // overload; the documented knob is the WEBVIEW2_USER_DATA_FOLDER environment variable.
+            Environment.SetEnvironmentVariable(
+                "WEBVIEW2_USER_DATA_FOLDER",
+                Path.Combine(Path.GetTempPath(), "wordslab-installer-webview"));
+            await Web.EnsureCoreWebView2Async();
             Web.CoreWebView2.Navigate(DashboardUrl);
         }
         catch (Exception ex)
