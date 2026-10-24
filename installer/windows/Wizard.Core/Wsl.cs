@@ -39,6 +39,8 @@ public sealed class WslPathTranslator(ICommandExecutor executor)
             if (line.Kind == ReportKind.Stdout && firstLine is null) firstLine = line.Text;
             report?.Invoke(line);
         });
-        return exit == 0 && firstLine is not null ? firstLine.Trim() : null;
+        // Distro-facing boundary: a path handed to WSL must never carry Windows backslashes,
+        // whatever wslpath (or a test double) returned. Host-side checks tolerate '/' on Windows.
+        return exit == 0 && firstLine is not null ? firstLine.Trim().Replace('\\', '/') : null;
     }
 }
