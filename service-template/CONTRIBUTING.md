@@ -13,7 +13,7 @@ meet inside the service repo.
    root `services/<name>/` per ADR-0002 §Decision).
 
 2. **Rename** — rename the placeholder package
-   `src/<service>/` to `src/<your-service>/`. Update `name` and the
+   `src/_service_/` to `src/<your-service>/`. Update `name` and the
    `tool.hatch.build.targets.wheel` `packages` entry in `pyproject.toml`, and
    re-point the `sys.path` seed in `tests/contract/conftest.py` at your
    renamed directory.

@@ -21,12 +21,12 @@ from contract.declaration.service_toml import load_service_toml
 
 try:  # installed-package mode (`<service-name>.app`)
     from .capabilities import canary
-except ImportError:  # the template's own suite (conftest seeds src/<service>)
+except ImportError:  # the template's own suite (conftest seeds src/_service_)
     from capabilities import canary
 
 # The declaration lives at the service root — this file is
 # `src/<service-name>/app.py`, so two parents up. The copy-to-start ritual
-# renames `src/<service>/` (CONTRIBUTING.md step 2); the relative shape —
+# renames `src/_service_/` (CONTRIBUTING.md step 2); the relative shape —
 # and this path — survive the rename unchanged.
 DECLARATION_PATH = Path(__file__).resolve().parents[2] / "service.toml"
 
