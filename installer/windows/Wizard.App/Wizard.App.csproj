@@ -18,9 +18,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 1.8+: the 1.6 XamlCompiler died silently (exit 1, no diagnostics) on CLI builds —
-         fixed on the 1.8 line (microsoft-ui-xaml #10947/#11183). -->
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <!-- Current stable (NuGet-verified, not from memory): 2.5.1. Never pin below 1.8 — the 1.6
+         XamlCompiler dies silently (exit 1, no diagnostics) on dotnet CLI builds
+         (microsoft-ui-xaml #10947/#11183). -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
   </ItemGroup>
 
