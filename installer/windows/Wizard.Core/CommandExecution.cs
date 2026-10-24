@@ -29,6 +29,36 @@ public interface ICommandExecutor
     Task<int> RunAsync(Command command, Action<ReportLine> report, CancellationToken cancel = default);
 }
 
+/// <summary>
+/// Picks the PowerShell host: PowerShell 7 (pwsh) when installed, otherwise Windows PowerShell.
+/// The installer must work on a stock machine that has no pwsh at all.
+/// </summary>
+public static class PowerShellHost
+{
+    public static string Resolve()
+    {
+        string[] candidates = OperatingSystem.IsWindows()
+            ? new[] { "pwsh.exe", "powershell.exe" }
+            : new[] { "pwsh" };
+        string path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (string candidate in candidates)
+        {
+            foreach (string dir in path.Split(Path.PathSeparator))
+            {
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+                try
+                {
+                    string full = Path.Combine(dir.Trim(), candidate);
+                    if (File.Exists(full)) return full;
+                }
+                catch (Exception) { }
+            }
+        }
+        // Nothing on PATH: Windows always has powershell.exe via App Paths.
+        return OperatingSystem.IsWindows() ? "powershell.exe" : "pwsh";
+    }
+}
+
 /// <summary>Streams both pipes concurrently, line by line as they arrive (never stdout-to-EOF
 /// first — that deadlocks when a command is chatty on stderr).</summary>
 public sealed class ProcessCommandExecutor : ICommandExecutor
@@ -50,6 +80,13 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
         try
         {
             p.Start();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            // Non-technical wording: a missing program is the common cause.
+            report(new ReportLine(ReportKind.Stderr,
+                $"! Could not start the program '{command.Program}' — it may not be installed. ({ex.Message})"));
+            return -1;
         }
         catch (Exception ex)
         {

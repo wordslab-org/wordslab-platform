@@ -68,7 +68,8 @@ public class ScriptPlanTests
         var ctx = Contexts.Make(proc);
 
         var s1 = await new Script01NetworkReachability().PlanAsync(ctx);
-        Assert.Equal("pwsh", s1.Single().Program);
+        string host = Path.GetFileNameWithoutExtension(s1.Single().Program);
+        Assert.Contains(host, new[] { "pwsh", "powershell" });
 
         var s3 = await new Script03UvPythonInDistro().PlanAsync(ctx);
         Assert.Equal(Wsl.Exe, s3.Single().Program);
@@ -296,7 +297,48 @@ public class SupportTests
     }
 
     [Fact]
-    public void Wsl_commands_declare_their_utf16le_output_encoding()
+    public void PowerShellHost_prefers_pwsh_over_windows_powershell()
+    {
+        string tmp = Path.Combine(Path.GetTempPath(), "pshost-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmp);
+        string saved = Environment.GetEnvironmentVariable("PATH");
+        try
+        {
+            string pwsh = OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh";
+            string wins = OperatingSystem.IsWindows() ? "powershell.exe" : "powershell";
+            File.WriteAllText(Path.Combine(tmp, pwsh), "#!/bin/sh\nexit 0\n");
+            File.WriteAllText(Path.Combine(tmp, wins), "#!/bin/sh\nexit 0\n");
+            Environment.SetEnvironmentVariable("PATH", tmp);
+            Assert.EndsWith(pwsh, PowerShellHost.Resolve());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", saved);
+            Directory.Delete(tmp, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PowerShellHost_falls_back_to_windows_powershell_when_pwsh_is_absent()
+    {
+        string tmp = Path.Combine(Path.GetTempPath(), "psnone-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmp);
+        string saved = Environment.GetEnvironmentVariable("PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", tmp);
+            string expected = OperatingSystem.IsWindows() ? "powershell.exe" : "pwsh";
+            Assert.Equal(expected, PowerShellHost.Resolve());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", saved);
+            Directory.Delete(tmp, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void wsl_commands_declare_their_utf16le_output_encoding()
     {
         // wsl.exe (incl. wslpath) emits UTF-16LE; without the explicit encoding a real Windows
         // host decodes its output as NUL-corrupted text — the fakes cannot catch this drift.

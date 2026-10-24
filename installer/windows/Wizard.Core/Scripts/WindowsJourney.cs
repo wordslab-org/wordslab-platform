@@ -15,7 +15,7 @@ public sealed class Script01NetworkReachability : NumberedScript
     public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx) => Task.FromResult<IReadOnlyList<Command>>(
         new[]
         {
-            new Command("pwsh",
+            new Command(PowerShellHost.Resolve(),
                 new[] { "-NoProfile", "-Command", "Write-Output 'reachability check: placeholder until #88'" },
                 "Checking the internet connection"),
         });
@@ -31,7 +31,7 @@ public sealed class Script02WslDistroDisks : NumberedScript
         {
             // #88: the real flow — enable WSL, register the Wordslab distro, attach the data
             // disks from ctx.Parameters["data_disk"], each as its own reported command.
-            new Command("pwsh",
+            new Command(PowerShellHost.Resolve(),
                 new[] { "-NoProfile", "-Command", "Write-Output 'wsl bootstrap: placeholder until #88'" },
                 "Turning on Windows' built-in Linux and preparing the Wordslab virtual machine"),
         });
