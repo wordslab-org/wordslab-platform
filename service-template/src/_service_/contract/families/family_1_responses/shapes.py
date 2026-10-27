@@ -194,16 +194,21 @@ def _parse_input(value: object) -> list[dict]:
     for index, entry in enumerate(value):
         if not isinstance(entry, dict):
             raise invalid_request(f"input[{index}] must be a JSON object.")
-        # An entry carrying `role` is a message; anything else is a standalone
-        # item. An entry carrying BOTH is ambiguous — refuse it rather than pick.
+        # An entry carrying `role` is a message. Upstream's EasyInputMessage also
+        # carries an optional `type: "message"` discriminator; accept it and
+        # normalize it away. Any OTHER type on a role-carrying entry is
+        # ambiguous, and is refused rather than guessed.
         if "role" in entry:
-            if "type" in entry:
+            entry_type = entry.get("type", "message")
+            if entry_type != "message":
                 raise invalid_request(
-                    f"input[{index}] carries both 'role' and 'type' — a role-tagged "
-                    "message has no item 'type', and a standalone input item has no "
-                    "'role'."
+                    f"input[{index}] carries 'role' with type {entry_type!r} — a "
+                    "role-tagged message is type 'message' (or carries no type); a "
+                    "standalone input item carries a type and no 'role'."
                 )
-            items.append(_parse_message(entry, index))
+            items.append(
+                _parse_message({key: value for key, value in entry.items() if key != "type"}, index)
+            )
             continue
         items.append(_parse_input_item(entry, f"input[{index}]"))
     return items
@@ -240,7 +245,9 @@ def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INP
     if not isinstance(part, dict):
         raise invalid_request(f"{where} must be a JSON object.")
     part_type = part.get("type")
-    if part_type not in allowed:
+    # `not in allowed` on an unhashable value raises TypeError (a 500 for a
+    # client error), so the type check comes first.
+    if not isinstance(part_type, str) or part_type not in allowed:
         raise invalid_request(
             f"{where}.type {part_type!r} is not one of {sorted(allowed)!r} — "
             "multimodal content parts are 'input_text' / 'input_image' / "
@@ -282,7 +289,14 @@ def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INP
             raise invalid_request(
                 f"{where} ('function_call') requires 'arguments' as a JSON string."
             )
-        _require_json(part["arguments"], f"{where}.arguments")
+        # A caller's malformed arguments is a CLIENT error (400), never the
+        # internal_error that the engine-reply side raises.
+        try:
+            json.loads(part["arguments"])
+        except ValueError:
+            raise invalid_request(
+                f"{where}.arguments must be a JSON string."
+            ) from None
     else:  # function_call_output — the tool result that answers the call
         if not isinstance(part.get("call_id"), str) or not part["call_id"]:
             raise invalid_request(
@@ -320,7 +334,7 @@ def _parse_tools(value: object) -> list[dict]:
         if not isinstance(tool, dict):
             raise invalid_request(f"tools[{index}] must be a JSON object.")
         tool_type = tool.get("type")
-        if tool_type not in TOOL_TYPES:
+        if not isinstance(tool_type, str) or tool_type not in TOOL_TYPES:
             raise invalid_request(
                 f"tools[{index}].type {tool_type!r} is not a tool type "
                 f"({sorted(TOOL_TYPES)!r}) — family 1 declares function tools and "
@@ -350,7 +364,7 @@ def _parse_text(value: object) -> dict:
     if not isinstance(fmt, dict):
         raise invalid_request("'text.format' must be a JSON object when present.")
     format_type = fmt.get("type")
-    if format_type not in TEXT_FORMAT_TYPES:
+    if not isinstance(format_type, str) or format_type not in TEXT_FORMAT_TYPES:
         raise invalid_request(
             f"'text.format.type' {format_type!r} is not a format type "
             f"({sorted(TEXT_FORMAT_TYPES)!r})."
@@ -443,7 +457,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
     if not isinstance(item, dict):
         raise internal_error(f"output[{index}] is not a JSON object.")
     item_type = item.get("type")
-    if item_type not in OUTPUT_ITEM_TYPES:
+    if not isinstance(item_type, str) or item_type not in OUTPUT_ITEM_TYPES:
         raise internal_error(
             f"output[{index}].type {item_type!r} is not a family-1 output item type "
             f"({sorted(OUTPUT_ITEM_TYPES)!r})."
@@ -554,7 +568,7 @@ def _normalize_content_part(
     if not isinstance(part, dict):
         raise internal_error(f"{where} is not a JSON object.")
     part_type = part.get("type")
-    if part_type not in CONTENT_PART_TYPES:
+    if not isinstance(part_type, str) or part_type not in CONTENT_PART_TYPES:
         raise internal_error(
             f"{where}.type {part_type!r} is not a message content part type "
             f"({sorted(CONTENT_PART_TYPES)!r})."

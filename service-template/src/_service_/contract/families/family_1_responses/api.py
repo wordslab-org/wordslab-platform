@@ -50,6 +50,9 @@ _USAGE = {
 _CONTENT_PART = {
     "type": "object",
     "required": ["type"],
+    # a role here would make the entry a message, which the route treats as
+    # ambiguous — the schema must not offer it
+    "not": {"required": ["role"]},
     "properties": {
         "type": {
             "type": "string",
@@ -78,6 +81,8 @@ _INPUT_MESSAGE = {
     ),
     "properties": {
         "role": {"type": "string", "enum": sorted(INPUT_MESSAGE_ROLES)},
+        # upstream's EasyInputMessage carries this optional discriminator
+        "type": {"const": "message"},
         "content": {
             "type": ["string", "array"],
             "items": _CONTENT_PART,
@@ -111,6 +116,7 @@ _FUNCTION_CALL_OUTPUT_ITEM = {
             "type": ["string", "array"],
             "description": "the tool's result: a string, or content parts.",
             "items": _CONTENT_PART,
+            "minItems": 1,
         },
     },
 }
@@ -219,7 +225,15 @@ _REQUEST = {
         "stream": {
             "type": "boolean",
             "default": False,
-            "description": "SSE with the typed Responses event vocabulary (family 1's events module).",
+            "description": "SSE with the typed Responses event vocabulary (the module's events).",
+        },
+        "background": {
+            "const": False,
+            "default": False,
+            "description": (
+                "false only — background responses are the async-jobs family "
+                "(ADR-0001 §Families.5); true (or any non-boolean) is 400."
+            ),
         },
         "max_output_tokens": {"type": "integer", "minimum": 1},
     },

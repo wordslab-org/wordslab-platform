@@ -541,6 +541,36 @@ def test_a_message_content_may_be_a_plain_string(make_gated_client):
         {"role": "user", "content": [{"type": "input_text", "text": "hi"}]}
     ]
 
+    # ... and upstream's optional `type: "message"` discriminator is accepted
+    # (normalized away), so a reference-shaped payload is not refused.
+    assert client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [{"role": "user", "type": "message", "content": "hi"}],
+        },
+    ).status_code == 200
+    assert engine.calls[1]["request"]["input"] == [
+        {"role": "user", "content": [{"type": "input_text", "text": "hi"}]}
+    ]
+
+
+def test_a_malformed_tool_call_arguments_is_a_client_error(make_gated_client):
+    # The caller's arguments must be a JSON string; a malformed one is 400 (base
+    # item 4), not the 500 that a malformed ENGINE reply earns.
+    client = make_gated_client(ScenarioEngine(reply()))
+    r = client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [
+                {"type": "function_call", "call_id": "c", "name": "lookup", "arguments": "{nope"}
+            ],
+        },
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+
 
 def test_mcp_output_items_are_typed(make_gated_client):
     mcp_turn = reply(
@@ -575,10 +605,13 @@ def test_instructions_are_echoed_and_max_output_tokens_accepted(make_gated_clien
     client = make_gated_client(engine)
     body = client.post(
         "/v1/responses",
-        json={**PING, "instructions": "be brief", "max_output_tokens": 32},
+        json={**PING, "instructions": "be brief", "max_output_tokens": 32, "background": False},
     ).json()
     assert body["instructions"] == "be brief"
     assert engine.calls[0]["request"]["max_output_tokens"] == 32
+    # an explicit `background: false` is the synchronous default: dropped, not
+    # forwarded as a meaningless key
+    assert "background" not in engine.calls[0]["request"]
 
 
 def test_a_message_output_item_must_be_an_assistant_turn(make_gated_client):
