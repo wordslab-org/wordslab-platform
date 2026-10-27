@@ -447,17 +447,29 @@ def normalize_response(request: dict, engine_output: object) -> dict:
     return response
 
 
-def _item_id(item: dict, fallback: str) -> str:
-    """An item id / call_id the contract says is a string. A non-string is
-    replaced by a generated one rather than passed through: a `call_id` that is
-    not a string could never be echoed back on the next turn."""
+def _item_id(item: dict, index: int, fallback: str) -> str:
+    """The item's `id`: an ABSENT or empty one is generated, but a PRESENT
+    non-string is a seam break (500) — silently fabricating an id would hand the
+    client one the engine never issued, hiding an adapter bug behind a value
+    that looks fine."""
     value = item.get("id")
-    return value if isinstance(value, str) and value else fallback
+    if value is None or value == "":
+        return fallback
+    if not isinstance(value, str):
+        raise internal_error(f"output[{index}] carries a non-string 'id'.")
+    return value
 
 
-def _call_id(item: dict, fallback: str) -> str:
+def _call_id(item: dict, index: int, fallback: str) -> str:
+    """The item's `call_id`, same rule — and here the cost of a fabricated value
+    is concrete: the caller's next-turn `function_call_output` could never match
+    it, so the tool loop would break silently instead of loudly."""
     value = item.get("call_id")
-    return value if isinstance(value, str) and value else fallback
+    if value is None or value == "":
+        return fallback
+    if not isinstance(value, str):
+        raise internal_error(f"output[{index}] carries a non-string 'call_id'.")
+    return value
 
 
 def _item_status(item: dict, index: int) -> str:
@@ -498,9 +510,9 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
             _require_json(arguments, f"output[{index}].arguments")
         return {
             "type": "function_call",
-            "id": _item_id(item, f"fc_{index}"),
+            "id": _item_id(item, index, f"fc_{index}"),
             "status": _item_status(item, index),
-            "call_id": _call_id(item, f"call_{index}"),
+            "call_id": _call_id(item, index, f"call_{index}"),
             "name": name,
             "arguments": arguments,
         }
@@ -517,7 +529,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
             parts.append({"type": "summary_text", "text": part["text"]})
         return {
             "type": "reasoning",
-            "id": _item_id(item, f"rs_{index}"),
+            "id": _item_id(item, index, f"rs_{index}"),
             "status": _item_status(item, index),
             "summary": parts,
         }
@@ -536,7 +548,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
             _require_json(arguments, f"output[{index}].arguments")
         return {
             "type": "mcp_call",
-            "id": _item_id(item, f"mc_{index}"),
+            "id": _item_id(item, index, f"mc_{index}"),
             "status": _item_status(item, index),
             "name": item["name"],
             "server_label": item["server_label"],
@@ -553,7 +565,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
         )
     return {
         "type": "mcp_list_tools",
-        "id": _item_id(item, f"ml_{index}"),
+        "id": _item_id(item, index, f"ml_{index}"),
         "status": _item_status(item, index),
         "server_label": item["server_label"],
         "tools": [dict(tool) for tool in tools],
@@ -577,7 +589,7 @@ def _normalize_message(item: dict, request: dict, index: int) -> dict:
     ]
     return {
         "type": "message",
-        "id": _item_id(item, f"msg_{index}"),
+        "id": _item_id(item, index, f"msg_{index}"),
         "role": role,
         "status": status,
         "content": parts,

@@ -659,8 +659,8 @@ def test_a_no_argument_tool_call_from_the_engine_is_valid(make_gated_client):
 
 def test_usage_and_item_ids_are_contract_typed(make_gated_client):
     # A boolean/float total or a non-string item id would publish a body that
-    # violates the module's own schema — and an int `call_id` could never be
-    # echoed back on the next turn.
+    # violates the module's own schema — and a fabricated `call_id` could never
+    # be echoed back, so the tool loop would break silently instead of loudly.
     for bad_usage in (
         {"input_tokens": 1, "output_tokens": 1, "total_tokens": True},
         {"input_tokens": 0, "output_tokens": 0, "total_tokens": 1.0},
@@ -670,18 +670,19 @@ def test_usage_and_item_ids_are_contract_typed(make_gated_client):
         )
         assert r.status_code == 500, bad_usage
 
-    ids = reply(
-        output=[
-            {
-                "type": "function_call",
-                "id": 7,
-                "call_id": 9,
-                "name": "lookup",
-                "arguments": "{}",
-            }
-        ]
-    )
-    item = make_gated_client(ScenarioEngine(ids)).post("/v1/responses", json=PING).json()["output"][0]
+    # a PRESENT non-string id / call_id is a seam break, not something to paper
+    # over with a generated value
+    for bad_ids in ({"id": 7}, {"call_id": 9}):
+        call = {"type": "function_call", "name": "lookup", "arguments": "{}", **bad_ids}
+        r = make_gated_client(ScenarioEngine(reply(output=[call]))).post(
+            "/v1/responses", json=PING
+        )
+        assert r.status_code == 500, bad_ids
+        assert next(iter(bad_ids)) in r.json()["error"]["message"]
+
+    # an ABSENT one is generated — the engine need not mint ids
+    bare = reply(output=[{"type": "function_call", "name": "lookup", "arguments": "{}"}])
+    item = make_gated_client(ScenarioEngine(bare)).post("/v1/responses", json=PING).json()["output"][0]
     assert item["id"] == "fc_0" and item["call_id"] == "call_0"
 
 

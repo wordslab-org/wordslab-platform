@@ -152,7 +152,7 @@ def _part_events(
     item_id: str | None, part: dict, output_index: int, content_index: int, chunk_chars: int
 ) -> list[dict]:
     part_type = part.get("type")
-    if part_type not in CONTENT_PART_TYPES:  # normalize_response rejected these already
+    if not isinstance(part_type, str) or part_type not in CONTENT_PART_TYPES:
         raise ValueError(f"unknown content part type {part_type!r} on the streaming seam")
 
     # The upstream event names differ per part type (`response.output_text.*`
