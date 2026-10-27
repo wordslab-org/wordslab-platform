@@ -1,40 +1,397 @@
-"""Family 1 — LLM & agents inference (ADR-0001 §Families.1).
+"""Family 1 — LLM & agents inference conformance (ADR-0001 §Families.1).
 
-The OpenAI Responses API by reference at `POST /v1/responses`. This block
-runs only when `families/manifest.toml` lists family "1" (the test-side
-manifest, ticket #70). It is the family conformance seam: red until the
-family machinery lands (#76) — a service that lists family 1 without
-implementing the surface must fail this suite, never pass silently.
+`POST /v1/responses` is the OpenAI Responses API by reference: the response
+body, `usage` in tokens, tool calling, structured outputs, citations, reasoning
+items, refusals, and the typed SSE event vocabulary. This block asserts the
+CONTRACT SHAPES at the HTTP seam — never engine internals — against the
+vendored family module (see the block's `conftest.py`).
 
-Conformance asserts contract shapes at the seam, not engine internals
-(spec #46 §Testing Decisions). `gated_client` refuses to let any test pass
-while the base contract is violated on the same seam (the never-bypassable
-red gate).
+Runs only when `families/manifest.toml` lists family "1" (the test-side
+manifest, ticket #70). `gated_client` is the never-bypassable red gate: no
+assertion here can pass while the base contract is violated on this seam.
 """
+
+from __future__ import annotations
+
+import json
 
 import pytest
 
+from contract.families.family_1_responses import (
+    EVENT_TYPES,
+    SupportMatrix,
+    required_features,
+)
 from tests.contract.runner import contract_family
+
+from .conftest import ScenarioEngine
 
 pytestmark = contract_family("1")
 
-# A minimal Responses-API request by reference (ADR-0001 family 1: follow
-# upstream OpenAI shapes, pinned to a reference date).
-STUB_REQUEST = {"model": "stub-model", "input": "ping"}
+PING = {"model": "stub-model", "input": "ping"}
 
 
-def test_post_v1_responses_returns_the_responses_body(gated_client):
-    r = gated_client.post("/v1/responses", json=STUB_REQUEST)
+def parse_sse(body: str) -> list[dict]:
+    """Parse an SSE body into its typed events, asserting the frame format
+    (`event: <type>` + `data: <json>`, one block per event) as it goes."""
+    events = []
+    for block in body.split("\n\n"):
+        if not block.strip():
+            continue
+        lines = block.splitlines()
+        assert lines[0].startswith("event: "), block
+        data_lines = [line[len("data: "):] for line in lines if line.startswith("data: ")]
+        assert data_lines, block
+        event = json.loads("".join(data_lines))
+        assert event["type"] == lines[0][len("event: "):], block
+        events.append(event)
+    return events
+
+
+def reply(**overrides) -> dict:
+    """A minimal engine reply carrying `output` + `usage`."""
+    base = {
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "hello"}],
+            }
+        ],
+        "usage": {"input_tokens": 2, "output_tokens": 1},
+    }
+    base.update(overrides)
+    return base
+
+
+# --- the response body (family 1: the Responses API by reference) ------------
+
+
+def test_post_responses_returns_the_responses_body(gated_client):
+    r = gated_client.post("/v1/responses", json=PING)
     assert r.status_code == 200
     body = r.json()
     assert body["id"].startswith("resp_")
     assert body["object"] == "response"
-    assert isinstance(body["output"], list)
+    assert body["model"] == "stub-model"
+    assert body["status"] == "completed"
+    assert isinstance(body["output"], list) and body["output"]
     assert r.headers["X-Request-Id"]  # base item 4 — every response
 
 
-def test_post_v1_responses_reports_usage(gated_client):
-    # Base item 8 — usage on resource-consuming operations; the unit is
-    # family-defined (family 1: tokens).
-    r = gated_client.post("/v1/responses", json=STUB_REQUEST)
-    assert "usage" in r.json()
+def test_usage_is_reported_in_tokens_and_adds_up(gated_client):
+    # Base item 8 — usage on resource-consuming operations; family 1 fixes the
+    # unit (tokens).
+    usage = gated_client.post("/v1/responses", json=PING).json()["usage"]
+    assert set(usage) >= {"input_tokens", "output_tokens", "total_tokens"}
+    assert usage["total_tokens"] == usage["input_tokens"] + usage["output_tokens"]
+
+
+def test_the_engine_receives_the_parsed_request(make_gated_client):
+    engine = ScenarioEngine(reply())
+    client = make_gated_client(engine)
+    assert client.post("/v1/responses", json=PING).status_code == 200
+
+    sent = engine.calls[0]
+    assert sent["model"] == "stub-model"
+    # a bare string input is the shorthand for one input_text part
+    assert sent["input"] == [{"type": "input_text", "text": "ping"}]
+    assert sent["tools"] == []
+    assert sent["text"] == {"format": {"type": "text"}}
+    assert sent["stream"] is False
+
+
+def test_output_text_is_a_typed_content_part(gated_client):
+    message = gated_client.post("/v1/responses", json=PING).json()["output"][0]
+    assert message["type"] == "message"
+    assert message["role"] == "assistant"
+    part = message["content"][0]
+    assert part["type"] == "output_text"
+    assert isinstance(part["text"], str)
+    assert part["annotations"] == []
+
+
+def test_a_bare_engine_id_gains_the_resp_prefix(make_gated_client):
+    client = make_gated_client(ScenarioEngine(reply(id="bare-id")))
+    assert client.post("/v1/responses", json=PING).json()["id"] == "resp_bare-id"
+
+
+# --- structured outputs / citations / reasoning / refusals -------------------
+
+
+def test_structured_output_must_be_json(make_gated_client):
+    request = {
+        **PING,
+        "text": {"format": {"type": "json_schema", "name": "answer", "schema": {"type": "object"}}},
+    }
+    good = make_gated_client(
+        ScenarioEngine(
+            reply(
+                output=[
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": '{"a": 1}'}],
+                    }
+                ]
+            )
+        )
+    )
+    assert good.post("/v1/responses", json=request).status_code == 200
+
+    # The engine broke the structured-output contract: 500 internal_error (the
+    # implementation is at fault), never a 200 carrying unparseable text.
+    bad = make_gated_client(
+        ScenarioEngine(
+            reply(
+                output=[
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "not json"}],
+                    }
+                ]
+            )
+        )
+    )
+    r = bad.post("/v1/responses", json=request)
+    assert r.status_code == 500
+    assert r.json()["error"]["type"] == "internal_error"
+
+
+def test_citations_ride_the_output_text_part(make_gated_client):
+    annotated = reply(
+        output=[
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "as documented",
+                        "annotations": [{"type": "url_citation", "url": "https://example.org/doc"}],
+                    }
+                ],
+            }
+        ]
+    )
+    body = make_gated_client(ScenarioEngine(annotated)).post("/v1/responses", json=PING).json()
+    assert body["output"][0]["content"][0]["annotations"][0]["type"] == "url_citation"
+
+    # An unknown annotation type is not silently passed through.
+    unknown = reply(
+        output=[
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {"type": "output_text", "text": "x", "annotations": [{"type": "magic"}]}
+                ],
+            }
+        ]
+    )
+    r = make_gated_client(ScenarioEngine(unknown)).post("/v1/responses", json=PING)
+    assert r.status_code == 500
+
+
+def test_refusal_is_a_typed_content_part(make_gated_client):
+    refusal = reply(
+        output=[
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "refusal", "refusal": "I can't help with that."}],
+            }
+        ]
+    )
+    body = make_gated_client(ScenarioEngine(refusal)).post("/v1/responses", json=PING).json()
+    assert body["output"][0]["content"][0] == {
+        "type": "refusal",
+        "refusal": "I can't help with that.",
+    }
+
+
+def test_reasoning_items_carry_summary_parts(make_gated_client):
+    reasoning = reply(
+        output=[
+            {
+                "type": "reasoning",
+                "id": "rs_1",
+                "summary": [{"type": "summary_text", "text": "thought about it"}],
+            },
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "done"}],
+            },
+        ]
+    )
+    body = make_gated_client(ScenarioEngine(reasoning)).post("/v1/responses", json=PING).json()
+    item = body["output"][0]
+    assert item["type"] == "reasoning"
+    assert item["summary"] == [{"type": "summary_text", "text": "thought about it"}]
+
+    malformed = reply(output=[{"type": "reasoning", "summary": "not a list"}])
+    assert make_gated_client(ScenarioEngine(malformed)).post("/v1/responses", json=PING).status_code == 500
+
+
+def test_function_call_items_are_typed(make_gated_client):
+    call = reply(
+        output=[
+            {
+                "type": "function_call",
+                "id": "fc_1",
+                "call_id": "call_1",
+                "name": "lookup",
+                "arguments": '{"q": "x"}',
+            }
+        ]
+    )
+    item = make_gated_client(ScenarioEngine(call)).post("/v1/responses", json=PING).json()["output"][0]
+    assert item["type"] == "function_call"
+    assert item["name"] == "lookup"
+    assert item["call_id"] == "call_1"
+
+    # `arguments` must be a JSON string (upstream shape), not an object
+    bad = reply(output=[{"type": "function_call", "name": "lookup", "arguments": {"q": "x"}}])
+    assert make_gated_client(ScenarioEngine(bad)).post("/v1/responses", json=PING).status_code == 500
+
+
+def test_a_malformed_engine_reply_is_internal_error(make_gated_client):
+    for engine_reply in (
+        {"usage": {"input_tokens": 1, "output_tokens": 1}},  # no output
+        reply(output=[{"type": "telepathy"}]),  # unknown item type
+        reply(usage={"input_tokens": 5, "output_tokens": 1, "total_tokens": 99}),  # totals lie
+        {"output": [], "usage": {}},  # usage is not token counts
+    ):
+        r = make_gated_client(ScenarioEngine(engine_reply)).post("/v1/responses", json=PING)
+        assert r.status_code == 500, engine_reply
+        assert r.json()["error"]["type"] == "internal_error"
+
+
+# --- streaming (typed SSE events) -------------------------------------------
+
+
+def test_stream_true_returns_typed_sse_events(gated_client):
+    r = gated_client.post("/v1/responses", json={**PING, "stream": True})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+
+    events = parse_sse(r.text)
+    assert events[0]["type"] == "response.created"
+    assert events[-1]["type"] == "response.completed"
+    for event in events:
+        assert event["type"] in EVENT_TYPES
+    assert [e["sequence_number"] for e in events] == list(range(len(events)))
+    # the Responses API has no [DONE] sentinel — the terminal event closes it
+    assert "[DONE]" not in r.text
+
+
+def test_the_streamed_deltas_reconstruct_the_text(gated_client):
+    events = parse_sse(gated_client.post("/v1/responses", json={**PING, "stream": True}).text)
+    deltas = [e["delta"] for e in events if e["type"] == "response.output_text.delta"]
+    done = [e for e in events if e["type"] == "response.output_text.done"]
+    assert deltas and done
+    assert "".join(deltas) == done[0]["text"]
+    # the closed part carries the same text the deltas built
+    part_done = [e for e in events if e["type"] == "response.content_part.done"][0]
+    assert part_done["part"]["text"] == done[0]["text"]
+
+
+def test_the_stream_and_the_sync_body_agree(gated_client):
+    sync_body = gated_client.post("/v1/responses", json=PING).json()
+    events = parse_sse(gated_client.post("/v1/responses", json={**PING, "stream": True}).text)
+    completed = events[-1]["response"]
+    for key in ("output", "usage", "model", "status", "object"):
+        assert completed[key] == sync_body[key], key
+
+
+# --- request validation (400 invalid_request) -------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "not an object",
+        {"input": "ping"},  # no model
+        {"model": "", "input": "ping"},
+        {"model": "m"},  # no input
+        {"model": "m", "input": []},
+        {"model": "m", "input": [{"type": "input_video"}]},
+        {"model": "m", "input": [{"type": "input_text"}]},  # no text
+        {"model": "m", "input": [{"type": "input_image"}]},  # no image_url
+        {"model": "m", "input": "ping", "tools": [{"type": "magic"}]},
+        {"model": "m", "input": "ping", "tools": [{"type": "function"}]},  # no name
+        {"model": "m", "input": "ping", "text": {"format": {"type": "json_schema"}}},
+        {"model": "m", "input": "ping", "stream": "yes"},
+        {"model": "m", "input": "ping", "background": True},  # family 5's, not ours
+    ],
+)
+def test_invalid_requests_are_400_invalid_request(gated_client, payload):
+    r = gated_client.post("/v1/responses", json=payload)
+    assert r.status_code == 400, payload
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
+def test_an_empty_or_oversized_body_is_refused(make_gated_client):
+    client = make_gated_client(ScenarioEngine(reply()))
+    assert client.post("/v1/responses", content=b"").status_code == 400
+    oversized = make_gated_client(ScenarioEngine(reply()), max_request_bytes=8)
+    r = oversized.post("/v1/responses", json=PING)
+    assert r.status_code == 413
+    assert r.json()["error"]["type"] == "request_too_large"
+
+
+# --- the per-implementation support matrix (ADR-0004) -----------------------
+
+
+def test_a_feature_the_implementation_lacks_is_refused_by_name(make_gated_client):
+    engine = ScenarioEngine(reply())
+    matrix = SupportMatrix(supported=frozenset({"function_tools", "structured_outputs"}))
+    client = make_gated_client(engine, support=matrix, implementation="stub-llm")
+
+    r = client.post(
+        "/v1/responses",
+        json={"model": "m", "input": [{"type": "input_image", "image_url": "https://x/y.png"}]},
+    )
+    assert r.status_code == 400
+    message = r.json()["error"]["message"]
+    assert "vision" in message and "stub-llm" in message
+    assert engine.calls == []  # refused before the engine was called
+
+
+def test_a_supported_feature_passes_the_gate(make_gated_client):
+    matrix = SupportMatrix(supported=frozenset({"vision", "streaming"}))
+    client = make_gated_client(ScenarioEngine(reply()), support=matrix)
+    r = client.post(
+        "/v1/responses",
+        json={"model": "m", "input": [{"type": "input_image", "image_url": "https://x/y.png"}]},
+    )
+    assert r.status_code == 200
+
+
+def test_the_support_matrix_reports_gaps_and_rejects_nonsense():
+    matrix = SupportMatrix(supported=frozenset({"streaming", "function_tools"}))
+    assert matrix.gaps({"streaming", "vision"}) == ("vision",)
+    assert matrix.gaps({"streaming"}) == ()
+    assert matrix.supports("function_tools") is True
+    with pytest.raises(ValueError, match="unknown family-1 feature"):
+        matrix.supports("telepathy")
+    with pytest.raises(ValueError, match="no supported feature"):
+        SupportMatrix(supported=frozenset())
+    with pytest.raises(ValueError, match="unknown family-1 feature"):
+        SupportMatrix(supported=frozenset({"telepathy"}))
+
+
+def test_required_features_follows_what_the_request_asks_for():
+    assert required_features({"input": [{"type": "input_text", "text": "x"}]}) == frozenset()
+    assert required_features(
+        {"input": [{"type": "input_audio", "input_audio": {"data": "…", "format": "wav"}}]}
+    ) == frozenset({"audio"})
+    assert required_features(
+        {"input": [], "tools": [{"type": "mcp", "server_label": "s"}]}
+    ) == frozenset({"mcp_tools"})
+    assert required_features({"text": {"format": {"type": "json_schema"}}}) == frozenset(
+        {"structured_outputs"}
+    )
+    assert required_features({"stream": True}) == frozenset({"streaming"})

@@ -102,7 +102,19 @@ def collect_families(copied: Path) -> subprocess.CompletedProcess:
 # which IS the empty-manifest behavior under test).
 COLLECTION_EXIT_CODES = {0, 5}
 
+# The manifest this tree ships with. Two guarantees below are TEMPLATE facts
+# about the manifest as it ships EMPTY; a service copy that declares the
+# families it implements (CONTRIBUTING.md step 5) is no longer the template, so
+# they skip there rather than failing the copy's suite.
+SHIPPED_MANIFEST = manifest(TEMPLATE_ROOT)
 
+requires_empty_shipped_manifest = pytest.mark.skipif(
+    SHIPPED_MANIFEST != [],
+    reason="running inside a copy that declares families — the empty shipped manifest is a template fact",
+)
+
+
+@requires_empty_shipped_manifest
 def test_the_manifest_ships_as_explicit_test_side_data(copied_template):
     # Explicit data next to the tests (maintainer ruling on #70) — the
     # template declares no family yet, but the reference blocks exist.
@@ -115,6 +127,7 @@ def test_base_suite_passes_out_of_the_box_on_a_fresh_copy(copied_template):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@requires_empty_shipped_manifest
 def test_no_family_tests_collected_when_the_manifest_is_empty(copied_template):
     collected = collect_families(copied_template)
     assert collected.returncode in COLLECTION_EXIT_CODES, collected.stdout + collected.stderr
@@ -123,16 +136,44 @@ def test_no_family_tests_collected_when_the_manifest_is_empty(copied_template):
 
 
 def test_a_listed_block_runs_and_is_red_until_the_machinery_lands(copied_template):
-    # A family block whose machinery the template does not ship yet (#76–#84)
-    # must (a) be collected and (b) FAIL when listed — evidence it RUNS, and
-    # that a service listing an unimplemented family never passes silently.
-    blocks = block_dirs(copied_template)
-    write_manifest(copied_template, [blocks[0].split("_", 1)[0][1:]])
+    # The selection MECHANISM: a listed block is collected AND executed. Proved
+    # with a synthetic block rather than a real family's red-on-purpose state —
+    # which families still lack machinery changes with every stage-0 ticket
+    # (#76 shipped family 1; #77–#84 follow), so anchoring on a real block
+    # would mean rewriting this guard each time.
+    probe = copied_template / "tests" / "contract" / "families" / "f9_red_probe"
+    probe.mkdir()
+    (probe / "__init__.py").write_text("")
+    (probe / "test_conformance.py").write_text(
+        "import pytest\n"
+        "from tests.contract.runner import contract_family\n"
+        '\npytestmark = contract_family("9")\n'
+        "\n"
+        "\n"
+        "def test_deliberately_red():\n"
+        "    assert False, 'the red probe ran'\n"
+    )
+    write_manifest(copied_template, ["9"])
     collected = collect_families(copied_template)
-    assert f"families/{blocks[0]}" in collected.stdout
-    failed = run_suite(copied_template, f"tests/contract/families/{blocks[0]}")
+    assert "families/f9_red_probe" in collected.stdout
+    failed = run_suite(copied_template, "tests/contract/families/f9_red_probe")
     assert failed.returncode != 0
-    assert "failed" in failed.stdout  # assertion-red, not a collection crash
+    assert "the red probe ran" in failed.stdout  # assertion-red, not a collection crash
+
+
+# Family blocks whose machinery this template actually ships. Each family
+# ticket (#76–#84) adds its own number here in the same commit that lands the
+# module — that is what keeps "listed family + shipped machinery = GREEN"
+# honest instead of aspirational.
+SHIPPED_FAMILIES: set[str] = {"1"}
+
+
+@pytest.mark.parametrize("family", sorted(SHIPPED_FAMILIES))
+def test_a_listed_block_with_shipped_machinery_is_green(copied_template, family):
+    block = next(b for b in block_dirs(copied_template) if b.startswith(f"f{family}_"))
+    write_manifest(copied_template, [family])
+    result = run_suite(copied_template, f"tests/contract/families/{block}")
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_an_unlisted_block_does_not_run(copied_template):

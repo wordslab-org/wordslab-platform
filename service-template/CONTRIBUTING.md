@@ -167,6 +167,13 @@ meet inside the service repo.
    runs. A listed block is red until the family's surface is implemented —
    that is the conformance gate, never bypassed.
 
+   Its **module** lives at `src/<your-service>/contract/families/
+   family_<N>_<slug>/` (ADR-0002 §1: all nine ship, keep what you need).
+   Keep the module and its block together: the block is the gate that the
+   module still honors ADR-0001, and a module with no block is dead code.
+   Mount the module from the capability that implements it (each family's
+   doc states its seam — `docs/family-1-responses.md` is the first).
+
 6. **Implement capabilities** — add your `capabilities/` modules (business
    logic, routes, UI pages) and register their routes via
    `create_service_app(extra_routes=...)`. Routes are declared with their
@@ -223,11 +230,14 @@ declaration.
 The vendored conformance suite (#70), the canary capability (#71), the
 base-contract stub-factory (`tests/support/stubs.py`), the consent-flag
 template contract (#72 — the flag on every user input, the never-bypassable
-private/secret extraction exclusion, the consent stub interaction), and the
+private/secret extraction exclusion, the consent stub interaction), the
 composition stub patterns (#73 — the `StubEngine` behind the family-1/2/5
 seam returning deterministic canned model output, the family-5 model catalog
 and its lifecycle operations (`download`/`load`/`unload`/`prepare`), and the
 `StubRegistry` name→URL resolver that `call`/`model`/`agent` composition
-references resolve against) are in; the nine family modules with their full
-conformance blocks (#76–#84) arrive as their own stage-0 tickets on top of
-this base. The installer contract for `install/` recipes is #65's concern.
+references resolve against), and **family 1's module + its conformance block**
+(#76 — the Responses API shapes, the typed streaming events, the
+per-implementation support matrix; `docs/family-1-responses.md`) are in; the
+other eight family modules with their full conformance blocks (#77–#84) arrive
+as their own stage-0 tickets on top of this base. The installer contract for
+`install/` recipes is #65's concern.
