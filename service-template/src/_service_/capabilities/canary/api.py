@@ -10,28 +10,10 @@ describe the API the way a client drives it — schema per request body,
 from __future__ import annotations
 
 openapi_fragment = {
-    "components": {
-        "schemas": {
-            # The item-4 error body, as every endpoint's error responses
-            # reference it ($ref below).
-            "error": {
-                "type": "object",
-                "required": ["error", "request_id"],
-                "properties": {
-                    "error": {
-                        "type": "object",
-                        "required": ["type", "message"],
-                        "properties": {
-                            "type": {"type": "string"},
-                            "message": {"type": "string"},
-                            "resource": {"type": "string"},
-                        },
-                    },
-                    "request_id": {"type": "string"},
-                },
-            },
-        }
-    },
+    # No `components.schemas.error` here: the item-4 error body is
+    # contract-wide and supplied once by `contract/base/openapi.py`
+    # (ERROR_SCHEMA) — a fragment that redefines it fails assembly loudly.
+    # A capability's own schemas still live here (the canary needs none).
     "paths": {
         "/v1/echo": {
             "post": {
