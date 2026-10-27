@@ -105,6 +105,25 @@ class SupportMatrix:
         return tuple(sorted(set(required) - self.supported))
 
 
+def _features_of_parts(parts) -> set[str]:
+    """The features a list of content parts / items needs — recursing into a
+    tool result, whose `output` may itself carry an image or audio part. A media
+    part hidden inside a tool result must gate exactly like one sent directly,
+    or an engine that declared no `vision` receives an image."""
+    required: set[str] = set()
+    for part in parts:
+        part_type = part.get("type")
+        if part_type == "input_image":
+            required.add("vision")
+        elif part_type == "input_audio":
+            required.add("audio")
+        elif part_type == "function_call_output":
+            output = part.get("output")
+            if isinstance(output, list):
+                required |= _features_of_parts(output)
+    return required
+
+
 def required_features(request: dict) -> frozenset[str]:
     """The features a parsed request NEEDS from its implementation.
 
@@ -118,12 +137,7 @@ def required_features(request: dict) -> frozenset[str]:
 
     for item in request.get("input", []):
         parts = item.get("content", []) if "role" in item else [item]
-        for part in parts:
-            part_type = part.get("type")
-            if part_type == "input_image":
-                required.add("vision")
-            elif part_type == "input_audio":
-                required.add("audio")
+        required |= _features_of_parts(parts)
 
     for tool in request.get("tools", []):
         tool_type = tool.get("type")

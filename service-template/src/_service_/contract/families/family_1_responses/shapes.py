@@ -252,7 +252,8 @@ def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INP
             f"{where}.type {part_type!r} is not one of {sorted(allowed)!r} — "
             "multimodal content parts are 'input_text' / 'input_image' / "
             "'input_audio'; a tool loop's items are 'function_call' and "
-            "'function_call_output' (ADR-0001 §Families.1)."
+            "'function_call_output' (ADR-0001 §Families.1). Upstream's "
+            "'item_reference' is not carried: this module keeps no response store."
         )
     if part_type == "input_text":
         if not isinstance(part.get("text"), str):
@@ -290,13 +291,16 @@ def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INP
                 f"{where} ('function_call') requires 'arguments' as a JSON string."
             )
         # A caller's malformed arguments is a CLIENT error (400), never the
-        # internal_error that the engine-reply side raises.
-        try:
-            json.loads(part["arguments"])
-        except ValueError:
-            raise invalid_request(
-                f"{where}.arguments must be a JSON string."
-            ) from None
+        # internal_error that the engine-reply side raises. The EMPTY string is
+        # a legal no-argument call (upstream allows it), so only a non-empty
+        # value has to parse.
+        if part["arguments"].strip():
+            try:
+                json.loads(part["arguments"])
+            except ValueError:
+                raise invalid_request(
+                    f"{where}.arguments must be a JSON string."
+                ) from None
     else:  # function_call_output — the tool result that answers the call
         if not isinstance(part.get("call_id"), str) or not part["call_id"]:
             raise invalid_request(
@@ -314,12 +318,16 @@ def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INP
                 raise invalid_request(
                     f"{where} ('function_call_output') carries an empty 'output' list."
                 )
-            for position, entry in enumerate(output):
-                if not isinstance(entry, dict) or entry.get("type") not in MESSAGE_CONTENT_PART_TYPES:
-                    raise invalid_request(
-                        f"{where}.output[{position}] must be a content part object whose "
-                        f"'type' is one of {sorted(MESSAGE_CONTENT_PART_TYPES)!r}."
-                    )
+            # Each entry is a real content part: the same validation a part in a
+            # message's `content` gets, so an image part without its URL cannot
+            # ride in through a tool result.
+            output = [
+                _parse_input_item(
+                    entry, f"{where}.output[{position}]", allowed=MESSAGE_CONTENT_PART_TYPES
+                )
+                for position, entry in enumerate(output)
+            ]
+            part = {**part, "output": output}
     return dict(part)
 
 

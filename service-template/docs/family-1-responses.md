@@ -86,7 +86,12 @@ listed here rather than left to be discovered (ADR-0001: "document deviations"):
   reach the engine, but this module keeps no response store and rebuilds the
   body from a fixed key set (and re-prefixes the engine's id to `resp_…`), so
   continuation and expansion cannot work here — a capability that needs them
-  says so in its own docs.
+  says so in its own docs. For the same reason the `item_reference` input item
+  (a pointer into a stored response) is refused outright.
+- **`function_call.arguments` must parse as JSON** when non-empty. Upstream takes
+  any string; here a non-empty malformed value is 400 rather than being handed to
+  an engine that would have to guess. The empty string is a legal no-argument
+  call.
 - **Forwarded keys are engine-visible, not interpreted.** In particular the
   ADR-0026 consent flag and the user/role attribution are NOT contract fields of
   family 1: a capability that accepts them must enforce the consent/sphere rule

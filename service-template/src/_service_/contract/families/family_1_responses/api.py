@@ -180,7 +180,11 @@ _REQUEST = {
         "model": {"type": "string", "description": "The model id, resolved by the owning capability's catalog."},
         "input": {
             "type": ["string", "array"],
-            "description": "A string (one input_text part), or a list of input items: a typed input part, or a role-tagged message carrying a content list.",
+            "description": (
+                "A string (one input_text part), or a list of input items: a typed "
+                "content part, a role-tagged message carrying a content list, or a "
+                "'function_call' / 'function_call_output' item (the tool loop)."
+            ),
             "items": {
                 "anyOf": [
                     _CONTENT_PART,

@@ -572,6 +572,69 @@ def test_a_malformed_tool_call_arguments_is_a_client_error(make_gated_client):
     assert r.json()["error"]["type"] == "invalid_request"
 
 
+def test_an_empty_arguments_string_is_a_no_argument_call(make_gated_client):
+    # Upstream allows `arguments: ""` for a call that takes none; only a
+    # non-empty value has to parse as JSON.
+    client = make_gated_client(ScenarioEngine(reply()))
+    r = client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [{"type": "function_call", "call_id": "c", "name": "ping", "arguments": ""}],
+        },
+    )
+    assert r.status_code == 200
+
+
+def test_a_part_inside_a_tool_result_is_validated_like_any_other_part(make_gated_client):
+    # The same content-part rules apply inside `function_call_output.output`:
+    # an input_text without its text is a 400 there too.
+    client = make_gated_client(ScenarioEngine(reply()))
+    r = client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [
+                {
+                    "type": "function_call_output",
+                    "call_id": "c",
+                    "output": [{"type": "input_text"}],
+                }
+            ],
+        },
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
+def test_media_inside_a_tool_result_is_gated_like_any_other_input(make_gated_client):
+    # An image riding in through a tool result must not bypass the support gate:
+    # a text-only implementation would otherwise receive one it declared it
+    # cannot read.
+    engine = ScenarioEngine(reply())
+    client = make_gated_client(
+        engine,
+        support=SupportMatrix(supported=frozenset({"function_tools"})),
+        implementation="stub-llm",
+    )
+    r = client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [
+                {
+                    "type": "function_call_output",
+                    "call_id": "c",
+                    "output": [{"type": "input_image", "image_url": "https://x/y.png"}],
+                }
+            ],
+        },
+    )
+    assert r.status_code == 400
+    assert "vision" in r.json()["error"]["message"]
+    assert engine.calls == []
+
+
 def test_mcp_output_items_are_typed(make_gated_client):
     mcp_turn = reply(
         output=[
