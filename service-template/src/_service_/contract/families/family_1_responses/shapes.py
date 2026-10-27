@@ -447,6 +447,19 @@ def normalize_response(request: dict, engine_output: object) -> dict:
     return response
 
 
+def _item_id(item: dict, fallback: str) -> str:
+    """An item id / call_id the contract says is a string. A non-string is
+    replaced by a generated one rather than passed through: a `call_id` that is
+    not a string could never be echoed back on the next turn."""
+    value = item.get("id")
+    return value if isinstance(value, str) and value else fallback
+
+
+def _call_id(item: dict, fallback: str) -> str:
+    value = item.get("call_id")
+    return value if isinstance(value, str) and value else fallback
+
+
 def _item_status(item: dict, index: int) -> str:
     """The item's status — validated, because an unknown value (or a non-string)
     in the body is a seam break, not a passthrough. Every item type carries it
@@ -481,12 +494,13 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
                 f"output[{index}] ('function_call') requires 'arguments' as a JSON "
                 "string (upstream shape)."
             )
-        _require_json(arguments, f"output[{index}].arguments")
+        if arguments:  # "" is a no-argument call (upstream emits it)
+            _require_json(arguments, f"output[{index}].arguments")
         return {
             "type": "function_call",
-            "id": item.get("id") or f"fc_{index}",
+            "id": _item_id(item, f"fc_{index}"),
             "status": _item_status(item, index),
-            "call_id": item.get("call_id") or f"call_{index}",
+            "call_id": _call_id(item, f"call_{index}"),
             "name": name,
             "arguments": arguments,
         }
@@ -503,7 +517,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
             parts.append({"type": "summary_text", "text": part["text"]})
         return {
             "type": "reasoning",
-            "id": item.get("id") or f"rs_{index}",
+            "id": _item_id(item, f"rs_{index}"),
             "status": _item_status(item, index),
             "summary": parts,
         }
@@ -518,10 +532,11 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
                 f"output[{index}] ('mcp_call') requires 'arguments' as a JSON string "
                 "(upstream shape), like its function_call sibling."
             )
-        _require_json(arguments, f"output[{index}].arguments")
+        if arguments:  # omitted/empty is a no-argument call
+            _require_json(arguments, f"output[{index}].arguments")
         return {
             "type": "mcp_call",
-            "id": item.get("id") or f"mc_{index}",
+            "id": _item_id(item, f"mc_{index}"),
             "status": _item_status(item, index),
             "name": item["name"],
             "server_label": item["server_label"],
@@ -538,7 +553,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
         )
     return {
         "type": "mcp_list_tools",
-        "id": item.get("id") or f"ml_{index}",
+        "id": _item_id(item, f"ml_{index}"),
         "status": _item_status(item, index),
         "server_label": item["server_label"],
         "tools": [dict(tool) for tool in tools],
@@ -562,7 +577,7 @@ def _normalize_message(item: dict, request: dict, index: int) -> dict:
     ]
     return {
         "type": "message",
-        "id": item.get("id") or f"msg_{index}",
+        "id": _item_id(item, f"msg_{index}"),
         "role": role,
         "status": status,
         "content": parts,
@@ -595,7 +610,13 @@ def _normalize_content_part(
     # schema itself is the implementation's to honor (this module fixes the
     # shape, not the engine); see docs/family-1-responses.md.
     if request.get("text", {}).get("format", {}).get("type") == "json_schema":
-        _require_json(text, f"{where}.text (structured output)")
+        try:
+            json.loads(text)
+        except ValueError:
+            raise internal_error(
+                f"{where}.text is not valid JSON, and this turn declared a "
+                "json_schema structured output."
+            ) from None
 
     return {
         "type": "output_text",
@@ -641,7 +662,7 @@ def _normalize_usage(usage: object) -> dict:
     expected = counts["input_tokens"] + counts["output_tokens"]
     if total is None:
         total = expected
-    elif total != expected:
+    elif not isinstance(total, int) or isinstance(total, bool) or total != expected:
         raise internal_error(
             f"usage.total_tokens ({total}) does not equal input_tokens + output_tokens "
             f"({expected})."
@@ -658,13 +679,12 @@ def _response_id(value: object) -> str:
 
 
 def _require_json(text: str, where: str) -> None:
+    """A JSON string the seam promised to carry — a neutral message; callers that
+    promise more (a structured output's schema turn) say so themselves."""
     try:
         json.loads(text)
     except ValueError:
-        raise internal_error(
-            f"{where} is not valid JSON, and this turn declared a json_schema "
-            "structured output."
-        ) from None
+        raise internal_error(f"{where} is not valid JSON.") from None
 
 
 def _now_seconds() -> int:

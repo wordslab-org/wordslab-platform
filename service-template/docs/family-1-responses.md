@@ -164,7 +164,8 @@ listed here rather than left to be discovered (ADR-0001: "document deviations"):
 3. **Declare the family in the test suite** — `tests/contract/families/
    manifest.toml` → `families = ["1"]` — and keep the block. The block is the
    vendored conformance gate: it drives the module against the deterministic
-   `StubEngine`, never a real model.
+   `StubEngine` (plus a scripted engine for the shapes the canned stub cannot
+   produce), never a real model.
 4. **Deviation**: if an implementation cannot follow an upstream shape, record
    it in its `SUPPORT.deviations` and in its docs — a deviation that is only in
    code is a divergence nobody can audit.

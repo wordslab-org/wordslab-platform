@@ -640,6 +640,51 @@ def test_an_empty_arguments_string_is_a_no_argument_call(make_gated_client):
     assert r.status_code == 200
 
 
+def test_a_no_argument_tool_call_from_the_engine_is_valid(make_gated_client):
+    # A no-arg tool (`get_time()`) comes back with `arguments: ""` — or, for an
+    # MCP call, with the key omitted. Both are legal; only a NON-empty value has
+    # to parse as JSON.
+    empty_call = reply(
+        output=[
+            {"type": "function_call", "id": "fc_1", "call_id": "c1", "name": "get_time", "arguments": ""}
+        ]
+    )
+    body = make_gated_client(ScenarioEngine(empty_call)).post("/v1/responses", json=PING).json()
+    assert body["output"][0]["arguments"] == ""
+
+    mcp_no_args = reply(output=[{"type": "mcp_call", "name": "now", "server_label": "clock"}])
+    body = make_gated_client(ScenarioEngine(mcp_no_args)).post("/v1/responses", json=PING).json()
+    assert body["output"][0]["arguments"] == ""
+
+
+def test_usage_and_item_ids_are_contract_typed(make_gated_client):
+    # A boolean/float total or a non-string item id would publish a body that
+    # violates the module's own schema — and an int `call_id` could never be
+    # echoed back on the next turn.
+    for bad_usage in (
+        {"input_tokens": 1, "output_tokens": 1, "total_tokens": True},
+        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 1.0},
+    ):
+        r = make_gated_client(ScenarioEngine(reply(usage=bad_usage))).post(
+            "/v1/responses", json=PING
+        )
+        assert r.status_code == 500, bad_usage
+
+    ids = reply(
+        output=[
+            {
+                "type": "function_call",
+                "id": 7,
+                "call_id": 9,
+                "name": "lookup",
+                "arguments": "{}",
+            }
+        ]
+    )
+    item = make_gated_client(ScenarioEngine(ids)).post("/v1/responses", json=PING).json()["output"][0]
+    assert item["id"] == "fc_0" and item["call_id"] == "call_0"
+
+
 def test_a_part_inside_a_tool_result_is_validated_like_any_other_part(make_gated_client):
     # The same content-part rules apply inside `function_call_output.output`:
     # an input_text without its text is a 400 there too.
