@@ -62,11 +62,16 @@ class SupportMatrix:
     """What ONE implementation of a family-1 capability supports.
 
     `supported` holds feature names from `FEATURES` (loud on an unknown name — a
-    typo must not silently read as "unsupported"). `deviations` carries the
-    documented deviations from the upstream Responses shapes; `reference_date`
-    pins them to the upstream reference they were checked against, as ADR-0001
-    §Families.1 requires ("follow upstream OpenAI shapes; document deviations,
-    pinned to a reference date").
+    typo must not silently read as "unsupported"). An EMPTY set is legal and
+    meaningful: plain text input and plain text output are the always-supported
+    base of family 1, so a small local model with no vision, no tools and no
+    structured outputs declares `supported=frozenset()` and is a legitimate
+    variant (ADR-0004: the API is the union of its variants, not their
+    intersection — a text-only implementation is one member, not a broken one).
+    `deviations` carries the documented deviations from the upstream shapes;
+    `reference_date` pins them to the upstream reference they were checked
+    against, as ADR-0001 §Families.1 requires ("follow upstream OpenAI shapes;
+    document deviations, pinned to a reference date").
     """
 
     supported: frozenset[str]
@@ -79,11 +84,6 @@ class SupportMatrix:
             raise ValueError(
                 f"unknown family-1 feature(s) {sorted(unknown)!r} in a support matrix; "
                 f"the vocabulary is {sorted(FEATURES)!r}."
-            )
-        if not self.supported:
-            raise ValueError(
-                "a support matrix with no supported feature cannot serve the capability — "
-                "declare at least one, or the implementation does not implement the family."
             )
         if self.deviations and not self.reference_date:
             raise ValueError(

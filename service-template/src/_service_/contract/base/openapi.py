@@ -17,25 +17,14 @@ here means a contributor reads why instead of debugging a duplicate.)
 
 from __future__ import annotations
 
-# The item-4 error body, verbatim: `{"error": {"type", "message", "resource"?},
-# "request_id"}` (ADR-0001 §Base contract.4). Every fragment's error responses
-# `$ref` `#/components/schemas/error`.
-ERROR_SCHEMA = {
-    "type": "object",
-    "required": ["error", "request_id"],
-    "properties": {
-        "error": {
-            "type": "object",
-            "required": ["type", "message"],
-            "properties": {
-                "type": {"type": "string"},
-                "message": {"type": "string"},
-                "resource": {"type": "string"},
-            },
-        },
-        "request_id": {"type": "string"},
-    },
-}
+import copy
+
+# The item-4 error body has ONE authority: `base/errors.py`, next to
+# `ApiError.body()` which builds it at runtime. It is imported (and re-exported
+# for callers that want the schema) rather than restated here.
+from .errors import ERROR_SCHEMA
+
+__all__ = ["ERROR_SCHEMA", "openapi_document"]
 
 
 def openapi_document(
@@ -55,8 +44,10 @@ def openapi_document(
     """
     paths: dict = {}
     operation_ids: set[str] = set()
-    # The one contract-wide schema — supplied here, never by a fragment.
-    components: dict = {"schemas": {"error": ERROR_SCHEMA}}
+    # The one contract-wide schema — supplied here, never by a fragment. Copied
+    # on injection so a caller mutating a served `/openapi.json` cannot mutate
+    # the shared constant process-wide.
+    components: dict = {"schemas": {"error": copy.deepcopy(ERROR_SCHEMA)}}
     for fragment in fragments or []:
         for path, item in fragment.get("paths", {}).items():
             if path in paths:

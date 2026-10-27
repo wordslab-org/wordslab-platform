@@ -27,13 +27,22 @@ download/load lifecycle (family 5, #80), no background/async responses
 """
 
 from .api import openapi_fragment
-from .events import EVENT_TYPES, TERMINAL_EVENT_TYPES, events_for, sse_frames
+from .events import (
+    EVENT_TYPES,
+    TERMINAL_EVENT_BY_STATUS,
+    TERMINAL_EVENT_TYPES,
+    events_for,
+    sse_frames,
+)
 from .routes import DEFAULT_MAX_REQUEST_BYTES, ResponsesEngine, responses_routes
 from .shapes import (
     ANNOTATION_TYPES,
     CONTENT_PART_TYPES,
+    INPUT_MESSAGE_ROLES,
     INPUT_PART_TYPES,
+    ITEM_STATUSES,
     OUTPUT_ITEM_TYPES,
+    RESPONSE_STATUSES,
     TOOL_TYPES,
     normalize_response,
     parse_request,
@@ -46,10 +55,14 @@ __all__ = [
     "DEFAULT_MAX_REQUEST_BYTES",
     "EVENT_TYPES",
     "FEATURES",
+    "INPUT_MESSAGE_ROLES",
     "INPUT_PART_TYPES",
+    "ITEM_STATUSES",
     "OUTPUT_ITEM_TYPES",
+    "RESPONSE_STATUSES",
     "ResponsesEngine",
     "SupportMatrix",
+    "TERMINAL_EVENT_BY_STATUS",
     "TERMINAL_EVENT_TYPES",
     "TOOL_TYPES",
     "ensure_supported",

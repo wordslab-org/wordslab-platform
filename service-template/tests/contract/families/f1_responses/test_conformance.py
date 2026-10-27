@@ -271,6 +271,7 @@ def test_function_call_items_are_typed(make_gated_client):
     assert item["type"] == "function_call"
     assert item["name"] == "lookup"
     assert item["call_id"] == "call_1"
+    assert item["status"] == "completed"  # every item type carries a status
 
     # `arguments` must be a JSON string (upstream shape), not an object
     bad = reply(output=[{"type": "function_call", "name": "lookup", "arguments": {"q": "x"}}])
@@ -352,7 +353,24 @@ def test_the_stream_and_the_sync_body_agree(gated_client):
         {"model": "m", "input": "ping", "background": True},  # family 5's, not ours
         {"model": "m", "input": "ping", "max_output_tokens": 0},
         {"model": "m", "input": [{"role": "user", "content": 5}]},
+        {"model": "m", "input": [{"role": "banana", "content": "hi"}]},  # closed role enum
+        {"model": "m", "input": [{"role": "user", "content": "   "}]},  # empty text
         {"model": "m", "input": [{"type": "function_call_output", "output": "x"}]},  # no call_id
+        {  # a tool result is an ITEM, never a message content part
+            "model": "m",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "function_call_output", "call_id": "c", "output": "x"}
+                    ],
+                }
+            ],
+        },
+        {  # ... and its output entries must be content parts
+            "model": "m",
+            "input": [{"type": "function_call_output", "call_id": "c", "output": [1, 2]}],
+        },
     ],
 )
 def test_invalid_requests_are_400_invalid_request(gated_client, payload):
@@ -366,6 +384,12 @@ def test_an_empty_or_oversized_body_is_refused(make_gated_client):
     assert client.post("/v1/responses", content=b"").status_code == 400
     oversized = make_gated_client(ScenarioEngine(reply()), max_request_bytes=8)
     r = oversized.post("/v1/responses", json=PING)
+    assert r.status_code == 413
+    assert r.json()["error"]["type"] == "request_too_large"
+    # ... and the post-read fallback still catches a CHUNKED body, which declares
+    # no Content-Length to check before buffering.
+    chunked = make_gated_client(ScenarioEngine(reply()), max_request_bytes=8)
+    r = chunked.post("/v1/responses", content=iter([b'{"model": "m", "input": "ping"}']))
     assert r.status_code == 413
     assert r.json()["error"]["type"] == "request_too_large"
 
@@ -410,6 +434,25 @@ def test_streaming_is_not_a_gated_feature(make_gated_client):
     assert r.headers["content-type"].startswith("text/event-stream")
 
 
+def test_an_empty_support_matrix_is_a_legitimate_variant(make_gated_client):
+    # Plain text in, plain text out is family 1's always-supported base: a small
+    # local model with no vision, tools or structured outputs declares nothing,
+    # and must still serve (ADR-0004 — the union of variants, not the
+    # intersection).
+    client = make_gated_client(
+        ScenarioEngine(reply()), support=SupportMatrix(supported=frozenset())
+    )
+    assert client.post("/v1/responses", json=PING).status_code == 200
+    # and it refuses what it does not have
+    assert (
+        client.post(
+            "/v1/responses",
+            json={"model": "m", "input": [{"type": "input_image", "image_url": "https://x/y.png"}]},
+        ).status_code
+        == 400
+    )
+
+
 def test_the_support_matrix_reports_gaps_and_rejects_nonsense():
     matrix = SupportMatrix(supported=frozenset({"function_tools", "structured_outputs"}))
     assert matrix.gaps({"function_tools", "vision"}) == ("vision",)
@@ -417,10 +460,10 @@ def test_the_support_matrix_reports_gaps_and_rejects_nonsense():
     assert matrix.supports("function_tools") is True
     with pytest.raises(ValueError, match="unknown family-1 feature"):
         matrix.supports("telepathy")
-    with pytest.raises(ValueError, match="no supported feature"):
-        SupportMatrix(supported=frozenset())
     with pytest.raises(ValueError, match="unknown family-1 feature"):
         SupportMatrix(supported=frozenset({"telepathy"}))
+    # an empty set is legal — text-only is a real variant, not a broken one
+    assert SupportMatrix(supported=frozenset()).gaps({"vision"}) == ("vision",)
     # ADR-0001 §Families.1: deviations are pinned to a reference date.
     with pytest.raises(ValueError, match="reference_date"):
         SupportMatrix(supported=frozenset({"vision"}), deviations=("no audio input",))
@@ -543,8 +586,38 @@ def test_a_message_output_item_must_be_an_assistant_turn(make_gated_client):
         assert r.status_code == 500, broken
 
 
-# --- the fragment: document assembly and the agent surface -------------------
+def test_unread_request_fields_are_forwarded_to_the_engine(make_gated_client):
+    # Base item 3: a key the module does not read must still reach the engine.
+    # Dropping `tool_choice: "none"` would let the model call a tool the caller
+    # forbade; dropping `previous_response_id` turns a continuation into a fresh
+    # turn. Both are wrong ANSWERS, not just lost knobs.
+    engine = ScenarioEngine(reply())
+    client = make_gated_client(engine)
+    r = client.post(
+        "/v1/responses",
+        json={**PING, "temperature": 0.2, "tool_choice": "none", "previous_response_id": "resp_1"},
+    )
+    assert r.status_code == 200
+    sent = engine.calls[0]["request"]
+    assert sent["temperature"] == 0.2
+    assert sent["tool_choice"] == "none"
+    assert sent["previous_response_id"] == "resp_1"
 
+
+def test_every_response_status_has_a_terminal_event():
+    # A status the events module cannot close on would raise out of the route
+    # (a bare 500): the vocabulary and the mapping are pinned together.
+    from contract.families.family_1_responses import (
+        RESPONSE_STATUSES,
+        TERMINAL_EVENT_BY_STATUS,
+        TERMINAL_EVENT_TYPES,
+    )
+
+    assert set(TERMINAL_EVENT_BY_STATUS) == RESPONSE_STATUSES
+    assert frozenset(TERMINAL_EVENT_BY_STATUS.values()) == TERMINAL_EVENT_TYPES
+
+
+# --- the fragment: document assembly and the agent surface -------------------
 
 def test_the_fragment_merges_and_reaches_the_mcp_tool():
     """The documented integration path, exercised end to end: merge the fragment

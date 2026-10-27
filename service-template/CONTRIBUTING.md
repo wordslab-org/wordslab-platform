@@ -225,6 +225,14 @@ declaration.
   original result (item 7)
 - `usage` field on resource-consuming operations (item 8 — family-defined unit)
 
+## Keeping up with the contract
+
+The contract machinery is **vendored** (ADR-0002 §1), so a contract change — a
+base item's shape, a family module's fix — reaches your service only when you
+re-copy the changed files from `service-template/` and re-run the suite. The
+flow is ADR → template → services; there is no shared package to upgrade, which
+is the price of the independence.
+
 ## What is not in these templates yet
 
 The vendored conformance suite (#70), the canary capability (#71), the

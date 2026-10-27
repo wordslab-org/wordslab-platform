@@ -57,7 +57,11 @@ refusal itself.
 module's own (`events.py`), so every implementation that serves this route
 streams. Output-side features (citations, reasoning, refusals) cannot be
 requested either — they are discovered from the response — so for those the
-matrix is documentation.
+matrix is documentation. An **empty** `supported` set is legal and meaningful:
+plain text in, plain text out is family 1's always-supported base, so a small
+local model with no vision, no tools and no structured outputs declares exactly
+that and is a legitimate variant (ADR-0004: the API is the union of its
+variants, not their intersection).
 
 The matrix is **feature support, not a ranking**. Rankings (quality, speed,
 cost) are dynamic — artificialanalysis at selection time — and must never be
@@ -70,26 +74,34 @@ Pinned to the upstream Responses API shapes as of **2026-10-27**. The module
 carries the surface ADR-0001 §Families.1 fixes; what it does not carry is
 listed here rather than left to be discovered (ADR-0001: "document deviations"):
 
-- **Request fields accepted but not interpreted**: unknown top-level keys are
-  forwarded to the engine untouched (base item 3: additive changes stay
-  backward-compatible within a major). Fields this module reads: `model`,
-  `input`, `instructions`, `tools`, `text`, `stream`, `max_output_tokens`.
-  Upstream's `temperature`, `top_p`, `tool_choice`, `previous_response_id`,
-  `include`, `metadata` and `truncation` are *not* validated here — an engine
-  that supports them receives them as-is, and one that does not is documented in
-  its own `SUPPORT.deviations`.
+- **Request fields accepted but forwarded, not interpreted**: the keys this
+  module reads are `model`, `input`, `instructions`, `tools`, `text`, `stream`
+  and `max_output_tokens`. Every other top-level key is passed to the engine
+  untouched (base item 3: additive changes stay backward-compatible within a
+  major) — an adapter that understands `temperature`, `top_p`, `tool_choice`,
+  `previous_response_id`, `include`, `metadata` or `truncation` receives it
+  as-is, and one that does not is documented in its own `SUPPORT.deviations`.
+- **Response-body fields not emitted**: the body carries `id`, `object`,
+  `created_at`, `status`, `model`, `output`, `usage` (plus `instructions` when the
+  request carried it). Upstream's `error`, `incomplete_details`,
+  `max_output_tokens`, `store`, `previous_response_id`, `tools`, `text`,
+  `tool_choice`, `temperature`, `top_p`, `truncation`, `metadata` and
+  `parallel_tool_calls` are absent — so an `incomplete` response reports its
+  status without a reason.
 - **`background: true`** is refused (400) with a message pointing at family 5
   (async jobs), rather than silently serving a synchronous turn.
-- **Tool results**: `function_call_output` is accepted as an input item, which
-  is what lets a caller answer a `function_call`. `mcp_approval_response` is NOT
-  accepted — the MCP approval flow is the Connectors service's, and a service
-  that needs it declares the deviation.
+- **Tool results**: `function_call_output` is accepted as an input ITEM, which
+  is what lets a caller answer a `function_call`. It is rejected inside a
+  message's `content` (upstream has no tool result there).
+  `mcp_approval_response` is NOT accepted at all — the MCP approval flow is the
+  Connectors service's, and a service that needs it declares the deviation.
 - **Event types**: the module emits `response.created`, `response.in_progress`,
   `output_item.added/done`, `content_part.added/done`, `output_text.*`,
   `refusal.*`, `function_call_arguments.*`, `reasoning_summary_text.*` and a
   terminal `response.completed/incomplete/failed`. Upstream's
-  `response.output_text.annotation.added` is **not** emitted — annotations
-  arrive on the closed part instead of streaming as they are produced.
+  `response.output_text.annotation.added` is **not** emitted: annotations are not
+  streamed as a separate event — they are already populated on the
+  `content_part.added` / closed part that carries them.
 
 
 ## What is deliberately NOT here

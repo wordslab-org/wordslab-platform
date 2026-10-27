@@ -19,6 +19,18 @@ matrix documents (`support.py`, `docs/family-1-responses.md`).
 
 from __future__ import annotations
 
+from .shapes import (
+    ANNOTATION_TYPES,
+    CONTENT_PART_TYPES,
+    INPUT_MESSAGE_ROLES,
+    INPUT_PART_TYPES,
+    ITEM_STATUSES,
+    OUTPUT_ITEM_TYPES,
+    RESPONSE_STATUSES,
+    TEXT_FORMAT_TYPES,
+    TOOL_TYPES,
+)
+
 _USAGE = {
     "type": "object",
     "required": ["input_tokens", "output_tokens", "total_tokens"],
@@ -39,7 +51,8 @@ _INPUT_PART = {
     "properties": {
         "type": {
             "type": "string",
-            "enum": ["input_text", "input_image", "input_audio", "function_call_output"],
+            # the enum IS the module's vocabulary — one source, no drift
+            "enum": sorted(INPUT_PART_TYPES),
             "description": (
                 "Multimodal input is in (ADR-0001 §Families.1); generation output is "
                 "text or structured. `function_call_output` returns a tool call's "
@@ -64,16 +77,32 @@ _INPUT_PART = {
     },
 }
 
+_INPUT_MESSAGE = {
+    "type": "object",
+    "required": ["role", "content"],
+    "description": (
+        "A role-tagged message. `role` is a closed enum (upstream's "
+        "EasyInputMessage); `content` is a string or a list of input parts."
+    ),
+    "properties": {
+        "role": {"type": "string", "enum": sorted(INPUT_MESSAGE_ROLES)},
+        "content": {
+            "type": ["string", "array"],
+            "items": _INPUT_PART,
+        },
+    },
+}
+
 _OUTPUT_ITEM = {
     "type": "object",
     "required": ["type"],
     "properties": {
         "type": {
             "type": "string",
-            "enum": ["message", "function_call", "reasoning", "mcp_call", "mcp_list_tools"],
+            "enum": sorted(OUTPUT_ITEM_TYPES),
         },
         "id": {"type": "string"},
-        "status": {"type": "string", "enum": ["in_progress", "completed", "incomplete"]},
+        "status": {"type": "string", "enum": sorted(ITEM_STATUSES)},
         "role": {"type": "string", "description": "message"},
         "content": {
             "type": "array",
@@ -82,7 +111,7 @@ _OUTPUT_ITEM = {
                 "type": "object",
                 "required": ["type"],
                 "properties": {
-                    "type": {"type": "string", "enum": ["output_text", "refusal"]},
+                    "type": {"type": "string", "enum": sorted(CONTENT_PART_TYPES)},
                     "text": {"type": "string"},
                     "refusal": {"type": "string"},
                     "annotations": {
@@ -92,7 +121,7 @@ _OUTPUT_ITEM = {
                             "type": "object",
                             "required": ["type"],
                             "properties": {
-                                "type": {"type": "string", "enum": ["url_citation", "file_citation"]}
+                                "type": {"type": "string", "enum": sorted(ANNOTATION_TYPES)}
                             },
                         },
                     },
@@ -123,8 +152,8 @@ _REQUEST = {
         "model": {"type": "string", "description": "The model id, resolved by the owning capability's catalog."},
         "input": {
             "type": ["string", "array"],
-            "description": "A string (one input_text part), or a list of input parts / role-tagged message objects.",
-            "items": _INPUT_PART,
+            "description": "A string (one input_text part), or a list of input items: a typed input part, or a role-tagged message carrying a content list.",
+            "items": {"anyOf": [_INPUT_PART, _INPUT_MESSAGE]},
         },
         "instructions": {"type": "string"},
         "tools": {
@@ -134,7 +163,7 @@ _REQUEST = {
                 "type": "object",
                 "required": ["type"],
                 "properties": {
-                    "type": {"type": "string", "enum": ["function", "mcp"]},
+                    "type": {"type": "string", "enum": sorted(TOOL_TYPES)},
                     "name": {"type": "string", "description": "function — required."},
                     "description": {"type": "string"},
                     "parameters": {"type": "object", "description": "function — the JSON schema."},
@@ -151,7 +180,7 @@ _REQUEST = {
                     "type": "object",
                     "required": ["type"],
                     "properties": {
-                        "type": {"type": "string", "enum": ["text", "json_schema"]},
+                        "type": {"type": "string", "enum": sorted(TEXT_FORMAT_TYPES)},
                         "name": {"type": "string", "description": "json_schema — required."},
                         "schema": {"type": "object", "description": "json_schema — required."},
                     },
@@ -175,7 +204,7 @@ _RESPONSE = {
         "id": {"type": "string", "pattern": "^resp_"},
         "object": {"const": "response"},
         "created_at": {"type": "integer"},
-        "status": {"type": "string", "enum": ["completed", "incomplete", "failed"]},
+        "status": {"type": "string", "enum": sorted(RESPONSE_STATUSES)},
         "model": {"type": "string"},
         "instructions": {"type": "string", "description": "Echoed when the request carried it."},
         "output": {"type": "array", "items": _OUTPUT_ITEM},

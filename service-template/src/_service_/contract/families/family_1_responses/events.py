@@ -49,14 +49,16 @@ EVENT_TYPES = frozenset(
 )
 
 # The terminal event per response status — the ONE source: the terminal
-# vocabulary is derived from it, so the two can never drift apart.
-_TERMINAL_BY_STATUS = {
+# vocabulary is derived from it, so the two can never drift apart. Public so a
+# test can pin its keys against `shapes.RESPONSE_STATUSES` (a status with no
+# terminal event would raise out of the route).
+TERMINAL_EVENT_BY_STATUS = {
     "completed": "response.completed",
     "incomplete": "response.incomplete",
     "failed": "response.failed",
 }
 
-TERMINAL_EVENT_TYPES = frozenset(_TERMINAL_BY_STATUS.values())
+TERMINAL_EVENT_TYPES = frozenset(TERMINAL_EVENT_BY_STATUS.values())
 
 # The default granularity of a synthesized delta, in characters. Small enough
 # that a stream is visibly incremental, large enough that a 10 KB answer is not
@@ -111,11 +113,11 @@ def sse_frames(events: list[dict]) -> str:
 
 def _terminal_type(status: str) -> str:
     try:
-        return _TERMINAL_BY_STATUS[status]
+        return TERMINAL_EVENT_BY_STATUS[status]
     except KeyError:
         raise ValueError(
             f"no terminal event for response status {status!r} "
-            f"({sorted(_TERMINAL_BY_STATUS)!r})"
+            f"({sorted(TERMINAL_EVENT_BY_STATUS)!r})"
         ) from None
 
 

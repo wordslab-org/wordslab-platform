@@ -80,6 +80,26 @@ ITEM_STATUSES = frozenset({"in_progress", "completed", "incomplete"})
 # input items, never as response output.
 OUTPUT_MESSAGE_ROLES = frozenset({"assistant"})
 
+# The roles an INPUT message may carry (upstream's EasyInputMessage is a closed
+# enum) — a role outside it is 400, never forwarded as an unknown label.
+INPUT_MESSAGE_ROLES = frozenset({"user", "assistant", "system", "developer"})
+
+# The request keys this module READS: validated and normalized. Every other
+# top-level key is forwarded to the engine untouched (base item 3) — see
+# parse_request.
+_READ_KEYS = frozenset(
+    {
+        "model",
+        "input",
+        "tools",
+        "text",
+        "stream",
+        "instructions",
+        "max_output_tokens",
+        "background",
+    }
+)
+
 # --- the inbound shape -------------------------------------------------------
 
 
@@ -88,10 +108,15 @@ def parse_request(payload: object) -> dict:
     seam receives.
 
     Absent optional keys take their documented default (`instructions` absent,
-    `tools` empty, `text` plain text, `stream` false); a DECLARED key outside
-    the vocabulary is 400 `invalid_request` — an unknown input part type or an
-    unknown tool type is never silently dropped, because the model would then
-    run without the input the user thought they sent.
+    `tools` empty, `text` plain text, `stream` false). The keys this module READS
+    are validated and normalized; an unknown top-level key is **forwarded to the
+    engine untouched** (base item 3: additive changes stay backward-compatible
+    within a major) — an adapter that understands `temperature` or
+    `tool_choice` must receive them, and silently dropping `tool_choice: "none"`
+    would let the model call a tool the caller forbade. A DECLARED key outside a
+    closed vocabulary (input part types, tool types) is 400 `invalid_request`,
+    because the model would then run without the input the user thought they
+    sent.
     """
     if not isinstance(payload, dict):
         raise invalid_request("POST /v1/responses expects a JSON object request body.")
@@ -108,13 +133,20 @@ def parse_request(payload: object) -> dict:
             "(ADR-0001 §Families.5), not family 1's synchronous surface."
         )
 
+    # Everything this module does not read rides through untouched; the keys it
+    # DOES read are replaced by their validated/normalized form.
     request: dict = {
-        "model": model,
-        "input": _parse_input(payload.get("input")),
-        "tools": _parse_tools(payload.get("tools")),
-        "text": _parse_text(payload.get("text")),
-        "stream": _parse_stream(payload.get("stream")),
+        key: value for key, value in payload.items() if key not in _READ_KEYS
     }
+    request.update(
+        {
+            "model": model,
+            "input": _parse_input(payload.get("input")),
+            "tools": _parse_tools(payload.get("tools")),
+            "text": _parse_text(payload.get("text")),
+            "stream": _parse_stream(payload.get("stream")),
+        }
+    )
 
     instructions = payload.get("instructions")
     if instructions is not None:
@@ -161,29 +193,42 @@ def _parse_input(value: object) -> list[dict]:
 
 def _parse_message(entry: dict, index: int) -> dict:
     role = entry.get("role")
-    if not isinstance(role, str) or not role:
-        raise invalid_request(f"input[{index}] carries a non-string 'role'.")
+    if not isinstance(role, str) or role not in INPUT_MESSAGE_ROLES:
+        raise invalid_request(
+            f"input[{index}] carries role {role!r}; an input message's role is one of "
+            f"{sorted(INPUT_MESSAGE_ROLES)!r}."
+        )
     content = entry.get("content")
     # Upstream accepts a bare string here as the shorthand for one input_text
     # part (`EasyInputMessage.content`); do the same rather than 400 a shape the
-    # reference API accepts.
+    # reference API accepts. An empty string would become an EMPTY text part, so
+    # it is refused like the empty list.
     if isinstance(content, str):
+        if not content.strip():
+            raise invalid_request(f"input[{index}] ('{role}') carries empty 'content'.")
         content = [{"type": "input_text", "text": content}]
     if not isinstance(content, list) or not content:
         raise invalid_request(
             f"input[{index}] ('{role}') must carry a 'content' string or a non-empty list."
         )
     parts = [
-        _parse_input_part(part, f"input[{index}].content[{position}]")
+        # `function_call_output` is an ITEM, not a content part: upstream has no
+        # tool result inside a message's content.
+        _parse_input_part(part, f"input[{index}].content[{position}]", allow_tool_result=False)
         for position, part in enumerate(content)
     ]
     return {"role": role, "content": parts}
 
 
-def _parse_input_part(part: object, where: str) -> dict:
+def _parse_input_part(part: object, where: str, *, allow_tool_result: bool = True) -> dict:
     if not isinstance(part, dict):
         raise invalid_request(f"{where} must be a JSON object.")
     part_type = part.get("type")
+    if part_type == "function_call_output" and not allow_tool_result:
+        raise invalid_request(
+            f"{where}: 'function_call_output' is an input ITEM, not a message content "
+            "part — send it beside the message in 'input'."
+        )
     if part_type not in INPUT_PART_TYPES:
         raise invalid_request(
             f"{where}.type {part_type!r} is not an input part type "
@@ -225,6 +270,13 @@ def _parse_input_part(part: object, where: str) -> dict:
             raise invalid_request(
                 f"{where} ('function_call_output') requires 'output' (a string, or "
                 "a list of content parts)."
+            )
+        if isinstance(output, list) and not all(
+            isinstance(entry, dict) and "type" in entry for entry in output
+        ):
+            raise invalid_request(
+                f"{where} ('function_call_output') requires each 'output' entry to be "
+                "a content part object carrying 'type'."
             )
     return dict(part)
 
@@ -319,7 +371,7 @@ def normalize_response(request: dict, engine_output: object) -> dict:
     items = [_normalize_item(item, request, index) for index, item in enumerate(output)]
 
     status = engine_output.get("status", "completed")
-    if status not in RESPONSE_STATUSES:
+    if not isinstance(status, str) or status not in RESPONSE_STATUSES:
         raise internal_error(
             f"The engine reply's status {status!r} is not one of "
             f"{sorted(RESPONSE_STATUSES)!r}."
@@ -343,6 +395,20 @@ def normalize_response(request: dict, engine_output: object) -> dict:
     if request.get("instructions") is not None:
         response["instructions"] = request["instructions"]
     return response
+
+
+def _item_status(item: dict, index: int) -> str:
+    """The item's status — validated, because an unknown value (or a non-string)
+    in the body is a seam break, not a passthrough. Every item type carries it
+    (upstream does); the `isinstance` guard keeps it inside the 500 taxonomy
+    instead of raising a bare TypeError out of the route."""
+    status = item.get("status", "completed")
+    if not isinstance(status, str) or status not in ITEM_STATUSES:
+        raise internal_error(
+            f"output[{index}] carries status {status!r}, not one of "
+            f"{sorted(ITEM_STATUSES)!r}."
+        )
+    return status
 
 
 def _normalize_item(item: object, request: dict, index: int) -> dict:
@@ -369,6 +435,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
         return {
             "type": "function_call",
             "id": item.get("id") or f"fc_{index}",
+            "status": _item_status(item, index),
             "call_id": item.get("call_id") or f"call_{index}",
             "name": name,
             "arguments": arguments,
@@ -384,7 +451,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
                     f"output[{index}].summary[{position}] must carry a string 'text'."
                 )
             parts.append({"type": "summary_text", "text": part["text"]})
-        return {"type": "reasoning", "id": item.get("id") or f"rs_{index}", "summary": parts}
+        return {"type": "reasoning", "id": item.get("id") or f"rs_{index}", "status": _item_status(item, index), "summary": parts}
     if item_type == "mcp_call":
         if not isinstance(item.get("name"), str) or not isinstance(item.get("server_label"), str):
             raise internal_error(
@@ -400,6 +467,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
         return {
             "type": "mcp_call",
             "id": item.get("id") or f"mc_{index}",
+            "status": _item_status(item, index),
             "name": item["name"],
             "server_label": item["server_label"],
             "arguments": arguments,
@@ -416,6 +484,7 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
     return {
         "type": "mcp_list_tools",
         "id": item.get("id") or f"ml_{index}",
+        "status": _item_status(item, index),
         "server_label": item["server_label"],
         "tools": [dict(tool) for tool in tools],
     }
@@ -428,12 +497,7 @@ def _normalize_message(item: dict, request: dict, index: int) -> dict:
             f"output[{index}] ('message') carries role {role!r}; an output message is "
             f"{sorted(OUTPUT_MESSAGE_ROLES)!r} (caller turns are input items)."
         )
-    status = item.get("status", "completed")
-    if status not in ITEM_STATUSES:
-        raise internal_error(
-            f"output[{index}] ('message') carries status {status!r}, not one of "
-            f"{sorted(ITEM_STATUSES)!r}."
-        )
+    status = _item_status(item, index)
     content = item.get("content")
     if not isinstance(content, list):
         raise internal_error(f"output[{index}] ('message') requires a 'content' list.")

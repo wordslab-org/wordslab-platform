@@ -72,22 +72,19 @@ def responses_routes(
 
     async def create_response(request: Request) -> JSONResponse | StreamingResponse:
         """POST /v1/responses — one model turn."""
+        too_large = f"Request body exceeds the {max_request_bytes}-byte family-1 limit."
         # A declared length over the cap is refused BEFORE the body is buffered:
         # the cap exists to bound memory for base64-inline multimodal input, and
         # buffering first would defeat it. The post-read check stays as the
         # fallback for a chunked (or lying) upload.
         declared = request.headers.get("content-length")
         if declared is not None and declared.isdigit() and int(declared) > max_request_bytes:
-            raise request_too_large(
-                f"Request body exceeds the {max_request_bytes}-byte family-1 limit."
-            )
+            raise request_too_large(too_large)
         body = await request.body()
         if not body:
             raise invalid_request("POST /v1/responses expects a JSON object request body.")
         if len(body) > max_request_bytes:
-            raise request_too_large(
-                f"Request body exceeds the {max_request_bytes}-byte family-1 limit."
-            )
+            raise request_too_large(too_large)
         try:
             payload = await request.json()
         except ValueError:  # malformed JSON is a CLIENT error, never a 500

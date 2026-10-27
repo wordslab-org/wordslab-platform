@@ -108,3 +108,26 @@ def unavailable(message: str = "The service is unavailable; retry later.") -> Ap
 
 def timeout(message: str = "The operation timed out.") -> ApiError:
     return ApiError("timeout", message)
+
+
+# The OpenAPI schema for the item-4 error body — the SAME shape `ApiError.body()`
+# builds at runtime. It lives here, next to the builder, so the published
+# document and the wire have ONE authority: `openapi.py` injects it into every
+# assembled document (a capability fragment must not define it), and
+# `tests/contract/test_openapi.py` pins the two together.
+ERROR_SCHEMA = {
+    "type": "object",
+    "required": ["error", "request_id"],
+    "properties": {
+        "error": {
+            "type": "object",
+            "required": ["type", "message"],
+            "properties": {
+                "type": {"type": "string"},
+                "message": {"type": "string"},
+                "resource": {"type": "string"},
+            },
+        },
+        "request_id": {"type": "string"},
+    },
+}
