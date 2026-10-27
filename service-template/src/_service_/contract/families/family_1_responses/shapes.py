@@ -292,9 +292,9 @@ def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INP
             )
         # A caller's malformed arguments is a CLIENT error (400), never the
         # internal_error that the engine-reply side raises. The EMPTY string is
-        # a legal no-argument call (upstream allows it), so only a non-empty
-        # value has to parse.
-        if part["arguments"].strip():
+        # a legal no-argument call (upstream allows it); every NON-empty value —
+        # whitespace included — has to parse as JSON.
+        if part["arguments"]:
             try:
                 json.loads(part["arguments"])
             except ValueError:
@@ -615,7 +615,7 @@ def _normalize_annotations(annotations: object, where: str) -> list[dict]:
         if not isinstance(annotation, dict):
             raise internal_error(f"{where}.annotations[{position}] is not a JSON object.")
         annotation_type = annotation.get("type")
-        if annotation_type not in ANNOTATION_TYPES:
+        if not isinstance(annotation_type, str) or annotation_type not in ANNOTATION_TYPES:
             raise internal_error(
                 f"{where}.annotations[{position}].type {annotation_type!r} is not one of "
                 f"{sorted(ANNOTATION_TYPES)!r}."

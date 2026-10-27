@@ -572,6 +572,60 @@ def test_a_malformed_tool_call_arguments_is_a_client_error(make_gated_client):
     assert r.json()["error"]["type"] == "invalid_request"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # a 'type' that is not even a string: membership in a frozenset would
+        # raise TypeError, i.e. a bare 500 for a client error
+        {"model": "m", "input": [{"type": ["input_text"], "text": "hi"}]},
+        {"model": "m", "input": "ping", "tools": [{"type": ["function"], "name": "x"}]},
+        {"model": "m", "input": "ping", "text": {"format": {"type": ["json_schema"]}}},
+    ],
+)
+def test_a_non_string_type_is_a_contract_400(gated_client, payload):
+    r = gated_client.post("/v1/responses", json=payload)
+    assert r.status_code == 400, payload
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"type": ["message"], "role": "assistant", "content": []},
+        {"type": "message", "role": "assistant", "content": [{"type": ["output_text"], "text": "x"}]},
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "x", "annotations": [{"type": ["url_citation"]}]}],
+        },
+    ],
+)
+def test_a_non_string_type_in_an_engine_reply_keeps_the_contract_body(make_gated_client, item):
+    # The engine broke the seam: 500 internal_error with the contract body — not
+    # a TypeError escaping to the app's catch-all (which carries a generic
+    # message and no diagnostic).
+    r = make_gated_client(ScenarioEngine(reply(output=[item]))).post("/v1/responses", json=PING)
+    assert r.status_code == 500, item
+    assert r.json()["error"]["type"] == "internal_error"
+    assert "output[0]" in r.json()["error"]["message"]
+
+
+def test_whitespace_only_arguments_is_not_a_valid_json_string(make_gated_client):
+    # Only the EMPTY string is the no-argument call; whitespace must parse.
+    client = make_gated_client(ScenarioEngine(reply()))
+    r = client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [
+                {"type": "function_call", "call_id": "c", "name": "ping", "arguments": "   "}
+            ],
+        },
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request"
+
+
 def test_an_empty_arguments_string_is_a_no_argument_call(make_gated_client):
     # Upstream allows `arguments: ""` for a call that takes none; only a
     # non-empty value has to parse as JSON.
