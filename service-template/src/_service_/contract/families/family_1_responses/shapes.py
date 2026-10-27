@@ -42,10 +42,17 @@ from ...base.errors import internal_error, invalid_request
 
 # --- the vocabulary (upstream type names, pinned by ADR-0001 §Families.1) ----
 
-# Input items: multimodal parts, plus the tool-result part that closes a tool
-# loop (a `function_call` output is only useful if its result can be sent back).
-INPUT_PART_TYPES = frozenset(
-    {"input_text", "input_image", "input_audio", "function_call_output"}
+# What may sit INSIDE a message's `content` — the multimodal content parts. A
+# tool call and its result are ITEMS, not content parts (upstream has no tool
+# item inside a message), so they are not here.
+MESSAGE_CONTENT_PART_TYPES = frozenset({"input_text", "input_image", "input_audio"})
+
+# What may appear in `input` beside the role-tagged messages: the content parts
+# standing alone, plus the two items that make a tool loop closable — the
+# assistant's `function_call` and the caller's `function_call_output`. Without
+# both, a model could emit a call that can never be answered.
+INPUT_ITEM_TYPES = MESSAGE_CONTENT_PART_TYPES | frozenset(
+    {"function_call", "function_call_output"}
 )
 
 # OUTPUT item types this family fixes. Upstream carries more (file_search_call,
@@ -125,12 +132,15 @@ def parse_request(payload: object) -> dict:
     if not isinstance(model, str) or not model:
         raise invalid_request("'model' is required and must be a non-empty string.")
 
-    # `background: true` is family 5's async surface (ADR-0001 §Families.5) —
-    # refuse it here rather than pretend this module implements it.
-    if payload.get("background") is True:
+    # `background` is READ, not forwarded: family 5's async surface
+    # (ADR-0001 §Families.5). An explicit `false` is the synchronous default and
+    # is dropped; `true` — or any non-boolean, which could be a client trying to
+    # sneak it past as 1/"true" — is refused rather than silently swallowed.
+    if "background" in payload and payload["background"] is not False:
         raise invalid_request(
-            "Background responses ('background': true) are the async-jobs family "
-            "(ADR-0001 §Families.5), not family 1's synchronous surface."
+            "'background' must be false when present: background responses are the "
+            "async-jobs family (ADR-0001 §Families.5), not family 1's synchronous "
+            "surface."
         )
 
     # Everything this module does not read rides through untouched; the keys it
@@ -184,10 +194,18 @@ def _parse_input(value: object) -> list[dict]:
     for index, entry in enumerate(value):
         if not isinstance(entry, dict):
             raise invalid_request(f"input[{index}] must be a JSON object.")
+        # An entry carrying `role` is a message; anything else is a standalone
+        # item. An entry carrying BOTH is ambiguous — refuse it rather than pick.
         if "role" in entry:
+            if "type" in entry:
+                raise invalid_request(
+                    f"input[{index}] carries both 'role' and 'type' — a role-tagged "
+                    "message has no item 'type', and a standalone input item has no "
+                    "'role'."
+                )
             items.append(_parse_message(entry, index))
             continue
-        items.append(_parse_input_part(entry, f"input[{index}]"))
+        items.append(_parse_input_item(entry, f"input[{index}]"))
     return items
 
 
@@ -200,41 +218,34 @@ def _parse_message(entry: dict, index: int) -> dict:
         )
     content = entry.get("content")
     # Upstream accepts a bare string here as the shorthand for one input_text
-    # part (`EasyInputMessage.content`); do the same rather than 400 a shape the
-    # reference API accepts. An empty string would become an EMPTY text part, so
-    # it is refused like the empty list.
+    # part (`EasyInputMessage.content`); an empty string is a legal (if useless)
+    # text part, like a whitespace-only list part — nothing special-cases it.
     if isinstance(content, str):
-        if not content.strip():
-            raise invalid_request(f"input[{index}] ('{role}') carries empty 'content'.")
         content = [{"type": "input_text", "text": content}]
     if not isinstance(content, list) or not content:
         raise invalid_request(
             f"input[{index}] ('{role}') must carry a 'content' string or a non-empty list."
         )
     parts = [
-        # `function_call_output` is an ITEM, not a content part: upstream has no
-        # tool result inside a message's content.
-        _parse_input_part(part, f"input[{index}].content[{position}]", allow_tool_result=False)
+        _parse_input_item(
+            part, f"input[{index}].content[{position}]", allowed=MESSAGE_CONTENT_PART_TYPES
+        )
         for position, part in enumerate(content)
     ]
     return {"role": role, "content": parts}
 
 
-def _parse_input_part(part: object, where: str, *, allow_tool_result: bool = True) -> dict:
+def _parse_input_item(part: object, where: str, *, allowed: frozenset[str] = INPUT_ITEM_TYPES) -> dict:
+    """One standalone input item / message content part, validated per its type."""
     if not isinstance(part, dict):
         raise invalid_request(f"{where} must be a JSON object.")
     part_type = part.get("type")
-    if part_type == "function_call_output" and not allow_tool_result:
+    if part_type not in allowed:
         raise invalid_request(
-            f"{where}: 'function_call_output' is an input ITEM, not a message content "
-            "part — send it beside the message in 'input'."
-        )
-    if part_type not in INPUT_PART_TYPES:
-        raise invalid_request(
-            f"{where}.type {part_type!r} is not an input part type "
-            f"({sorted(INPUT_PART_TYPES)!r}) — multimodal input is "
-            "'input_text' / 'input_image' / 'input_audio', plus "
-            "'function_call_output' for a tool result (ADR-0001 §Families.1)."
+            f"{where}.type {part_type!r} is not one of {sorted(allowed)!r} — "
+            "multimodal content parts are 'input_text' / 'input_image' / "
+            "'input_audio'; a tool loop's items are 'function_call' and "
+            "'function_call_output' (ADR-0001 §Families.1)."
         )
     if part_type == "input_text":
         if not isinstance(part.get("text"), str):
@@ -259,7 +270,20 @@ def _parse_input_part(part: object, where: str, *, allow_tool_result: bool = Tru
             raise invalid_request(
                 f"{where} ('input_audio') requires string 'data' and 'format' keys."
             )
-    else:  # function_call_output — the tool result that closes a tool loop
+    elif part_type == "function_call":
+        # The assistant's previous call, sent back so the loop can close.
+        if not isinstance(part.get("call_id"), str) or not part["call_id"]:
+            raise invalid_request(
+                f"{where} ('function_call') requires a string 'call_id'."
+            )
+        if not isinstance(part.get("name"), str) or not part["name"]:
+            raise invalid_request(f"{where} ('function_call') requires a string 'name'.")
+        if not isinstance(part.get("arguments"), str):
+            raise invalid_request(
+                f"{where} ('function_call') requires 'arguments' as a JSON string."
+            )
+        _require_json(part["arguments"], f"{where}.arguments")
+    else:  # function_call_output — the tool result that answers the call
         if not isinstance(part.get("call_id"), str) or not part["call_id"]:
             raise invalid_request(
                 f"{where} ('function_call_output') requires a string 'call_id' "
@@ -271,13 +295,17 @@ def _parse_input_part(part: object, where: str, *, allow_tool_result: bool = Tru
                 f"{where} ('function_call_output') requires 'output' (a string, or "
                 "a list of content parts)."
             )
-        if isinstance(output, list) and not all(
-            isinstance(entry, dict) and "type" in entry for entry in output
-        ):
-            raise invalid_request(
-                f"{where} ('function_call_output') requires each 'output' entry to be "
-                "a content part object carrying 'type'."
-            )
+        if isinstance(output, list):
+            if not output:
+                raise invalid_request(
+                    f"{where} ('function_call_output') carries an empty 'output' list."
+                )
+            for position, entry in enumerate(output):
+                if not isinstance(entry, dict) or entry.get("type") not in MESSAGE_CONTENT_PART_TYPES:
+                    raise invalid_request(
+                        f"{where}.output[{position}] must be a content part object whose "
+                        f"'type' is one of {sorted(MESSAGE_CONTENT_PART_TYPES)!r}."
+                    )
     return dict(part)
 
 
@@ -451,7 +479,12 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
                     f"output[{index}].summary[{position}] must carry a string 'text'."
                 )
             parts.append({"type": "summary_text", "text": part["text"]})
-        return {"type": "reasoning", "id": item.get("id") or f"rs_{index}", "status": _item_status(item, index), "summary": parts}
+        return {
+            "type": "reasoning",
+            "id": item.get("id") or f"rs_{index}",
+            "status": _item_status(item, index),
+            "summary": parts,
+        }
     if item_type == "mcp_call":
         if not isinstance(item.get("name"), str) or not isinstance(item.get("server_label"), str):
             raise internal_error(

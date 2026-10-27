@@ -45,6 +45,7 @@ BASE_FILES = [
     "tests/contract/test_idempotency.py",
     "tests/contract/test_pagination.py",
     "tests/contract/test_stubs.py",
+    "tests/contract/test_openapi.py",
 ]
 
 

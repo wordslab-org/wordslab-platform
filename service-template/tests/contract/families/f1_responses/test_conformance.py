@@ -352,9 +352,13 @@ def test_the_stream_and_the_sync_body_agree(gated_client):
         {"model": "m", "input": "ping", "stream": "yes"},
         {"model": "m", "input": "ping", "background": True},  # family 5's, not ours
         {"model": "m", "input": "ping", "max_output_tokens": 0},
+        {"model": "m", "input": "ping", "background": 1},  # not a boolean false
         {"model": "m", "input": [{"role": "user", "content": 5}]},
         {"model": "m", "input": [{"role": "banana", "content": "hi"}]},  # closed role enum
-        {"model": "m", "input": [{"role": "user", "content": "   "}]},  # empty text
+        {  # ambiguous: a message has no item 'type', an item has no 'role'
+            "model": "m",
+            "input": [{"role": "user", "type": "input_text", "text": "hi"}],
+        },
         {"model": "m", "input": [{"type": "function_call_output", "output": "x"}]},  # no call_id
         {  # a tool result is an ITEM, never a message content part
             "model": "m",
@@ -493,9 +497,10 @@ def test_required_features_follows_what_the_request_asks_for():
 # --- the shapes the reference API accepts, one turn past the naive path ------
 
 
-def test_a_tool_result_closes_the_tool_loop(make_gated_client):
-    # A `function_call` output is useless if its result cannot come back:
-    # upstream accepts `function_call_output` as an input item.
+def test_a_tool_loop_round_trip_is_closable(make_gated_client):
+    # A tool loop is the CALL plus its RESULT: an assistant's `function_call`
+    # item sent back beside the caller's `function_call_output`. Without both,
+    # the model can emit a call that nobody can ever answer.
     engine = ScenarioEngine(reply())
     client = make_gated_client(engine)
     r = client.post(
@@ -504,12 +509,20 @@ def test_a_tool_result_closes_the_tool_loop(make_gated_client):
             "model": "m",
             "input": [
                 {"type": "input_text", "text": "look it up"},
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "lookup",
+                    "arguments": '{"q": "x"}',
+                },
                 {"type": "function_call_output", "call_id": "call_1", "output": '{"ok": true}'},
             ],
         },
     )
     assert r.status_code == 200
-    assert engine.calls[0]["request"]["input"][1] == {
+    sent = engine.calls[0]["request"]["input"]
+    assert sent[1]["type"] == "function_call"
+    assert sent[2] == {
         "type": "function_call_output",
         "call_id": "call_1",
         "output": '{"ok": true}',
@@ -618,6 +631,46 @@ def test_every_response_status_has_a_terminal_event():
 
 
 # --- the fragment: document assembly and the agent surface -------------------
+
+
+def test_the_fragment_and_the_route_agree_on_what_input_accepts():
+    """The fragment is the AGENT-visible contract (its request schema becomes the
+    MCP tool's `inputSchema`), so a schema advertising a shape the route 400s is
+    exactly the drift the auto-generated surface is meant to make impossible
+    (ADR-0002 §3). Both sides read the same vocabularies — this pins it."""
+    from contract.families.family_1_responses import (
+        INPUT_ITEM_TYPES,
+        MESSAGE_CONTENT_PART_TYPES,
+        openapi_fragment,
+    )
+
+    schema = openapi_fragment["paths"]["/v1/responses"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    members = schema["properties"]["input"]["items"]["anyOf"]
+
+    # the message variant may carry CONTENT PARTS only — no tool item inside
+    message = next(m for m in members if "role" in m["properties"])
+    content = message["properties"]["content"]
+    assert sorted(content["items"]["properties"]["type"]["enum"]) == sorted(
+        MESSAGE_CONTENT_PART_TYPES
+    )
+    assert content["minItems"] == 1
+
+    # the standalone variants are the route's item vocabulary, tool loop included
+    part = next(m for m in members if "text" in m["properties"])
+    assert sorted(part["properties"]["type"]["enum"]) == sorted(MESSAGE_CONTENT_PART_TYPES)
+    consts = {
+        member["properties"]["type"].get("const")
+        for member in members
+        if "type" in member.get("properties", {})
+    }
+    assert {"function_call", "function_call_output"} <= consts
+    assert INPUT_ITEM_TYPES == MESSAGE_CONTENT_PART_TYPES | {
+        "function_call",
+        "function_call_output",
+    }
+
 
 def test_the_fragment_merges_and_reaches_the_mcp_tool():
     """The documented integration path, exercised end to end: merge the fragment

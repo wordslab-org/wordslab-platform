@@ -8,9 +8,10 @@ service app merges them under the service identity. The MCP surface
 (`contract/base/mcp.py`) is then auto-generated from this same document —
 zero drift by construction: the OpenAPI doc IS the tool list's source.
 
-One schema is NOT a capability's to define: the item-4 error body. It is
-contract-wide, so it is supplied here, once, for every document — a fragment
-that documents error responses `$ref`s it. (Two fragments each shipping their
+One schema is NOT a capability's to define: the item-4 error body. Its
+authority is `base/errors.py` (next to `ApiError.body()`, which builds it at
+runtime); `openapi_document()` injects it once into every document, and a
+fragment that documents error responses `$ref`s it. (Two fragments each shipping their
 own copy is a composition error the merge would raise anyway; naming the rule
 here means a contributor reads why instead of debugging a duplicate.)
 """
@@ -58,7 +59,7 @@ def openapi_document(
                     if op_id in operation_ids:
                         raise ValueError(f"duplicate operationId in OpenAPI fragments: {op_id}")
                     operation_ids.add(op_id)
-            paths[path] = item
+            paths[path] = copy.deepcopy(item)
         for kind, definitions in fragment.get("components", {}).items():
             existing = components.setdefault(kind, {})
             for name, definition in definitions.items():
@@ -72,7 +73,7 @@ def openapi_document(
                     raise ValueError(
                         f"duplicate OpenAPI component {kind}/{name} across capabilities"
                     )
-                existing[name] = definition
+                existing[name] = copy.deepcopy(definition)
     return {
         "openapi": "3.1.0",
         "info": {"title": title, "version": version, "description": description},

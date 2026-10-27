@@ -23,8 +23,8 @@ from .shapes import (
     ANNOTATION_TYPES,
     CONTENT_PART_TYPES,
     INPUT_MESSAGE_ROLES,
-    INPUT_PART_TYPES,
     ITEM_STATUSES,
+    MESSAGE_CONTENT_PART_TYPES,
     OUTPUT_ITEM_TYPES,
     RESPONSE_STATUSES,
     TEXT_FORMAT_TYPES,
@@ -45,19 +45,16 @@ _USAGE = {
     },
 }
 
-_INPUT_PART = {
+# A content part — the only thing that may appear inside a message's `content`.
+# The enum IS the module's vocabulary, so the document and the route agree.
+_CONTENT_PART = {
     "type": "object",
     "required": ["type"],
     "properties": {
         "type": {
             "type": "string",
-            # the enum IS the module's vocabulary — one source, no drift
-            "enum": sorted(INPUT_PART_TYPES),
-            "description": (
-                "Multimodal input is in (ADR-0001 §Families.1); generation output is "
-                "text or structured. `function_call_output` returns a tool call's "
-                "result — it is what closes a tool loop."
-            ),
+            "enum": sorted(MESSAGE_CONTENT_PART_TYPES),
+            "description": "Multimodal input is in (ADR-0001 §Families.1).",
         },
         "text": {"type": "string", "description": "input_text"},
         "image_url": {
@@ -69,11 +66,6 @@ _INPUT_PART = {
             "description": "input_audio — {data, format}.",
             "properties": {"data": {"type": "string"}, "format": {"type": "string"}},
         },
-        "call_id": {"type": "string", "description": "function_call_output — the call it answers."},
-        "output": {
-            "type": ["string", "array"],
-            "description": "function_call_output — the tool's result.",
-        },
     },
 }
 
@@ -82,13 +74,43 @@ _INPUT_MESSAGE = {
     "required": ["role", "content"],
     "description": (
         "A role-tagged message. `role` is a closed enum (upstream's "
-        "EasyInputMessage); `content` is a string or a list of input parts."
+        "EasyInputMessage); `content` is a string or a list of content parts."
     ),
     "properties": {
         "role": {"type": "string", "enum": sorted(INPUT_MESSAGE_ROLES)},
         "content": {
             "type": ["string", "array"],
-            "items": _INPUT_PART,
+            "items": _CONTENT_PART,
+            "minItems": 1,
+        },
+    },
+}
+
+# The two ITEMS that make a tool loop closable: the assistant's call, and the
+# caller's answer to it. Standalone items in `input`, never message content.
+_FUNCTION_CALL_ITEM = {
+    "type": "object",
+    "required": ["type", "call_id", "name", "arguments"],
+    "description": "A previous turn's tool call, sent back so its result can be attached.",
+    "properties": {
+        "type": {"const": "function_call"},
+        "call_id": {"type": "string"},
+        "name": {"type": "string"},
+        "arguments": {"type": "string", "description": "a JSON string"},
+    },
+}
+
+_FUNCTION_CALL_OUTPUT_ITEM = {
+    "type": "object",
+    "required": ["type", "call_id", "output"],
+    "description": "The tool's result for a previous `function_call`.",
+    "properties": {
+        "type": {"const": "function_call_output"},
+        "call_id": {"type": "string", "description": "the call it answers"},
+        "output": {
+            "type": ["string", "array"],
+            "description": "the tool's result: a string, or content parts.",
+            "items": _CONTENT_PART,
         },
     },
 }
@@ -153,7 +175,14 @@ _REQUEST = {
         "input": {
             "type": ["string", "array"],
             "description": "A string (one input_text part), or a list of input items: a typed input part, or a role-tagged message carrying a content list.",
-            "items": {"anyOf": [_INPUT_PART, _INPUT_MESSAGE]},
+            "items": {
+                "anyOf": [
+                    _CONTENT_PART,
+                    _INPUT_MESSAGE,
+                    _FUNCTION_CALL_ITEM,
+                    _FUNCTION_CALL_OUTPUT_ITEM,
+                ]
+            },
         },
         "instructions": {"type": "string"},
         "tools": {
