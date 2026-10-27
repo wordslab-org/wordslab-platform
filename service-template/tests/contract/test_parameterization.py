@@ -19,6 +19,7 @@ one seam, offline, deterministic.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
+
+import contract.families as _families_package
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2]
 FAMILIES_DIR = TEMPLATE_ROOT / "tests" / "contract" / "families"
@@ -135,7 +138,7 @@ def test_no_family_tests_collected_when_the_manifest_is_empty(copied_template):
         assert f"families/{block}" not in collected.stdout
 
 
-def test_a_listed_block_runs_and_is_red_until_the_machinery_lands(copied_template):
+def test_a_listed_block_is_collected_and_runs(copied_template):
     # The selection MECHANISM: a listed block is collected AND executed. Proved
     # with a synthetic block rather than a real family's red-on-purpose state —
     # which families still lack machinery changes with every stage-0 ticket
@@ -161,18 +164,38 @@ def test_a_listed_block_runs_and_is_red_until_the_machinery_lands(copied_templat
     assert "the red probe ran" in failed.stdout  # assertion-red, not a collection crash
 
 
-# Family blocks whose machinery this template actually ships. Each family
-# ticket (#76–#84) adds its own number here in the same commit that lands the
-# module — that is what keeps "listed family + shipped machinery = GREEN"
-# honest instead of aspirational.
-SHIPPED_FAMILIES: set[str] = {"1"}
+# Family blocks whose machinery this tree actually ships — DERIVED from the
+# family modules present (`contract/families/family_<N>_<slug>/`), never
+# hand-maintained: a module landed without its number here would silently lose
+# its green proof. The path comes from the imported package, so the copy-to-start
+# rename cannot break it.
+FAMILY_MODULES_DIR = Path(_families_package.__file__).resolve().parent
+SHIPPED_FAMILIES = sorted(
+    match.group(1)
+    for child in FAMILY_MODULES_DIR.iterdir()
+    if child.is_dir() and (match := re.match(r"family_([1-9])_", child.name))
+)
 
 
-@pytest.mark.parametrize("family", sorted(SHIPPED_FAMILIES))
+def test_every_shipped_family_module_has_its_conformance_block():
+    blocks = [d.name for d in FAMILIES_DIR.iterdir() if d.is_dir()]
+    for family in SHIPPED_FAMILIES:
+        assert any(block.startswith(f"f{family}_") for block in blocks), (
+            f"family {family} ships a module but no conformance block — "
+            "the block is the gate that the module still honours ADR-0001"
+        )
+
+
+@pytest.mark.parametrize("family", SHIPPED_FAMILIES)
 def test_a_listed_block_with_shipped_machinery_is_green(copied_template, family):
-    block = next(b for b in block_dirs(copied_template) if b.startswith(f"f{family}_"))
+    blocks = [b for b in block_dirs(copied_template) if b.startswith(f"f{family}_")]
+    if not blocks:
+        pytest.skip(
+            f"family {family}'s module and block were deleted in this copy "
+            "(CONTRIBUTING.md step 5)"
+        )
     write_manifest(copied_template, [family])
-    result = run_suite(copied_template, f"tests/contract/families/{block}")
+    result = run_suite(copied_template, f"tests/contract/families/{blocks[0]}")
     assert result.returncode == 0, result.stdout + result.stderr
 
 

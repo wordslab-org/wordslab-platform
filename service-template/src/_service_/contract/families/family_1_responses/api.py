@@ -3,8 +3,14 @@
 A capability that implements family 1 merges this fragment into the service's
 document (base item 1's `/openapi.json`, assembled by
 `contract/base/openapi.openapi_document`). Because the `/mcp` tools are
-auto-generated from that same document, merging the fragment is what makes the
-inference capability agent-callable — no separate MCP code (base item 9).
+auto-generated from that same document — the request body schema becoming the
+tool's `inputSchema` — this fragment is written INLINE, like the canary's: a
+`$ref` in a request body hands an agent a dangling reference instead of
+parameters. Merging the fragment is therefore what makes the inference
+capability agent-callable, with no separate MCP code (base item 9).
+
+The item-4 error body is NOT defined here: it is contract-wide and supplied
+once by `contract/base/openapi.py`, so its responses `$ref` it.
 
 The schemas describe the contract this module enforces (see `shapes.py`); the
 engine implementations vary behind it (ADR-0004), which is what the support
@@ -27,31 +33,18 @@ _USAGE = {
     },
 }
 
-_ERROR = {
-    "type": "object",
-    "required": ["error", "request_id"],
-    "properties": {
-        "error": {
-            "type": "object",
-            "required": ["type", "message"],
-            "properties": {
-                "type": {"type": "string"},
-                "message": {"type": "string"},
-                "resource": {"type": "string"},
-            },
-        },
-        "request_id": {"type": "string"},
-    },
-}
-
 _INPUT_PART = {
     "type": "object",
     "required": ["type"],
     "properties": {
         "type": {
             "type": "string",
-            "enum": ["input_text", "input_image", "input_audio"],
-            "description": "Multimodal input is in (ADR-0001 §Families.1); generation output is text or structured.",
+            "enum": ["input_text", "input_image", "input_audio", "function_call_output"],
+            "description": (
+                "Multimodal input is in (ADR-0001 §Families.1); generation output is "
+                "text or structured. `function_call_output` returns a tool call's "
+                "result — it is what closes a tool loop."
+            ),
         },
         "text": {"type": "string", "description": "input_text"},
         "image_url": {
@@ -62,6 +55,11 @@ _INPUT_PART = {
             "type": "object",
             "description": "input_audio — {data, format}.",
             "properties": {"data": {"type": "string"}, "format": {"type": "string"}},
+        },
+        "call_id": {"type": "string", "description": "function_call_output — the call it answers."},
+        "output": {
+            "type": ["string", "array"],
+            "description": "function_call_output — the tool's result.",
         },
     },
 }
@@ -74,6 +72,8 @@ _OUTPUT_ITEM = {
             "type": "string",
             "enum": ["message", "function_call", "reasoning", "mcp_call", "mcp_list_tools"],
         },
+        "id": {"type": "string"},
+        "status": {"type": "string", "enum": ["in_progress", "completed", "incomplete"]},
         "role": {"type": "string", "description": "message"},
         "content": {
             "type": "array",
@@ -100,7 +100,7 @@ _OUTPUT_ITEM = {
             },
         },
         "name": {"type": "string", "description": "function_call / mcp_call"},
-        "arguments": {"type": "string", "description": "function_call — a JSON string."},
+        "arguments": {"type": "string", "description": "function_call / mcp_call — a JSON string."},
         "call_id": {"type": "string", "description": "function_call"},
         "summary": {
             "type": "array",
@@ -177,20 +177,16 @@ _RESPONSE = {
         "created_at": {"type": "integer"},
         "status": {"type": "string", "enum": ["completed", "incomplete", "failed"]},
         "model": {"type": "string"},
+        "instructions": {"type": "string", "description": "Echoed when the request carried it."},
         "output": {"type": "array", "items": _OUTPUT_ITEM},
         "usage": _USAGE,
     },
 }
 
 openapi_fragment = {
-    "components": {
-        "schemas": {
-            "error": _ERROR,
-            "responses_request": _REQUEST,
-            "responses_response": _RESPONSE,
-            "responses_usage": _USAGE,
-        }
-    },
+    # No `components`: the item-4 `error` schema is supplied once by
+    # `contract/base/openapi.py`, and the payload schemas are inline so the
+    # auto-generated MCP tool carries real parameters instead of a $ref.
     "paths": {
         "/v1/responses": {
             "post": {
@@ -205,7 +201,7 @@ openapi_fragment = {
                 ),
                 "requestBody": {
                     "required": True,
-                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/responses_request"}}},
+                    "content": {"application/json": {"schema": _REQUEST}},
                 },
                 "responses": {
                     "200": {
@@ -214,7 +210,7 @@ openapi_fragment = {
                             "stream of typed events ending in `response.completed`."
                         ),
                         "content": {
-                            "application/json": {"schema": {"$ref": "#/components/schemas/responses_response"}},
+                            "application/json": {"schema": _RESPONSE},
                             "text/event-stream": {
                                 "schema": {
                                     "type": "string",

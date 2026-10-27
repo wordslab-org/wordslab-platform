@@ -17,11 +17,19 @@ here — the engine adapters themselves (Ollama / vLLM / sglang, the cloud
 gateway: the Inference service's implementation tickets), the model catalog and
 its download/load lifecycle (family 5, ticket #80), and background/async jobs —
 `"background": true` is family 5's surface, so it is rejected here with a
-precise message instead of being silently ignored.
+precise message instead of being silently ignored. The documented deviations
+from the upstream reference (the request fields and event types this module does
+not carry, and why) live in `docs/family-1-responses.md` — ADR-0001's rule is
+"document deviations, pinned to a reference date".
 
 Errors follow base item 4's taxonomy: a malformed REQUEST is 400
 `invalid_request`; a malformed ENGINE REPLY is 500 `internal_error` (the
-implementation broke this seam — it is never the client's fault).
+implementation broke this seam — it is never the client's fault). What "malformed
+request" means here is precise: an unknown input PART type or TOOL type, a missing
+required field, a wrong type on a field this module reads. Unknown TOP-LEVEL keys
+are accepted and forwarded (base item 3: additive changes stay backward-compatible
+within a major) — a service's engine may understand a field this module does not,
+so dropping the request would be the worse failure.
 """
 
 from __future__ import annotations
@@ -34,8 +42,11 @@ from ...base.errors import internal_error, invalid_request
 
 # --- the vocabulary (upstream type names, pinned by ADR-0001 §Families.1) ----
 
-# Multimodal INPUT parts.
-INPUT_PART_TYPES = frozenset({"input_text", "input_image", "input_audio"})
+# Input items: multimodal parts, plus the tool-result part that closes a tool
+# loop (a `function_call` output is only useful if its result can be sent back).
+INPUT_PART_TYPES = frozenset(
+    {"input_text", "input_image", "input_audio", "function_call_output"}
+)
 
 # OUTPUT item types this family fixes. Upstream carries more (file_search_call,
 # web_search_call, image_generation_call, …) — those belong to the service that
@@ -60,6 +71,14 @@ TEXT_FORMAT_TYPES = frozenset({"text", "json_schema"})
 # Response-level statuses (upstream): a completed turn, a truncated one, or a
 # failed one. Progress states live on the streaming events, not on this object.
 RESPONSE_STATUSES = frozenset({"completed", "incomplete", "failed"})
+
+# Item-level statuses (upstream): an item is closed by the time the response
+# body exists, but adapters may report a truncated item.
+ITEM_STATUSES = frozenset({"in_progress", "completed", "incomplete"})
+
+# The only role an OUTPUT message may carry (upstream): caller turns arrive as
+# input items, never as response output.
+OUTPUT_MESSAGE_ROLES = frozenset({"assistant"})
 
 # --- the inbound shape -------------------------------------------------------
 
@@ -145,8 +164,15 @@ def _parse_message(entry: dict, index: int) -> dict:
     if not isinstance(role, str) or not role:
         raise invalid_request(f"input[{index}] carries a non-string 'role'.")
     content = entry.get("content")
+    # Upstream accepts a bare string here as the shorthand for one input_text
+    # part (`EasyInputMessage.content`); do the same rather than 400 a shape the
+    # reference API accepts.
+    if isinstance(content, str):
+        content = [{"type": "input_text", "text": content}]
     if not isinstance(content, list) or not content:
-        raise invalid_request(f"input[{index}] ('{role}') must carry a non-empty 'content' list.")
+        raise invalid_request(
+            f"input[{index}] ('{role}') must carry a 'content' string or a non-empty list."
+        )
     parts = [
         _parse_input_part(part, f"input[{index}].content[{position}]")
         for position, part in enumerate(content)
@@ -162,7 +188,8 @@ def _parse_input_part(part: object, where: str) -> dict:
         raise invalid_request(
             f"{where}.type {part_type!r} is not an input part type "
             f"({sorted(INPUT_PART_TYPES)!r}) — multimodal input is "
-            "'input_text' / 'input_image' / 'input_audio' (ADR-0001 §Families.1)."
+            "'input_text' / 'input_image' / 'input_audio', plus "
+            "'function_call_output' for a tool result (ADR-0001 §Families.1)."
         )
     if part_type == "input_text":
         if not isinstance(part.get("text"), str):
@@ -176,7 +203,7 @@ def _parse_input_part(part: object, where: str) -> dict:
                 f"{where} ('input_image') requires 'image_url' (a URL string, or "
                 "an object carrying 'url')."
             )
-    else:  # input_audio
+    elif part_type == "input_audio":
         audio = part.get("input_audio")
         if not isinstance(audio, dict):
             raise invalid_request(
@@ -186,6 +213,18 @@ def _parse_input_part(part: object, where: str) -> dict:
         if not isinstance(audio.get("data"), str) or not isinstance(audio.get("format"), str):
             raise invalid_request(
                 f"{where} ('input_audio') requires string 'data' and 'format' keys."
+            )
+    else:  # function_call_output — the tool result that closes a tool loop
+        if not isinstance(part.get("call_id"), str) or not part["call_id"]:
+            raise invalid_request(
+                f"{where} ('function_call_output') requires a string 'call_id' "
+                "(the call it answers)."
+            )
+        output = part.get("output")
+        if not isinstance(output, (str, list)):
+            raise invalid_request(
+                f"{where} ('function_call_output') requires 'output' (a string, or "
+                "a list of content parts)."
             )
     return dict(part)
 
@@ -286,10 +325,16 @@ def normalize_response(request: dict, engine_output: object) -> dict:
             f"{sorted(RESPONSE_STATUSES)!r}."
         )
 
+    created_at = engine_output.get("created_at")
+    if created_at is None:
+        created_at = _now_seconds()
+    elif not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
+        raise internal_error("The engine reply's 'created_at' must be a non-negative integer.")
+
     response = {
         "id": _response_id(engine_output.get("id")),
         "object": "response",
-        "created_at": engine_output.get("created_at") or _now_seconds(),
+        "created_at": created_at,
         "status": status,
         "model": request["model"],
         "output": items,
@@ -345,28 +390,50 @@ def _normalize_item(item: object, request: dict, index: int) -> dict:
             raise internal_error(
                 f"output[{index}] ('mcp_call') requires string 'name' and 'server_label'."
             )
+        arguments = item.get("arguments", "")
+        if not isinstance(arguments, str):
+            raise internal_error(
+                f"output[{index}] ('mcp_call') requires 'arguments' as a JSON string "
+                "(upstream shape), like its function_call sibling."
+            )
+        _require_json(arguments, f"output[{index}].arguments")
         return {
             "type": "mcp_call",
             "id": item.get("id") or f"mc_{index}",
             "name": item["name"],
             "server_label": item["server_label"],
-            "arguments": item.get("arguments", ""),
+            "arguments": arguments,
         }
     # mcp_list_tools
     if not isinstance(item.get("server_label"), str):
         raise internal_error(f"output[{index}] ('mcp_list_tools') requires a string 'server_label'.")
+    tools = item.get("tools", [])
+    if not isinstance(tools, list) or not all(isinstance(tool, dict) for tool in tools):
+        raise internal_error(
+            f"output[{index}] ('mcp_list_tools') requires 'tools' as a list of tool "
+            "objects."
+        )
     return {
         "type": "mcp_list_tools",
         "id": item.get("id") or f"ml_{index}",
         "server_label": item["server_label"],
-        "tools": list(item.get("tools", [])),
+        "tools": [dict(tool) for tool in tools],
     }
 
 
 def _normalize_message(item: dict, request: dict, index: int) -> dict:
     role = item.get("role", "assistant")
-    if not isinstance(role, str) or not role:
-        raise internal_error(f"output[{index}] ('message') carries a non-string 'role'.")
+    if not isinstance(role, str) or role not in OUTPUT_MESSAGE_ROLES:
+        raise internal_error(
+            f"output[{index}] ('message') carries role {role!r}; an output message is "
+            f"{sorted(OUTPUT_MESSAGE_ROLES)!r} (caller turns are input items)."
+        )
+    status = item.get("status", "completed")
+    if status not in ITEM_STATUSES:
+        raise internal_error(
+            f"output[{index}] ('message') carries status {status!r}, not one of "
+            f"{sorted(ITEM_STATUSES)!r}."
+        )
     content = item.get("content")
     if not isinstance(content, list):
         raise internal_error(f"output[{index}] ('message') requires a 'content' list.")
@@ -378,7 +445,7 @@ def _normalize_message(item: dict, request: dict, index: int) -> dict:
         "type": "message",
         "id": item.get("id") or f"msg_{index}",
         "role": role,
-        "status": item.get("status", "completed"),
+        "status": status,
         "content": parts,
     }
 

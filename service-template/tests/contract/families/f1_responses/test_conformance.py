@@ -79,12 +79,30 @@ def test_post_responses_returns_the_responses_body(gated_client):
     assert r.headers["X-Request-Id"]  # base item 4 — every response
 
 
-def test_usage_is_reported_in_tokens_and_adds_up(gated_client):
+def test_usage_is_reported_in_tokens_and_adds_up(gated_client, make_gated_client):
     # Base item 8 — usage on resource-consuming operations; family 1 fixes the
-    # unit (tokens).
+    # unit (tokens). The stub derives the total; an engine that supplies its own
+    # correct total must have it PRESERVED (a wrong one is a 500, see the
+    # malformed-reply test).
     usage = gated_client.post("/v1/responses", json=PING).json()["usage"]
     assert set(usage) >= {"input_tokens", "output_tokens", "total_tokens"}
     assert usage["total_tokens"] == usage["input_tokens"] + usage["output_tokens"]
+
+    declared = make_gated_client(
+        ScenarioEngine(
+            reply(
+                output=[
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "hi"}],
+                    }
+                ],
+                usage={"input_tokens": 2, "output_tokens": 5, "total_tokens": 7},
+            )
+        )
+    )
+    assert declared.post("/v1/responses", json=PING).json()["usage"]["total_tokens"] == 7
 
 
 def test_the_engine_receives_the_parsed_request(make_gated_client):
@@ -92,7 +110,9 @@ def test_the_engine_receives_the_parsed_request(make_gated_client):
     client = make_gated_client(engine)
     assert client.post("/v1/responses", json=PING).status_code == 200
 
-    sent = engine.calls[0]
+    call = engine.calls[0]
+    assert call["operation"] == "responses"
+    sent = call["request"]
     assert sent["model"] == "stub-model"
     # a bare string input is the shorthand for one input_text part
     assert sent["input"] == [{"type": "input_text", "text": "ping"}]
@@ -283,6 +303,11 @@ def test_stream_true_returns_typed_sse_events(gated_client):
     for event in events:
         assert event["type"] in EVENT_TYPES
     assert [e["sequence_number"] for e in events] == list(range(len(events)))
+    # Part events carry the item id: upstream clients route deltas by
+    # (item_id, content_index), never by position alone.
+    part_events = [e for e in events if "content_index" in e]
+    assert part_events
+    assert all(e["item_id"] == "msg_0" for e in part_events)
     # the Responses API has no [DONE] sentinel — the terminal event closes it
     assert "[DONE]" not in r.text
 
@@ -325,6 +350,9 @@ def test_the_stream_and_the_sync_body_agree(gated_client):
         {"model": "m", "input": "ping", "text": {"format": {"type": "json_schema"}}},
         {"model": "m", "input": "ping", "stream": "yes"},
         {"model": "m", "input": "ping", "background": True},  # family 5's, not ours
+        {"model": "m", "input": "ping", "max_output_tokens": 0},
+        {"model": "m", "input": [{"role": "user", "content": 5}]},
+        {"model": "m", "input": [{"type": "function_call_output", "output": "x"}]},  # no call_id
     ],
 )
 def test_invalid_requests_are_400_invalid_request(gated_client, payload):
@@ -361,7 +389,7 @@ def test_a_feature_the_implementation_lacks_is_refused_by_name(make_gated_client
 
 
 def test_a_supported_feature_passes_the_gate(make_gated_client):
-    matrix = SupportMatrix(supported=frozenset({"vision", "streaming"}))
+    matrix = SupportMatrix(supported=frozenset({"vision"}))
     client = make_gated_client(ScenarioEngine(reply()), support=matrix)
     r = client.post(
         "/v1/responses",
@@ -370,10 +398,22 @@ def test_a_supported_feature_passes_the_gate(make_gated_client):
     assert r.status_code == 200
 
 
+def test_streaming_is_not_a_gated_feature(make_gated_client):
+    # The typed event sequence is the MODULE's (events.py), so every
+    # implementation of this route streams: declaring a narrow matrix must not
+    # turn `stream: true` into a 400.
+    client = make_gated_client(
+        ScenarioEngine(reply()), support=SupportMatrix(supported=frozenset({"function_tools"}))
+    )
+    r = client.post("/v1/responses", json={**PING, "stream": True})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+
+
 def test_the_support_matrix_reports_gaps_and_rejects_nonsense():
-    matrix = SupportMatrix(supported=frozenset({"streaming", "function_tools"}))
-    assert matrix.gaps({"streaming", "vision"}) == ("vision",)
-    assert matrix.gaps({"streaming"}) == ()
+    matrix = SupportMatrix(supported=frozenset({"function_tools", "structured_outputs"}))
+    assert matrix.gaps({"function_tools", "vision"}) == ("vision",)
+    assert matrix.gaps({"function_tools"}) == ()
     assert matrix.supports("function_tools") is True
     with pytest.raises(ValueError, match="unknown family-1 feature"):
         matrix.supports("telepathy")
@@ -381,6 +421,15 @@ def test_the_support_matrix_reports_gaps_and_rejects_nonsense():
         SupportMatrix(supported=frozenset())
     with pytest.raises(ValueError, match="unknown family-1 feature"):
         SupportMatrix(supported=frozenset({"telepathy"}))
+    # ADR-0001 §Families.1: deviations are pinned to a reference date.
+    with pytest.raises(ValueError, match="reference_date"):
+        SupportMatrix(supported=frozenset({"vision"}), deviations=("no audio input",))
+    pinned = SupportMatrix(
+        supported=frozenset({"vision"}),
+        deviations=("no audio input",),
+        reference_date="2026-10-27",
+    )
+    assert pinned.deviations == ("no audio input",)
 
 
 def test_required_features_follows_what_the_request_asks_for():
@@ -394,4 +443,154 @@ def test_required_features_follows_what_the_request_asks_for():
     assert required_features({"text": {"format": {"type": "json_schema"}}}) == frozenset(
         {"structured_outputs"}
     )
-    assert required_features({"stream": True}) == frozenset({"streaming"})
+    # streaming is served by the module itself, never required of an engine
+    assert required_features({"stream": True}) == frozenset()
+
+
+# --- the shapes the reference API accepts, one turn past the naive path ------
+
+
+def test_a_tool_result_closes_the_tool_loop(make_gated_client):
+    # A `function_call` output is useless if its result cannot come back:
+    # upstream accepts `function_call_output` as an input item.
+    engine = ScenarioEngine(reply())
+    client = make_gated_client(engine)
+    r = client.post(
+        "/v1/responses",
+        json={
+            "model": "m",
+            "input": [
+                {"type": "input_text", "text": "look it up"},
+                {"type": "function_call_output", "call_id": "call_1", "output": '{"ok": true}'},
+            ],
+        },
+    )
+    assert r.status_code == 200
+    assert engine.calls[0]["request"]["input"][1] == {
+        "type": "function_call_output",
+        "call_id": "call_1",
+        "output": '{"ok": true}',
+    }
+
+
+def test_a_message_content_may_be_a_plain_string(make_gated_client):
+    # Upstream's EasyInputMessage accepts a string where a content list is
+    # expected; the module normalizes it to one input_text part.
+    engine = ScenarioEngine(reply())
+    client = make_gated_client(engine)
+    assert client.post(
+        "/v1/responses", json={"model": "m", "input": [{"role": "user", "content": "hi"}]}
+    ).status_code == 200
+    assert engine.calls[0]["request"]["input"] == [
+        {"role": "user", "content": [{"type": "input_text", "text": "hi"}]}
+    ]
+
+
+def test_mcp_output_items_are_typed(make_gated_client):
+    mcp_turn = reply(
+        output=[
+            {
+                "type": "mcp_call",
+                "name": "search",
+                "server_label": "web",
+                "arguments": '{"q": "x"}',
+            },
+            {"type": "mcp_list_tools", "server_label": "web", "tools": [{"name": "search"}]},
+        ]
+    )
+    body = make_gated_client(ScenarioEngine(mcp_turn)).post("/v1/responses", json=PING).json()
+    call, listed = body["output"]
+    assert call["type"] == "mcp_call" and call["arguments"] == '{"q": "x"}'
+    assert listed["type"] == "mcp_list_tools" and listed["tools"] == [{"name": "search"}]
+
+    # the same seam violations its function_call sibling rejects
+    for broken in (
+        {"type": "mcp_call", "name": "search", "server_label": "web", "arguments": {"q": "x"}},
+        {"type": "mcp_list_tools", "server_label": "web", "tools": "search"},
+    ):
+        r = make_gated_client(ScenarioEngine(reply(output=[broken]))).post(
+            "/v1/responses", json=PING
+        )
+        assert r.status_code == 500, broken
+
+
+def test_instructions_are_echoed_and_max_output_tokens_accepted(make_gated_client):
+    engine = ScenarioEngine(reply())
+    client = make_gated_client(engine)
+    body = client.post(
+        "/v1/responses",
+        json={**PING, "instructions": "be brief", "max_output_tokens": 32},
+    ).json()
+    assert body["instructions"] == "be brief"
+    assert engine.calls[0]["request"]["max_output_tokens"] == 32
+
+
+def test_a_message_output_item_must_be_an_assistant_turn(make_gated_client):
+    # The contract fixes the item vocabulary: an output message is the
+    # assistant's, and its status is one of the closed set.
+    for broken in (
+        {"type": "message", "role": "user", "content": [{"type": "output_text", "text": "x"}]},
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "banana",
+            "content": [{"type": "output_text", "text": "x"}],
+        },
+    ):
+        r = make_gated_client(ScenarioEngine(reply(output=[broken]))).post(
+            "/v1/responses", json=PING
+        )
+        assert r.status_code == 500, broken
+
+
+# --- the fragment: document assembly and the agent surface -------------------
+
+
+def test_the_fragment_merges_and_reaches_the_mcp_tool():
+    """The documented integration path, exercised end to end: merge the fragment
+    with the canary's, serve the document, and read the auto-generated MCP
+    tool. A duplicate component or a `$ref` in the request body breaks this —
+    which is exactly what it exists to catch."""
+    from starlette.testclient import TestClient
+
+    from capabilities import canary
+    from contract.base.app import create_service_app
+    from contract.base.openapi import openapi_document
+    from contract.families.family_1_responses import openapi_fragment, responses_routes
+    from tests.support.stubs import StubEngine, stub_api_key
+
+    document = openapi_document(
+        title="family-1-probe",
+        version="0.0.1",
+        fragments=[canary.openapi_fragment, openapi_fragment],
+    )
+    assert "/v1/responses" in document["paths"]
+    # the item-4 error schema is supplied once, by the base
+    assert "error" in document["components"]["schemas"]
+
+    key = stub_api_key()
+    app = create_service_app(
+        service_name="family-1-probe",
+        version="0.0.1",
+        api_keys=[key],
+        openapi_doc=document,
+        mcp=True,
+        extra_routes=[*responses_routes(StubEngine())],
+    )
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    with TestClient(app) as client:
+        client.headers["Authorization"] = f"Bearer {key}"
+        served = client.get("/openapi.json").json()
+        assert "/v1/responses" in served["paths"]
+
+        rpc = client.post(
+            "/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, headers=headers
+        )
+        tools = {tool["name"]: tool for tool in rpc.json()["result"]["tools"]}
+
+    assert "responses" in tools
+    schema = tools["responses"]["inputSchema"]
+    # an agent must see real parameters, not a dangling $ref
+    assert "$ref" not in schema
+    assert {"model", "input"} <= set(schema["properties"])
+    assert tools["responses"]["description"]

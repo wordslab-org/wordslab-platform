@@ -43,19 +43,54 @@ failed request.
 
 Each implementation's adapter module exports `SUPPORT: SupportMatrix` — the
 features it supports (`vision`, `audio`, `function_tools`, `mcp_tools`,
-`structured_outputs`, `citations`, `reasoning`, `refusals`, `streaming`) plus
-its documented deviations from the upstream shapes ("follow upstream OpenAI
-shapes; document deviations, pinned to a reference date"). Passing that matrix
-to `responses_routes()` turns it into a **gate**: a request needing a feature the
-selected implementation lacks is refused with a 400 that names the feature and
-the implementation, before the engine is called — no silent substitution
-(ADR-0007 §10's explicit-implementation rule). Without a matrix the route does
-not gate; the implementation then owns the refusal itself.
+`structured_outputs`, `citations`, `reasoning`, `refusals`) plus its documented
+deviations from the upstream shapes and the `reference_date` they were checked
+against ("follow upstream OpenAI shapes; document deviations, pinned to a
+reference date"). Passing that matrix to `responses_routes()` turns it into a
+**gate**: a request needing a feature the selected implementation lacks is
+refused with a 400 that names the feature and the implementation, before the
+engine is called — no silent substitution (ADR-0007 §10's explicit-implementation
+rule). Without a matrix the route does not gate; the implementation then owns the
+refusal itself.
+
+`streaming` is deliberately **not** a feature: the typed event sequence is the
+module's own (`events.py`), so every implementation that serves this route
+streams. Output-side features (citations, reasoning, refusals) cannot be
+requested either — they are discovered from the response — so for those the
+matrix is documentation.
 
 The matrix is **feature support, not a ranking**. Rankings (quality, speed,
 cost) are dynamic — artificialanalysis at selection time — and must never be
 stored in a declaration (ADR-0031 §5). This is the opposite kind of fact, and
 the two never mix.
+
+## Deviations from the upstream reference
+
+Pinned to the upstream Responses API shapes as of **2026-10-27**. The module
+carries the surface ADR-0001 §Families.1 fixes; what it does not carry is
+listed here rather than left to be discovered (ADR-0001: "document deviations"):
+
+- **Request fields accepted but not interpreted**: unknown top-level keys are
+  forwarded to the engine untouched (base item 3: additive changes stay
+  backward-compatible within a major). Fields this module reads: `model`,
+  `input`, `instructions`, `tools`, `text`, `stream`, `max_output_tokens`.
+  Upstream's `temperature`, `top_p`, `tool_choice`, `previous_response_id`,
+  `include`, `metadata` and `truncation` are *not* validated here — an engine
+  that supports them receives them as-is, and one that does not is documented in
+  its own `SUPPORT.deviations`.
+- **`background: true`** is refused (400) with a message pointing at family 5
+  (async jobs), rather than silently serving a synchronous turn.
+- **Tool results**: `function_call_output` is accepted as an input item, which
+  is what lets a caller answer a `function_call`. `mcp_approval_response` is NOT
+  accepted — the MCP approval flow is the Connectors service's, and a service
+  that needs it declares the deviation.
+- **Event types**: the module emits `response.created`, `response.in_progress`,
+  `output_item.added/done`, `content_part.added/done`, `output_text.*`,
+  `refusal.*`, `function_call_arguments.*`, `reasoning_summary_text.*` and a
+  terminal `response.completed/incomplete/failed`. Upstream's
+  `response.output_text.annotation.added` is **not** emitted — annotations
+  arrive on the closed part instead of streaming as they are produced.
+
 
 ## What is deliberately NOT here
 
@@ -84,7 +119,10 @@ the two never mix.
    ```
 
 2. **Merge the fragment** into the service document:
-   `fragments=[..., family_1.openapi_fragment]`.
+   `fragments=[..., family_1.openapi_fragment]`. The fragment is written inline
+   (no `$ref` in the request body) so the auto-generated MCP tool carries real
+   parameters, and it does NOT define the item-4 `error` schema — the base
+   document supplies that once for every service.
 3. **Declare the family in the test suite** — `tests/contract/families/
    manifest.toml` → `families = ["1"]` — and keep the block. The block is the
    vendored conformance gate: it drives the module against the deterministic

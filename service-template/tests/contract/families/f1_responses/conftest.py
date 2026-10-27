@@ -30,14 +30,15 @@ from tests.support.test_server import InProcessService
 class ScenarioEngine:
     """An engine with a scripted reply — for the shapes the canned stub does
     not produce (a refusal, a citation, a function call, a malformed reply).
-    Records every call, so dispatch assertions are possible."""
+    Records every call in the stub-factory's shape (`{"operation", "request"}`),
+    so an assertion written against `StubEngine.calls` reads the same here."""
 
     def __init__(self, reply):
         self.reply = reply
         self.calls: list[dict] = []
 
     def responses(self, request: dict) -> dict:
-        self.calls.append(request)
+        self.calls.append({"operation": "responses", "request": request})
         return self.reply
 
 

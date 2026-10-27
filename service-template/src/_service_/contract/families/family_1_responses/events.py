@@ -48,9 +48,15 @@ EVENT_TYPES = frozenset(
     }
 )
 
-TERMINAL_EVENT_TYPES = frozenset(
-    {"response.completed", "response.incomplete", "response.failed"}
-)
+# The terminal event per response status — the ONE source: the terminal
+# vocabulary is derived from it, so the two can never drift apart.
+_TERMINAL_BY_STATUS = {
+    "completed": "response.completed",
+    "incomplete": "response.incomplete",
+    "failed": "response.failed",
+}
+
+TERMINAL_EVENT_TYPES = frozenset(_TERMINAL_BY_STATUS.values())
 
 # The default granularity of a synthesized delta, in characters. Small enough
 # that a stream is visibly incremental, large enough that a 10 KB answer is not
@@ -90,9 +96,11 @@ def events_for(response: dict, *, chunk_chars: int = DEFAULT_CHUNK_CHARS) -> lis
 def sse_frames(events: list[dict]) -> str:
     """Render events as the SSE wire format (base item 1: `text/event-stream`).
 
-    `ensure_ascii=False` keeps non-ASCII text readable on the wire; `separators`
-    keeps one event per block (`\\n\\n`), which is what makes the frame boundary
-    unambiguous for the client's parser.
+    Each frame is `event: <type>` + one `data:` line + the blank line that ENDS
+    the block — the blank line is what makes the frame boundary unambiguous for
+    the client's parser. `ensure_ascii=False` keeps non-ASCII text readable on
+    the wire; `separators` only strips the spaces `json.dumps` would add after
+    `,` and `:`.
     """
     frames = []
     for event in events:
@@ -102,11 +110,13 @@ def sse_frames(events: list[dict]) -> str:
 
 
 def _terminal_type(status: str) -> str:
-    if status == "incomplete":
-        return "response.incomplete"
-    if status == "failed":
-        return "response.failed"
-    return "response.completed"
+    try:
+        return _TERMINAL_BY_STATUS[status]
+    except KeyError:
+        raise ValueError(
+            f"no terminal event for response status {status!r} "
+            f"({sorted(_TERMINAL_BY_STATUS)!r})"
+        ) from None
 
 
 def _item_events(item: dict, output_index: int, chunk_chars: int) -> list[dict]:
@@ -122,7 +132,9 @@ def _item_events(item: dict, output_index: int, chunk_chars: int) -> list[dict]:
     if item.get("type") == "message":
         content = item.get("content", [])
         for content_index, part in enumerate(content):
-            events.extend(_part_events(part, output_index, content_index, chunk_chars))
+            events.extend(
+                _part_events(item.get("id"), part, output_index, content_index, chunk_chars)
+            )
     elif item.get("type") == "function_call":
         events.extend(_function_call_events(item, output_index, chunk_chars))
     elif item.get("type") == "reasoning":
@@ -135,7 +147,7 @@ def _item_events(item: dict, output_index: int, chunk_chars: int) -> list[dict]:
 
 
 def _part_events(
-    part: dict, output_index: int, content_index: int, chunk_chars: int
+    item_id: str | None, part: dict, output_index: int, content_index: int, chunk_chars: int
 ) -> list[dict]:
     part_type = part.get("type")
     if part_type not in CONTENT_PART_TYPES:  # normalize_response rejected these already
@@ -143,13 +155,16 @@ def _part_events(
 
     # The upstream event names differ per part type (`response.output_text.*`
     # vs `response.refusal.*`), and so do the payload fields: an output_text
-    # part carries `text`, a refusal part carries `refusal`.
+    # part carries `text`, a refusal part carries `refusal`. Every part event
+    # carries the item id (upstream requires it — a client routes deltas by
+    # (item_id, content_index), not by position alone).
     name = "output_text" if part_type == "output_text" else "refusal"
     field = "text" if part_type == "output_text" else "refusal"
     streamed = part.get(field, "")
     events: list[dict] = [
         {
             "type": "response.content_part.added",
+            "item_id": item_id,
             "output_index": output_index,
             "content_index": content_index,
             "part": {**part, field: ""},
@@ -159,6 +174,7 @@ def _part_events(
         events.append(
             {
                 "type": f"response.{name}.delta",
+                "item_id": item_id,
                 "output_index": output_index,
                 "content_index": content_index,
                 "delta": chunk,
@@ -167,6 +183,7 @@ def _part_events(
     events.append(
         {
             "type": f"response.{name}.done",
+            "item_id": item_id,
             "output_index": output_index,
             "content_index": content_index,
             field: streamed,
@@ -175,6 +192,7 @@ def _part_events(
     events.append(
         {
             "type": "response.content_part.done",
+            "item_id": item_id,
             "output_index": output_index,
             "content_index": content_index,
             "part": part,
@@ -214,6 +232,7 @@ def _reasoning_events(item: dict, output_index: int, chunk_chars: int) -> list[d
             events.append(
                 {
                     "type": "response.reasoning_summary_text.delta",
+                    "item_id": item.get("id"),
                     "output_index": output_index,
                     "summary_index": summary_index,
                     "delta": chunk,
@@ -222,6 +241,7 @@ def _reasoning_events(item: dict, output_index: int, chunk_chars: int) -> list[d
         events.append(
             {
                 "type": "response.reasoning_summary_text.done",
+                "item_id": item.get("id"),
                 "output_index": output_index,
                 "summary_index": summary_index,
                 "text": text,
