@@ -30,6 +30,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# wsl.exe emits UTF-16LE by default; PowerShell then reads it as NUL-separated text and prints
+# "w o r d s l a b" - every name comparison fails. WSL_UTF8=1 makes every call below plain UTF-8.
+$env:WSL_UTF8 = '1'
 $MarkerName = '.wordslab-installer'
 $Downloads = @('ubuntu-noble-oci-amd64-root.tar.gz', 'alpine-minirootfs.tar.gz')
 
@@ -140,6 +143,6 @@ if (Test-Path -LiteralPath $webview) {
 Write-Host "reset: --- machine state now ---"
 try {
     & wsl --status 2>&1 | ForEach-Object { Write-Host "  wsl --status: $_" }
-    & wsl --list --quiet 2>$null | Out-String | ForEach-Object { Write-Host "  remaining distros: $($_.Trim() -replace "`0", ' ')" }
+    & wsl --list --quiet 2>$null | Out-String | ForEach-Object { Write-Host "  remaining distros: $((($_.Trim() -split "[`r`n`0]+") | Where-Object { $_ }) -join ', ')" }
 } catch { Write-Host "  (wsl did not answer)" }
 Write-Host "reset: done - only this installer's own marked folders and files were removed."

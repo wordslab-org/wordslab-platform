@@ -19,6 +19,9 @@ its plain sentence on the card, and NO wordslab-front-door.url file, are the HON
 param([string]$ParametersFile = "", [switch]$AfterRestart)
 
 $ErrorActionPreference = 'Stop'
+# wsl.exe emits UTF-16LE by default; PowerShell then reads it as NUL-separated text and prints
+# "w o r d s l a b" - every name comparison fails. WSL_UTF8=1 makes every call below plain UTF-8.
+$env:WSL_UTF8 = '1'
 $script:pass = 0; $script:fail = 0
 
 function CheckBool($name, [scriptblock]$body) {
@@ -51,7 +54,9 @@ Write-Host "check: parameters from $ParametersFile (install_dir=$installDir, dri
 
 # 1) Distro names registered (the named distro model - never the default).
 $raw = (& wsl --list --quiet 2>$null) | Out-String
-$installed = @(($raw -split "`0") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+# WSL_UTF8=1 gives newline-separated names; older behaviour was NUL-separated UTF-16. Split on
+# both so the parse can never silently degrade into one blob (that made every -contains fail).
+$installed = @(($raw -split "[`r`n`0]+") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 CheckBool "distro 'wordslab-platform-vm' is registered" { $installed -contains 'wordslab-platform-vm' }
 foreach ($l in $letters) {
     $n = "wordslab-platform-disk$($l.ToLower())"
