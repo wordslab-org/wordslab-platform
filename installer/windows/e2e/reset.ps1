@@ -1,17 +1,17 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
-reset.ps1 — revert this machine to the state the Wordslab journey starts from.
+reset.ps1 - revert this machine to the state the Wordslab journey starts from.
 
 Deletes exactly and only what the #88 journey creates:
-  · the named distros:  wordslab  and  wordslab-<letter>  (pattern-guarded — see below)
-  · <drive>:\wordslab\wordslab-<letter>\      (the Wordslab Linux disks, VHDX inside)
-  · <install_dir>\virtual-machines\ and <install_dir>\cache\  (VM + downloaded rootfs tarballs)
-  · the written files: wordslab-install-parameters.json, wordslab-front-door.url
-  · the wizard's WebView2 data folder (%TEMP%\wordslab-installer-webview)
+  * the named distros:  wordslab  and  wordslab-<letter>  (pattern-guarded - see below)
+  * <drive>:\wordslab\wordslab-<letter>\      (the Wordslab Linux disks, VHDX inside)
+  * <install_dir>\virtual-machines\ and <install_dir>\cache\  (VM + downloaded rootfs tarballs)
+  * the written files: wordslab-install-parameters.json, wordslab-front-door.url
+  * the wizard's WebView2 data folder (%TEMP%\wordslab-installer-webview)
 
 NEVER touches Windows' built-in Linux itself (#88 ruling, by design): the WSL feature stays
 enabled across cycles, and no distro is unregistered whose name does not match
-^wordslab(-[a-z])?$ — other distros (docker-desktop, Ubuntu you installed, …) are untouchable.
+^wordslab(-[a-z])?$ - other distros (docker-desktop, Ubuntu you installed, ...) are untouchable.
 
 Dry preview:   powershell -File reset.ps1 -DryRun
 Actual reset:  powershell -File reset.ps1
@@ -31,7 +31,7 @@ function Trash($path, $why) {
 
 Write-Host "reset: starting (DryRun=$DryRun)"
 
-# 1) The distro names: read them from what WSL itself registered — never assume.
+# 1) The distro names: read them from what WSL itself registered - never assume.
 $raw = & wsl --list --quiet 2>$null
 $installed = ($raw | Out-String) -split "`0" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 if ($LASTEXITCODE -ne 0 -or -not $installed) { Step "no WSL distros answer (WSL may be off - nothing to unregister)" }
@@ -47,7 +47,7 @@ foreach ($name in $mine) {
     Step "unregistered $name"
 }
 
-# 2) The folders the journey creates, per fixed drive (the v1 fixed layout — one formula:
+# 2) The folders the journey creates, per fixed drive (the v1 fixed layout - one formula:
 #    every Wordslab disk folder is <drive>:\wordslab\wordslab-<letter>).
 foreach ($d in (Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -ne $null })) {
     $root = "$($d.Name):\"
@@ -57,7 +57,7 @@ foreach ($d in (Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -ne 
         ForEach-Object { Trash $_.FullName "Wordslab Linux disk on $($d.Name):" }
 }
 Trash "C:\wordslab\virtual-machines" "the Wordslab virtual machine (WSL import folder)"
-if ($KeepDownloads) { Step "keeping C:\wordslab\cache (rootfs tarballs) as asked — installs reuse them via Test-Path" }
+if ($KeepDownloads) { Step "keeping C:\wordslab\cache (rootfs tarballs) as asked - installs reuse them via Test-Path" }
 else { Trash "C:\wordslab\cache" "downloaded rootfs tarballs" }
 
 # 3) The written files: parameters + handoff address, next to the built wizard (search bin).
@@ -70,9 +70,9 @@ foreach ($name in 'wordslab-install-parameters.json', 'wordslab-front-door.url')
 }
 Trash (Join-Path $env:TEMP 'wordslab-installer-webview') "WebView2 profile"
 
-# 4) Proof of the contract: what is left, shown — the machine state you can trust to re-run.
+# 4) Proof of the contract: what is left, shown - the machine state you can trust to re-run.
 Write-Host "reset: --- machine state now ---"
 & wsl --status 2>&1 | ForEach-Object { Write-Host "  wsl --status: $_" }
 if ($LASTEXITCODE -eq 0) { Write-Host "  KEPT: Windows' built-in Linux stays switched on (never removed by this reset)" }
 & wsl --list --quiet 2>$null | Out-String | ForEach-Object { Write-Host "  remaining distros: $($_.Trim() -replace "`0", ' ')" }
-Write-Host "reset: done — the machine is at the journey's starting state again."
+Write-Host "reset: done - the machine is at the journey's starting state again."

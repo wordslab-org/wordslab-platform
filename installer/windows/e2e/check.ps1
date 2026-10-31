@@ -1,13 +1,13 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
-check.ps1 — assert the machine state the #88 journey promises, right after a run.
+check.ps1 - assert the machine state the #88 journey promises, right after a run.
 
 Every check mirrors the documented per-step contracts (class docs + script headers) and the
 S5 scenario: distros registered, folders exactly where the UI card promised them, each
 wsl.conf actually IN EFFECT (not just written), the engine slot filled, the disk mounts
 visible inside the app VM.
 
-Run after Start install finished (steps 1-5 green; step 6 is expected RED until #62/#92 —
+Run after Start install finished (steps 1-5 green; step 6 is expected RED until #62/#92 -
 its plain sentence on the card, and NO wordslab-front-door.url file, are the HONEST state).
 
   powershell -File check.ps1                 # full assertions, exit 0 = everything holds
@@ -40,7 +40,7 @@ if (-not $ParametersFile) {
         Select-Object -First 1).FullName
 }
 if (-not $ParametersFile -or -not (Test-Path $ParametersFile)) {
-    Write-Host "FAIL  no wordslab-install-parameters.json found — press Start install in the wizard first"
+    Write-Host "FAIL  no wordslab-install-parameters.json found - press Start install in the wizard first"
     exit 1
 }
 $params = Get-Content -Raw $ParametersFile | ConvertFrom-Json
@@ -49,7 +49,7 @@ $letters = @($params.PSObject.Properties | Where-Object { $_.Name -match '^volum
     ForEach-Object { $_.Name.Substring('volume_'.Length) })
 Write-Host "check: parameters from $ParametersFile (install_dir=$installDir, drives: $($letters -join ', '))"
 
-# 1) Distro names registered (the named distro model — never the default).
+# 1) Distro names registered (the named distro model - never the default).
 $raw = (& wsl --list --quiet 2>$null) | Out-String
 $installed = @(($raw -split "`0") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 CheckBool "distro 'wordslab' is registered" { $installed -contains 'wordslab' }
@@ -72,7 +72,7 @@ CheckBool "cached Ubuntu rootfs ($installDir\cache)" { Test-Path "$installDir\ca
 CheckBool "cached Alpine rootfs ($installDir\cache)" { Test-Path "$installDir\cache\alpine-minirootfs.tar.gz" }
 
 # 4) The VM's wsl.conf written AND in effect. appendWindowsPath off = no Windows PATH in the
-#    VM (cmd.exe not runnable); automount STAYS on by ruling (#93 re-homes it) — payload access.
+#    VM (cmd.exe not runnable); automount STAYS on by ruling (#93 re-homes it) - payload access.
 CheckExit "VM wsl.conf contents" { & wsl -d wordslab -- sh -c "grep -q 'systemd = true' /etc/wsl.conf && grep -q 'appendWindowsPath = false' /etc/wsl.conf" }
 CheckExit "VM appendWindowsPath in effect (no cmd.exe on the VM PATH)" { & wsl -d wordslab -- sh -c "! command -v cmd.exe >/dev/null" }
 CheckExit "VM automount kept on for payload access (/mnt/c present)" { & wsl -d wordslab -- sh -c "mountpoint -q /mnt/c" }
@@ -102,7 +102,7 @@ if (-not $AfterRestart) {
 # 8) Step 6's honest state: the url file exists ONLY if a home page actually answered.
 $urlFile = Join-Path (Split-Path -Parent $ParametersFile) 'wordslab-front-door.url'
 if (Test-Path $urlFile) { $pass++; Write-Host "PASS  front-door address file present: $(Get-Content $urlFile)" }
-else { $pass++; Write-Host "PASS  no front-door address file — the honest state until #62/#92 answer behind step 6" }
+else { $pass++; Write-Host "PASS  no front-door address file - the honest state until #62/#92 answer behind step 6" }
 
 Write-Host "check: $pass passed, $fail failed"
 exit $(if ($fail -eq 0) { 0 } else { 1 })

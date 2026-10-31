@@ -1,6 +1,6 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
-loop.ps1 — run the whole Windows journey as many times as you want, each time from the
+loop.ps1 - run the whole Windows journey as many times as you want, each time from the
 same clean starting state. One cycle =
 
     reset (delete the created distros + files; the WSL feature itself is KEPT)
@@ -15,10 +15,10 @@ same clean starting state. One cycle =
     powershell -File e2e\loop.ps1 -Exe C:\path\WordslabSetup.exe   # test the published exe (#94) instead
 
 Notes:
-  · Step 6 is EXPECTED red until #62 (core) and #92 (cert + name) land — check.ps1 still
+  * Step 6 is EXPECTED red until #62 (core) and #92 (cert + name) land - check.ps1 still
     passes on everything up to it; a cycle "fails" only on a real promise break.
-  · To test the idempotency promise, use the wizard itself: press Start install a second
-    time WITHOUT any reset ("keeping it" lines everywhere) — then run e2e\check.ps1.
+  * To test the idempotency promise, use the wizard itself: press Start install a second
+    time WITHOUT any reset ("keeping it" lines everywhere) - then run e2e\check.ps1.
 #>
 [CmdletBinding()]
 param([int]$Runs = 3, [string]$Exe = "", [switch]$KeepDownloads)
@@ -35,7 +35,7 @@ for ($n = 1; $n -le $Runs; $n++) {
     if ($KeepDownloads) { & (Join-Path $here 'reset.ps1') -KeepDownloads }
     else { & (Join-Path $here 'reset.ps1') }
 
-    Write-Host "cycle $n : launching the wizard — press Start install, watch the six cards, then CLOSE the window"
+    Write-Host "cycle $n : launching the wizard - press Start install, watch the six cards, then CLOSE the window"
     if ($Exe) {
         Start-Process -FilePath $Exe -Wait
     } else {
