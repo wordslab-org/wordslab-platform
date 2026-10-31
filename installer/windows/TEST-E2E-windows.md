@@ -12,9 +12,13 @@ The loop harness lives in `e2e\`:
 | `e2e\loop.ps1` | One cycle = reset → launch the wizard → check. `-Runs N` (default 3), `-KeepDownloads`, `-Exe <path>` to test a published setup.exe instead of `dotnet run`. Prints a per-cycle PASS/FAIL summary and exits non-zero if any cycle broke a promise. |
 
 ```
-powershell -File e2e\loop.ps1 -Runs 5 -KeepDownloads     # the everyday iteration
-powershell -File e2e\reset.ps1 -DryRun                   # see exactly what would be deleted
+powershell -ExecutionPolicy Bypass -File e2e\loop.ps1 -Runs 5 -KeepDownloads     # the everyday iteration
+powershell -ExecutionPolicy Bypass -File e2e\reset.ps1 -DryRun                   # see exactly what would be deleted
 ```
+
+`-ExecutionPolicy Bypass` is per-run (nothing changes on the machine): a default Windows
+policy of `Restricted` refuses any `.ps1`. If you prefer it once per shell:
+`Set-ExecutionPolicy -Scope Process Bypass` then drop the flag from every command.
 
 ## What "everything" covers
 
@@ -34,7 +38,7 @@ Fresh reset, `dotnet run --project Wizard.App`, press **Start install**. Expect:
   this is the honest, expected state until #62 (page) and #92 (cert + name) land. A green
   step 6 with no real page behind it would be the actual bug.
 - Bottom line: "The install stopped at the step marked in red…" — **expected** (step 6).
-Then: `powershell -File e2e\check.ps1` → expect **0 failed**, except the step-6 PASS line
+Then: `powershell -ExecutionPolicy Bypass -File e2e\check.ps1` → expect **0 failed**, except the step-6 PASS line
 that says "no front-door address file — the honest state".
 
 ### E2 — idempotency WITHOUT reset (press Start install a second time)
@@ -47,12 +51,12 @@ re-run, then `wsl -d wordslab -- cat /mnt/wordslab/c/e2e/probe.txt` still says `
 Then `check.ps1` again → 0 failed.
 
 ### E3 — reset → reinstall loops
-`powershell -File e2e\loop.ps1 -Runs 3` (or with `-KeepDownloads` once you've done one
+`powershell -ExecutionPolicy Bypass -File e2e\loop.ps1 -Runs 3` (or with `-KeepDownloads` once you've done one
 download cycle). Expect: reset prints exactly the wordslab-named deletions (no other distro
 named), then the wizard installs from scratch again, check passes, 3× OK in the summary.
 
 ### E4 — reboot between install and check
-After a green E1, reboot the machine, then `powershell -File e2e\check.ps1 -AfterRestart`.
+After a green E1, reboot the machine, then `powershell -ExecutionPolicy Bypass -File e2e\check.ps1 -AfterRestart`.
 Expect 0 failed: distros, folders, engine, configs all survive the reboot (they are
 WSL-registered, not session state). The bind mounts are NOT asserted here — re-publishing
 them at every launch is #94's launcher; re-running Start install re-applies them (step 4's
