@@ -48,7 +48,17 @@ done
 
 # 04 with no published disks (native host): visible no-op + summary, exit 0 — not a fake mount.
 out="$(bash "$DISTRO/04-data-volumes.sh" --parameters "$PARAMS")"
-echo "$out" | grep -q "Data volumes ready — 0 Wordslab Linux disk(s) mounted." || fail "04 must summarize honestly: $out"
+echo "$out" | grep -q "Data volumes ready - 0 Wordslab Linux disk(s) mounted." || fail "04 must summarize honestly: $out"
+
+# An ENABLED drive whose disk is not visible must FAIL the step, not pass quietly (#88 live bug:
+# step 4 went green while nothing was mounted).
+VOLPARAMS="$(mktemp)"; echo '{"install_dir": "/tmp/ws", "volume_C": "C:\\wordslab-platform"}' > "$VOLPARAMS"
+export WORDSLAB_MOUNT_ROOT="$STUB/mounts"   # writable stand-in for /mnt/wordslab-platform
+rc=0; out="$(bash "$DISTRO/04-data-volumes.sh" --parameters "$VOLPARAMS" 2>&1)" || rc=$?
+[ "$rc" -ne 0 ] || fail "04 must fail when an enabled drive's disk is missing"
+echo "$out" | grep -q "is not there" || fail "04 must name the missing disk: $out"
+echo "$out" | grep -q "/mnt/wsl inside the app VM holds" || fail "04 must show what /mnt/wsl holds: $out"
+rm -f "$VOLPARAMS"; unset WORDSLAB_MOUNT_ROOT
 
 # 05 with a stubbed uv: the engine slot is reported, exit 0.
 out="$(bash "$DISTRO/05-first-core.sh" --parameters "$PARAMS")"
