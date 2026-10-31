@@ -567,7 +567,12 @@ public class SupportTests
         foreach (var script in scripts)
         foreach (var command in await script.PlanAsync(ctx))
         foreach (var arg in command.Args)
+        {
             Assert.DoesNotMatch(@"(?<!:)//", arg);
+            // Write-Error dumps a formatted ErrorRecord (+ CategoryInfo, + FullyQualifiedErrorId)
+            // into the card; a failing step must print ONE plain sentence to stderr and exit.
+            Assert.DoesNotContain("Write-Error", arg);
+        }
     }
 
     [Fact]

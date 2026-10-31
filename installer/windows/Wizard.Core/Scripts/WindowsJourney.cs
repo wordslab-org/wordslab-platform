@@ -44,11 +44,11 @@ public sealed class Script01NetworkReachability : NumberedScript
                         $r = Invoke-WebRequest -Method Head -UseBasicParsing -TimeoutSec 20 $target;
                         Write-Output (([uri]$target).DnsSafeHost + ': reachable (HTTP ' + $r.StatusCode + ')')
                       } catch {
-                        Write-Error (([uri]$target).DnsSafeHost + ': NOT reachable - ' + $_.Exception.Message);
+                        [Console]::Error.WriteLine((([uri]$target).DnsSafeHost + ': NOT reachable - ' + $_.Exception.Message));
                         $fail = $true
                       }
                     }
-                    if ($fail) { Write-Error 'Wordslab needs github.com and pypi.org to be reachable. Check the connection, then press Start install again.'; exit 1 }
+                    if ($fail) { [Console]::Error.WriteLine('Wordslab needs github.com and pypi.org to be reachable. Check the connection, then press Start install again.'); exit 1 }
                     Write-Output 'Internet connection OK - github.com and pypi.org reachable.'
                     """
                 },
@@ -95,7 +95,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               $ok = $false;
               try { wsl --status *>$null; $ok = ($LASTEXITCODE -eq 0) } catch {}
               if (-not $ok) {
-                  Write-Error 'Windows needs Windows admin approval (and possibly one restart) to finish switching on its built-in Linux. Nothing else was changed.';
+                  [Console]::Error.WriteLine('Windows needs Windows admin approval (and possibly one restart) to finish switching on its built-in Linux. Nothing else was changed.');
                   exit 3
               }
               Write-Output "Windows' built-in Linux is switched on."
@@ -117,7 +117,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               $tar = Join-Path '{{cacheDir}}' 'ubuntu-noble-oci-amd64-root.tar.gz';
               if (-not (Test-Path $tar)) { curl.exe -sSL -o $tar '{{UbuntuRootfsUrl}}' };
               wsl --import {{Wsl.VmDistro}} '{{vmDir}}' $tar;
-              if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab virtual machine could not be created - see the lines above.'; exit 1 };
+              if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('The Wordslab virtual machine could not be created - see the lines above.'); exit 1 };
               # Ownership marker: only folders carrying it may ever be deleted (reset/e2e tooling).
               # Our own root is C:\wordslab-platform (or whatever install_dir says). C:\wordslab is
               # wordslab-notebooks' root - incident 2026-10-24: a reset deleting the shared
@@ -203,7 +203,7 @@ public sealed class Script04DataVolumes : DistroShellScript
                       $tar = Join-Path '{{cacheDir}}' 'alpine-minirootfs.tar.gz';
                       if (-not (Test-Path $tar)) { curl.exe -sSL -o $tar '{{AlpineRootfsUrl}}' };
                       wsl --import {{name}} '{{dir}}' $tar;
-                      if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab Linux disk on drive {{letter}}: could not be created - see the lines above.'; exit 1 };
+                      if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('The Wordslab Linux disk on drive {{letter}}: could not be created - see the lines above.'); exit 1 };
                       # Ownership marker (see Script02): only marked folders may ever be deleted.
                       Set-Content -LiteralPath (Join-Path '{{dir}}' '.wordslab-installer') -Value 'created-by=wordslab-platform-installer';
                       wsl -d {{name}} -- sh -c "printf '[automount]\nenabled = false\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
@@ -211,7 +211,7 @@ public sealed class Script04DataVolumes : DistroShellScript
                       Write-Output 'The Wordslab Linux disk on drive {{letter}}: is ready (its disk file lives in {{dir}})'
                     };
                     wsl -d {{name}} -- sh -c "mkdir -p /volume /mnt/wsl/{{name}}; mountpoint -q /mnt/wsl/{{name}} || mount --bind /volume /mnt/wsl/{{name}}";
-                    if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab Linux disk on drive {{letter}}: did not publish its data folder - press Start install again.'; exit 1 }
+                    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('The Wordslab Linux disk on drive {{letter}}: did not publish its data folder - press Start install again.'); exit 1 }
                     """
                 },
                 $"Creating the Wordslab Linux disk on drive {letter}:");
@@ -255,14 +255,14 @@ public sealed class Script06FrontDoor : DistroShellScript
                 "-NoProfile", "-Command",
                 $$"""
                 $ip = ((wsl -d {{Wsl.VmDistro}} -- hostname -I) | Out-String).Trim().Split(' ')[0];
-                if (-not $ip) { Write-Error 'The Wordslab virtual machine did not report an address - press Start install again.'; exit 1 };
+                if (-not $ip) { [Console]::Error.WriteLine('The Wordslab virtual machine did not report an address - press Start install again.'); exit 1 };
                 $ok = $false;
                 try {
                   [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true };
                   $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 15 "https://$ip/";
                   $ok = ($r.StatusCode -eq 200)
                 } catch {};
-                if (-not $ok) { Write-Error 'The Wordslab home page did not answer yet - press Start install again; starting over is safe.'; exit 1 };
+                if (-not $ok) { [Console]::Error.WriteLine('The Wordslab home page did not answer yet - press Start install again; starting over is safe.'); exit 1 };
                 Set-Content -LiteralPath '{{urlFile}}' -Value "https://$ip/";
                 Write-Output "Wordslab home page answering at https://$ip/ - one port, one certificate."
                 """
