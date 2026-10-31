@@ -80,7 +80,8 @@ public class ScriptPlanTests
 
         var s3 = await new Script03UvPythonInDistro().PlanAsync(ctx);
         Assert.Equal(Wsl.Exe, s3.Single().Program);
-        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash", "-c" }, s3.Single().Args.Take(5));
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash" }, s3.Single().Args.Take(4));
+        Assert.EndsWith("scripts/windows/03-engine.sh", s3.Single().Args[4]);
     }
 
     // ---- #88: every step's real command plan, pinned as argv ----
@@ -129,20 +130,21 @@ public class ScriptPlanTests
     }
 
     [Fact]
-    public async Task Step3_installs_uv_and_managed_python_at_the_ruled_landing_place()
+    public async Task Step3_runs_the_engine_script_FILE_never_an_inline_bash_c_body()
     {
-        var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
+        // Live bug (2026-10-31): a 785-byte multi-line body with embedded quotes, passed as
+        // `wsl -- bash -c <body>`, is re-split on the Linux side -> bash sees an unterminated
+        // quote -> exit 2. The body is a script FILE now: exactly one translated path.
+        var proc = ArgAwareProcess.WslWithTranslatedPaths();
+        var ctx = Contexts.Make(proc);
         var cmd = (await new Script03UvPythonInDistro().PlanAsync(ctx)).Single();
 
-        string body = cmd.Args[5]; // -d wordslab-platform -- bash -c <body>
-        Assert.Contains("https://astral.sh/uv/install.sh", body);
-        Assert.Contains("--install-dir /usr/local/bin", body);
-        Assert.Contains("UV_PYTHON_INSTALL_DIR=/opt/wordslab/python", body);
-        Assert.Contains("uv python install 3.12", body);
-        Assert.Contains("Wordslab engine ready", body);     // its own final human sentence
-        Assert.DoesNotContain("command -v uv", body);       // re-run upgrades uv: no skip-guard
-        Assert.DoesNotContain("placeholder", body);
-        Assert.Equal(System.Text.Encoding.Unicode, cmd.OutputEncoding);
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash",
+                             "/mnt/c/repo/installer/scripts/windows/03-engine.sh",
+                             "--parameters", "/mnt/c/tmp/wordslab-install-parameters.json" },
+                     cmd.Args);
+        Assert.DoesNotContain("-c", cmd.Args);              // no inline body survives
+        Assert.Equal(System.Text.Encoding.UTF8, cmd.OutputEncoding);
     }
 
     [Fact]
@@ -475,14 +477,15 @@ public class SupportTests
     }
 
     [Fact]
-    public void wsl_commands_declare_their_utf16le_output_encoding()
+    public void wsl_commands_declare_their_utf8_output_encoding()
     {
-        // wsl.exe (incl. wslpath) emits UTF-16LE; without the explicit encoding a real Windows
-        // host decodes its output as NUL-corrupted text — the fakes cannot catch this drift.
-        Assert.Equal(System.Text.Encoding.Unicode, Wsl.PythonProbe().OutputEncoding);
-        Assert.Equal(System.Text.Encoding.Unicode, Wsl.PathTranslate("C:\\x").OutputEncoding);
-        Assert.Equal(System.Text.Encoding.Unicode, Wsl.RunBash("/x/y.sh").OutputEncoding);
-        Assert.Equal(System.Text.Encoding.Unicode, Wsl.RunPython("/x/tui.py").OutputEncoding);
+        // ONE contract: UTF-8 everywhere. The executor sets WSL_UTF8=1 for wsl.exe, so its own
+        // messages are UTF-8 too — matching the UTF-8 the Linux child's output already arrives
+        // in. (Decoding that UTF-8 as UTF-16LE is the "lines of Chinese characters" bug.)
+        Assert.Equal(System.Text.Encoding.UTF8, Wsl.PythonProbe().OutputEncoding);
+        Assert.Equal(System.Text.Encoding.UTF8, Wsl.PathTranslate("C:\\x").OutputEncoding);
+        Assert.Equal(System.Text.Encoding.UTF8, Wsl.RunBash("/x/y.sh").OutputEncoding);
+        Assert.Equal(System.Text.Encoding.UTF8, Wsl.RunPython("/x/tui.py").OutputEncoding);
     }
 
     [Fact]

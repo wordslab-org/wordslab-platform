@@ -140,34 +140,18 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
     }
 }
 
-/// <summary>Installs the Wordslab engine INSIDE the named VM. Contract: in — nothing; out —
-/// version lines + a final human sentence; exit — non-zero = engine missing, journey stops;
-/// re-run — the uv installer re-runs on purpose (it upgrades uv in place: this step IS the
-/// engine layer of the update lane, ADR-0016 §8 host lane), uv python install is a no-op when
-/// 3.12 is already present.</summary>
-public sealed class Script03UvPythonInDistro : NumberedScript
+/// <summary>Installs the Wordslab engine INSIDE the named VM. Contract: in - the shared
+/// parameters file; out - version lines + a final human sentence; exit - non-zero = engine
+/// missing, journey stops; re-run - the uv installer re-runs on purpose (it upgrades uv in
+/// place: this step IS the engine layer of the update lane, ADR-0016 §8), uv python install is
+/// a no-op when 3.12 is present. The body is a script FILE (scripts/windows/03-engine.sh),
+/// never an inline `bash -c` body: a multi-line body with embedded quotes is re-split on the
+/// Linux side of wsl.exe and bash dies with exit 2 (live bug, 2026-10-31).</summary>
+public sealed class Script03UvPythonInDistro : DistroShellScript
 {
     public override int Number => 3;
     public override string Title => "Install the Wordslab engine (Python)";
-
-    /// <summary>The engine landing place (#88 ruling): uv in /usr/local/bin, uv-managed CPython
-    /// and cache under /opt/wordslab. Ticket #62's core plugs into the same slot. The uv
-    /// installer is NOT guarded away on re-runs — re-running this step updates uv itself.</summary>
-    public const string EngineBody =
-        """
-        set -e
-        if ! command -v curl >/dev/null 2>&1; then apt-get update -qq && apt-get install -y -qq curl ca-certificates; fi
-        curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --install-dir /usr/local/bin
-        grep -q UV_PYTHON_INSTALL_DIR /etc/environment 2>/dev/null || printf 'UV_PYTHON_INSTALL_DIR=/opt/wordslab/python\nUV_CACHE_DIR=/opt/wordslab/uv-cache\n' >> /etc/environment
-        export UV_PYTHON_INSTALL_DIR=/opt/wordslab/python UV_CACHE_DIR=/opt/wordslab/uv-cache
-        uv python install 3.12
-        UVV=$(uv --version | cut -d" " -f2)
-        PYV=$(uv run --no-project --python 3.12 python -c 'import sys; print(sys.version.split()[0])')
-        echo "Wordslab engine ready - uv $UVV and Python $PYV in the Wordslab virtual machine."
-        """;
-
-    public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx) => Task.FromResult<IReadOnlyList<Command>>(
-        new[] { Wsl.RunBashInline(EngineBody, "Installing the Wordslab engine (uv and Python) inside the virtual machine") });
+    protected override string ScriptFile => "windows/03-engine.sh";
 }
 
 /// <summary>Windows half: create one Wordslab Linux disk per enabled drive (host commands below);

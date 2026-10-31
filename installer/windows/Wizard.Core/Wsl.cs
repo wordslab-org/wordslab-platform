@@ -17,30 +17,29 @@ public static class Wsl
     /// are separate distros named `wordslab-platform-disk<letter>` (InstallDirs.VolumeDistroName).</summary>
     public const string VmDistro = "wordslab-platform-vm";
 
-    // wsl.exe (and wslpath) write UTF-16LE — decoding as the system default corrupts the output.
-    private static readonly Encoding WslConsoleEncoding = Encoding.Unicode;
+    // ONE output contract for every wsl command: UTF-8. wsl.exe's own messages are UTF-16LE by
+    // default, so the executor sets WSL_UTF8=1 for wsl.exe (ProcessCommandExecutor) — that makes
+    // them UTF-8, the same encoding as the Linux child's relayed output. Decoding the child's
+    // UTF-8 as UTF-16LE is exactly the "lines of Chinese characters" step-3 bug (2026-10-31).
+    private static readonly Encoding WslOutputEncoding = Encoding.UTF8;
 
     private static string[] Targeted(params string[] rest) =>
         new[] { "-d", VmDistro }.Concat(rest).ToArray(); // Concat, not Union: argv duplicates are significant
 
     public static Command PythonProbe() =>
-        new(Exe, Targeted("--", "python3", "--version"), "Checking for Python in the Wordslab virtual machine", WslConsoleEncoding);
+        new(Exe, Targeted("--", "python3", "--version"), "Checking for Python in the Wordslab virtual machine", WslOutputEncoding);
 
     public static Command PathTranslate(string windowsPath) =>
-        new(Exe, Targeted("wslpath", "-u", windowsPath), "Translating a Windows path for the Wordslab virtual machine", WslConsoleEncoding);
+        new(Exe, Targeted("wslpath", "-u", windowsPath), "Translating a Windows path for the Wordslab virtual machine", WslOutputEncoding);
 
     public static Command RunBash(string distroPath, IReadOnlyList<string>? args = null) =>
         new(Exe, Targeted("--", "bash", distroPath).Concat(args ?? []).ToArray(), // Concat, not Union: argv duplicates are significant
-            $"Running {System.IO.Path.GetFileName(distroPath)} inside the Wordslab virtual machine", WslConsoleEncoding);
+            $"Running {System.IO.Path.GetFileName(distroPath)} inside the Wordslab virtual machine", WslOutputEncoding);
 
     public static Command RunPython(string distroPath, IReadOnlyList<string>? args = null) =>
         new(Exe, Targeted("--", "python3", distroPath).Concat(args ?? []).ToArray(), // Concat, not Union: argv duplicates are significant
-            $"Running {System.IO.Path.GetFileName(distroPath)} in the Wordslab virtual machine's Python", WslConsoleEncoding);
+            $"Running {System.IO.Path.GetFileName(distroPath)} in the Wordslab virtual machine's Python", WslOutputEncoding);
 
-    /// <summary>An inline bash body inside the named distro (Windows-only steps have no script
-    /// files — the C# class carries the readable body).</summary>
-    public static Command RunBashInline(string bashBody, string? status = null) =>
-        new(Exe, Targeted("--", "bash", "-c", bashBody), status ?? "Working inside the Wordslab virtual machine", WslConsoleEncoding);
 }
 
 /// <summary>Runs <c>wslpath -u</c> through the executor seam so even path translation is visible

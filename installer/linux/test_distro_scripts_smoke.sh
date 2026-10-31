@@ -4,7 +4,9 @@
 # stubbed OS). Run: bash installer/linux/test_distro_scripts_smoke.sh
 set -euo pipefail
 
-DISTRO="$(cd "$(dirname "$0")/../scripts/distro" && pwd)"
+SCRIPTS="$(cd "$(dirname "$0")/../scripts" && pwd)"
+DISTRO="$SCRIPTS/distro"
+ENGINE="$SCRIPTS/windows/03-engine.sh"
 PARAMS="$(mktemp)"; echo '{"install_dir": "/tmp/ws"}' > "$PARAMS"
 STUB="$(mktemp -d)"; printf '#!/bin/sh\necho "uv 9.9.9 (stub)"\n' > "$STUB/uv"; chmod +x "$STUB/uv"
 export PATH="$STUB:$PATH"
@@ -14,6 +16,19 @@ if [ -d /mnt/wsl ] && ls /mnt/wsl/wordslab-platform-* >/dev/null 2>&1; then
 fi
 
 fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
+
+# Every numbered script must at least BE valid shell — a syntax error only shows up at run time
+# on the Windows host otherwise (live bug: an inline bash -c body, 2026-10-31).
+for script in "$DISTRO"/*.sh "$SCRIPTS"/windows/*.sh; do
+  [ -f "$script" ] || continue
+  bash -n "$script" || fail "$(basename "$script") has a bash syntax error"
+done
+
+# Step 03's engine script keeps its ruled content (it runs uv for real on Windows only).
+grep -q "astral.sh/uv/install.sh" "$ENGINE" || fail "03-engine.sh must install uv"
+grep -q "/opt/wordslab/python" "$ENGINE" || fail "03-engine.sh must name the engine slot"
+grep -q "Wordslab engine ready" "$ENGINE" || fail "03-engine.sh must end on its human sentence"
+if grep -q "command -v uv" "$ENGINE"; then fail "03-engine.sh must re-run the uv installer (update lane)"; fi
 
 # Shared usage contract: missing --parameters, a nonexistent file, and unknown arguments all
 # exit 2 loudly (the runner mirrors the stderr line — never silent).

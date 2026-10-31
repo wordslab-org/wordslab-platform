@@ -18,7 +18,7 @@ WPF remain banned).
       real streaming process executor (both pipes drained concurrently).
     - `NumberedScript.cs` — the numbered bootstrap scripts **as readable classes**; distro
       script classes run the shared numbered shell files (`DistroShellScript`) or Python files
-      (`DistroPythonScript`, the #88 shape); paths cross into the distro only via `wslpath -u`; all `wsl.exe` output is decoded as UTF-16LE (its console encoding).
+      (`DistroPythonScript`, the #88 shape); paths cross into the distro only via `wslpath -u`; every `wsl.exe` command is decoded as UTF-8 (`WSL_UTF8=1` is set for wsl.exe, so its own messages match the UTF-8 the Linux child's output already arrives in — decoding that as UTF-16LE is what produced "lines of Chinese characters").
     - `Scripts/WindowsJourney.cs` — scripts 1–3 (everything WSL-specific up to the first step
       shared with Linux) as C# classes, plus the shared steps 4–6.
     - `JourneyRunner.cs` — runs the numbered scripts in order, streaming every status/output
@@ -43,7 +43,9 @@ WPF remain banned).
   is its smoke contract.
 - `scripts/` — the numbered shared scripts as real files (`linux/` prefix steps, shared
   `distro/` steps 4–6) so every shared step is re-runnable by hand. Since #88 the `distro/`
-  steps 4–6 carry their real machinery, and every one documents its contract (in / out / exit
+  steps 4–6 carry their real machinery, and `scripts/windows/03-engine.sh` is the Windows
+  step 3 body — a real file, never an inline `bash -c` body (a multi-line body with embedded
+  quotes gets re-split on the Linux side of wsl.exe and bash dies with exit 2), and every one documents its contract (in / out / exit
   codes / re-run behaviour) in its file header; they all take `--parameters <file>` — the very
   JSON the wizard or TUI wrote (the shared parameters contract). Linux steps 1–3 keep visible
   placeholders until the payload download lands (#94 packaging). The Windows-only steps 1–3

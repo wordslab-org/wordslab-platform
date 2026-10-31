@@ -19,9 +19,11 @@ set -euo pipefail
 echo "04: install parameters read from $PARAMS"
 
 found=0
-for published in /mnt/wsl/wordslab-platform-*; do
+for published in /mnt/wsl/wordslab-platform-disk*; do
   [ -d "$published" ] || continue          # glob unmatched: no Wordslab Linux disks published
-  letter="${published##*/wordslab-platform-}"
+  # Published dir name == distro name (wordslab-platform-diskc); the in-VM mount point is
+  # /mnt/wordslab-platform/diskc — strip the WHOLE prefix, not just "wordslab-platform-".
+  letter="${published##*/wordslab-platform-disk}"
   target="/mnt/wordslab-platform/disk$letter"
   mkdir -p "$target"
   mountpoint -q "$target" || mount --bind "$published" "$target"
