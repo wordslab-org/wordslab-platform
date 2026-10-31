@@ -23,12 +23,17 @@ public abstract class DistroShellScript : NumberedScript
     public override async Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx)
     {
         string windowsPath = ctx.DistroScript(ScriptFile);
-        // Without WSL the path cannot translate; the step then fails loudly with the distro's own
-        // error rather than silently skipping — nothing is ever hidden from the user.
-        string distroPath = await ctx.WslPaths.ToDistroPathAsync(windowsPath) ?? windowsPath;
+        // NEVER fall back to the raw Windows path: wsl.exe strips the backslashes on its way to
+        // Linux ("C:Userslaure…", exit 127 — live bug) and the error blames the wrong thing.
+        string distroPath = await ctx.WslPaths.ToDistroPathAsync(windowsPath)
+            ?? throw new InvalidOperationException(
+                $"the installer cannot reach '{windowsPath}' from inside the Wordslab virtual machine " +
+                "(only paths on a Windows drive can be shared with it)");
         // #88: the shared scripts read the same parameters contract the wizard wrote — the file
         // crosses the distro boundary translated, exactly like the script path.
-        string paramsDistro = await ctx.WslPaths.ToDistroPathAsync(ctx.ParametersFile) ?? ctx.ParametersFile;
+        string paramsDistro = await ctx.WslPaths.ToDistroPathAsync(ctx.ParametersFile)
+            ?? throw new InvalidOperationException(
+                $"the installer cannot reach the parameters file '{ctx.ParametersFile}' from inside the virtual machine");
         return new[] { Wsl.RunBash(distroPath, new[] { "--parameters", paramsDistro }) };
     }
 }

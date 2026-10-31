@@ -46,8 +46,26 @@ public static class Wsl
 /// in the streamed journey and testable with the fake.</summary>
 public sealed class WslPathTranslator(ICommandExecutor executor)
 {
+    /// <summary>C:\a\b -> /mnt/c/a/b — WSL's default automount convention, COMPUTED rather than
+    /// asked. The Ubuntu OCI rootfs we import ships no <c>wslpath</c> binary (live bug: step 3
+    /// ran with the raw Windows path and died on "C:Userslaure...", exit 127), so the tool must
+    /// not depend on that helper for its own payload. Null when the path is not drive-rooted
+    /// (UNC, relative) — those still go through wslpath, and callers fail loudly if it cannot
+    /// answer.</summary>
+    public static string? MapDrivePath(string windowsPath)
+    {
+        string p = windowsPath.Trim();
+        if (p.Length < 3 || !char.IsLetter(p[0]) || p[1] != ':' || (p[2] != '\\' && p[2] != '/'))
+            return null;
+        string rest = p[2..].Replace('\\', '/').Trim('/');
+        return "/mnt/" + char.ToLowerInvariant(p[0]) + (rest.Length > 0 ? "/" + rest : "");
+    }
+
     public async Task<string?> ToDistroPathAsync(string windowsPath, Action<ReportLine>? report = null)
     {
+        string? mapped = MapDrivePath(windowsPath);
+        if (mapped is not null) return mapped;   // deterministic: no subprocess, no dependency
+
         string? firstLine = null;
         int exit = await executor.RunAsync(Wsl.PathTranslate(windowsPath), line =>
         {

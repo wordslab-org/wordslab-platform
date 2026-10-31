@@ -15,7 +15,9 @@ public sealed class InstallContext
     public required WslPathTranslator WslPaths { get; init; }
 
     public string DistroScript(string relativeName) =>
-        Path.Combine(InstallerDir, "scripts", relativeName);
+        // one separator style on the host: Path.Combine with "windows/03-engine.sh" otherwise
+        // yields "…\\scripts\\windows/03-engine.sh" and confuses the wsl boundary
+        Path.Combine(InstallerDir, "scripts", relativeName).Replace('/', Path.DirectorySeparatorChar);
     public string PythonScript(string relativeName) =>
         Path.Combine(InstallerDir, "python", relativeName);
 }

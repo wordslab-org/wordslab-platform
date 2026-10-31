@@ -50,7 +50,8 @@ sealed class ArgAwareProcess : ICommandExecutor
 
 static class Contexts
 {
-    public static InstallContext Make(ICommandExecutor executor, string installerDir = "/repo/installer") => new()
+    public static InstallContext Make(ICommandExecutor executor, string installerDir = "/repo/installer",
+        string parametersFile = "/tmp/wordslab-install-parameters.json") => new()
     {
         InstallerDir = installerDir,
         // The real v1 parameters the wizard writes (#87 contract): program folder + one
@@ -61,7 +62,7 @@ static class Contexts
             ["volume_C"] = @"C:\wordslab-platform",
             ["volume_D"] = @"D:\wordslab-platform",
         },
-        ParametersFile = "/tmp/wordslab-install-parameters.json",
+        ParametersFile = parametersFile,
         WslPaths = new WslPathTranslator(executor),
     };
 }
@@ -212,16 +213,42 @@ public class ScriptPlanTests
     }
 
     [Fact]
-    public async Task Distro_shell_steps_fall_back_to_the_raw_path_and_fail_visibly_without_wsl()
+    public async Task Distro_shell_steps_fail_loudly_when_a_path_cannot_be_reached()
     {
-        // No WSL at all: wslpath fails; the step must still run and fail loudly (wsl's own error),
-        // never silently skip.
+        // Live bug (2026-10-31): on failure the step ran with the RAW Windows path; wsl.exe then
+        // strips the backslashes ("C:Userslaure…") and bash dies with exit 127, blaming a path
+        // that never existed. A path the VM cannot reach must stop the step, named as such.
         var proc = new FakeProcess(new Dictionary<string, (int, string[], string[])>());
-        var ctx = Contexts.Make(proc);
+        var ctx = Contexts.Make(proc);   // POSIX installer dir + no translation available
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new Script04DataVolumes().PlanAsync(ctx));
+        Assert.Contains("cannot reach", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(@"C:\Users\laure\x", "/mnt/c/Users/laure/x")]
+    [InlineData(@"D:\wordslab-platform\installer", "/mnt/d/wordslab-platform/installer")]
+    [InlineData("/mnt/c/x", null)]              // POSIX input: not a Windows drive path
+    [InlineData(@"\\server\share\x", null)]      // UNC: wslpath territory, not ours
+    public void windows_paths_map_to_the_automount_convention(string windowsPath, string? expected)
+    {
+        Assert.Equal(expected, WslPathTranslator.MapDrivePath(windowsPath));
+    }
+
+    [Fact]
+    public async Task a_windows_installer_dir_translates_without_any_subprocess()
+    {
+        // The regression that broke step 3: the Ubuntu rootfs ships no wslpath, so the wizard's
+        // OWN payload paths must be computed, never asked for.
+        var proc = new FakeProcess(new Dictionary<string, (int, string[], string[])>());
+        var ctx = Contexts.Make(proc, @"C:\repo\installer", @"C:\tmp\wordslab-install-parameters.json");
 
         var commands = await new Script04DataVolumes().PlanAsync(ctx);
 
-        Assert.Equal(ctx.DistroScript("distro/04-data-volumes.sh"), commands.Last().Args[4]);
+        Assert.Contains("/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh", commands.Last().Args);
+        Assert.Contains("/mnt/c/tmp/wordslab-install-parameters.json", commands.Last().Args);
+        Assert.Empty(proc.Calls);   // not one wslpath round-trip
     }
 
     [Fact]

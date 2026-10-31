@@ -18,7 +18,7 @@ WPF remain banned).
       real streaming process executor (both pipes drained concurrently).
     - `NumberedScript.cs` — the numbered bootstrap scripts **as readable classes**; distro
       script classes run the shared numbered shell files (`DistroShellScript`) or Python files
-      (`DistroPythonScript`, the #88 shape); paths cross into the distro only via `wslpath -u`; every `wsl.exe` command is decoded as UTF-8 (`WSL_UTF8=1` is set for wsl.exe, so its own messages match the UTF-8 the Linux child's output already arrives in — decoding that as UTF-16LE is what produced "lines of Chinese characters").
+      (`DistroPythonScript`, the #88 shape); paths cross into the distro only as `/mnt/<drive>/...` **computed** from the Windows path (the imported Ubuntu rootfs ships no `wslpath`; falling back to the raw Windows path makes wsl.exe strip the backslashes — the "C:Userslaure…" exit 127 bug): every `wsl.exe` command is decoded as UTF-8 (`WSL_UTF8=1` is set for wsl.exe, so its own messages match the UTF-8 the Linux child's output already arrives in — decoding that as UTF-16LE is what produced "lines of Chinese characters").
     - `Scripts/WindowsJourney.cs` — scripts 1–3 (everything WSL-specific up to the first step
       shared with Linux) as C# classes, plus the shared steps 4–6.
     - `JourneyRunner.cs` — runs the numbered scripts in order, streaming every status/output
