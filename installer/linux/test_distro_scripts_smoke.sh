@@ -22,6 +22,9 @@ fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 for script in "$DISTRO"/*.sh "$SCRIPTS"/windows/*.sh; do
   [ -f "$script" ] || continue
   bash -n "$script" || fail "$(basename "$script") has a bash syntax error"
+  # CRLF is a classic: git for Windows checks .sh out as CRLF without .gitattributes, and bash
+  # then reports "set: pipefail: invalid option name" instead of the real cause.
+  if grep -q $'\r' "$script"; then fail "$(basename "$script") has CRLF line endings"; fi
 done
 
 # Step 03's engine script keeps its ruled content (it runs uv for real on Windows only).

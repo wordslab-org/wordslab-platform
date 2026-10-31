@@ -23,6 +23,13 @@ public abstract class DistroShellScript : NumberedScript
     public override async Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx)
     {
         string windowsPath = ctx.DistroScript(ScriptFile);
+        // A checkout with CRLF (Git for Windows' default core.autocrlf) makes bash die with
+        // "set: pipefail: invalid option name" — a message that blames the wrong thing. Name
+        // the real cause here instead (the .gitattributes file keeps future checkouts LF).
+        if (File.Exists(windowsPath) && File.ReadAllText(windowsPath).Contains("\r\n"))
+            throw new InvalidOperationException(
+                $"'{Path.GetFileName(windowsPath)}' has Windows line endings (CRLF) and bash cannot run it. " +
+                "Re-checkout the repository with its .gitattributes in place: git rm --cached -r . then git reset --hard.");
         // NEVER fall back to the raw Windows path: wsl.exe strips the backslashes on its way to
         // Linux ("C:Userslaure…", exit 127 — live bug) and the error blames the wrong thing.
         string distroPath = await ctx.WslPaths.ToDistroPathAsync(windowsPath)

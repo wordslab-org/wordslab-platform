@@ -1,0 +1,12 @@
+# Line endings are a correctness issue here, not a style one: bash refuses a script whose lines
+# end in CR ("set: pipefail: invalid option name") and the failure reads like a syntax bug.
+# Git for Windows defaults to core.autocrlf=true, so without this file every .sh in the repo
+# would be checked out as CRLF on a Windows machine.
+*.sh    text eol=lf
+*.bash  text eol=lf
+*.py    text eol=lf
+
+# Windows-side tooling: CRLF is harmless there and friendlier in Notepad.
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf

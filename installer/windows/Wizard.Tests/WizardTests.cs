@@ -226,6 +226,27 @@ public class ScriptPlanTests
         Assert.Contains("cannot reach", ex.Message);
     }
 
+    [Fact]
+    public async Task a_script_file_checked_out_with_crlf_is_named_as_such()
+    {
+        // Git for Windows checks .sh out as CRLF without .gitattributes; bash then dies with
+        // "set: pipefail: invalid option name" (live bug). The step must name the real cause.
+        string dir = Path.Combine(Path.GetTempPath(), "wscrl-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "scripts", "distro"));
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "scripts", "distro", "04-data-volumes.sh"),
+                "#!/usr/bin/env bash\r\nset -euo pipefail\r\n");
+            var ctx = Contexts.Make(new FakeProcess(new Dictionary<string, (int, string[], string[])>()), dir);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => new Script04DataVolumes().PlanAsync(ctx));
+            Assert.Contains("CRLF", ex.Message);
+            Assert.Contains("gitattributes", ex.Message);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     [Theory]
     [InlineData(@"C:\Users\laure\x", "/mnt/c/Users/laure/x")]
     [InlineData(@"D:\wordslab-platform\installer", "/mnt/d/wordslab-platform/installer")]
