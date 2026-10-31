@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 check.ps1 - assert the machine state the #88 journey promises, right after a run.
 
@@ -22,6 +22,7 @@ $ErrorActionPreference = 'Stop'
 # wsl.exe emits UTF-16LE by default; PowerShell then reads it as NUL-separated text and prints
 # "w o r d s l a b" - every name comparison fails. WSL_UTF8=1 makes every call below plain UTF-8.
 $env:WSL_UTF8 = '1'
+. (Join-Path $PSScriptRoot '_common.ps1')   # Get-InstallerFile: both layouts
 $script:pass = 0; $script:fail = 0
 
 function CheckBool($name, [scriptblock]$body) {
@@ -35,12 +36,11 @@ function CheckExit($name, [scriptblock]$body) {
     else { $script:fail++; Write-Host "FAIL  $name  (exit $LASTEXITCODE)" }
 }
 
-# Locate the parameters file the wizard wrote (next to the built exe).
+# Locate the parameters file the wizard wrote. Works in both layouts (checkout: Wizard.App\bin;
+# published folder: next to Wizard.App.exe) - see _common.ps1.
 if (-not $ParametersFile) {
     $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-    $bin = Join-Path (Split-Path -Parent $here) 'Wizard.App\bin'
-    $ParametersFile = (Get-ChildItem -Path $bin -Recurse -Filter 'wordslab-install-parameters.json' -ErrorAction SilentlyContinue |
-        Select-Object -First 1).FullName
+    $ParametersFile = Get-InstallerFile -E2eDir $here -Name 'wordslab-install-parameters.json'
 }
 if (-not $ParametersFile -or -not (Test-Path $ParametersFile)) {
     Write-Host "FAIL  no wordslab-install-parameters.json found - press Start install in the wizard first"

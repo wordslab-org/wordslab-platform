@@ -36,6 +36,32 @@ written by the step that creates the folder (`<install_dir>\wordslab-platform-vm
   removed: `powershell -ExecutionPolicy Bypass -File e2e\reset.ps1 -RemoveOrphans` is the
   explicit way to clean them — an orphaned registration is the last trace of data.
 
+## Testing on another machine (a VM, a colleague's PC)
+
+The wizard is self-contained, but it **must travel with its payload** — it walks up from its exe
+looking for `installer\python\tui.py`, so an exe alone is not an installer. One command builds the
+carry-able folder:
+
+```
+powershell -ExecutionPolicy Bypass -File publish.ps1 -Zip
+   -> artifacts\wordslab-installer-win-x64.zip
+```
+
+Unzip anywhere on the target machine and run `Wizard.App.exe` — no .NET, no Windows App Runtime,
+no repo needed. The archive carries `installer\` (python + numbered scripts), `installer\windows\e2e\`
+(the three scripts) and this document, so the whole harness travels too.
+
+CI does the same build: `.github/workflows/installer.yml` runs on demand (Actions → installer →
+Run workflow, zip attached to the run) and on every tag `installer-v*` (zip attached to a GitHub
+Release, stable download URL).
+
+Two caveats: the archive is **unsigned**, so a download from the internet shows SmartScreen's
+"Windows protected your PC" → *More info* → *Run anyway*; and the final exe name, icon/version
+metadata and signing are ticket **#94** — this is the test-delivery path, deliberately minimal.
+
+The usual reason to do this is E6 (the one-UAC path): carry the zip into a throwaway Windows VM,
+checkpoint it, and test feature-off → one UAC → wizard self-relaunch.
+
 ## What "everything" covers
 
 ### E1 — first install from the clean state

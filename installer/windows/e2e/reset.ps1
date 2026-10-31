@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 reset.ps1 - revert this machine to the state the Wordslab journey starts from.
 
@@ -33,6 +33,7 @@ $ErrorActionPreference = 'Stop'
 # wsl.exe emits UTF-16LE by default; PowerShell then reads it as NUL-separated text and prints
 # "w o r d s l a b" - every name comparison fails. WSL_UTF8=1 makes every call below plain UTF-8.
 $env:WSL_UTF8 = '1'
+. (Join-Path $PSScriptRoot '_common.ps1')   # Get-InstallerFile: both layouts
 $MarkerName = '.wordslab-installer'
 $Downloads = @('ubuntu-noble-oci-amd64-root.tar.gz', 'alpine-minirootfs.tar.gz')
 
@@ -123,15 +124,15 @@ elseif (Test-Path -LiteralPath $cache) {
     }
 }
 
-# 4) The wizard-written files (names are ours), next to the built wizard.
+# 4) The wizard-written files (names are ours). Works in both layouts (checkout: Wizard.App\bin;
+#    published folder: next to Wizard.App.exe) - see _common.ps1.
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$windows = Split-Path -Parent $here
 foreach ($name in 'wordslab-install-parameters.json', 'wordslab-front-door.url') {
-    Get-ChildItem -Path (Join-Path $windows 'Wizard.App\bin') -Recurse -Filter $name -ErrorAction SilentlyContinue |
-        ForEach-Object {
-            if ($DryRun) { Write-Host "reset: WOULD delete $($_.FullName)" }
-            else { Remove-Item -Force -LiteralPath $_.FullName; Write-Host "reset: deleted $($_.FullName)" }
-        }
+    $hit = Get-InstallerFile -E2eDir $here -Name $name
+    if ($hit) {
+        if ($DryRun) { Write-Host "reset: WOULD delete $hit" }
+        else { Remove-Item -Force -LiteralPath $hit; Write-Host "reset: deleted $hit" }
+    }
 }
 $webview = Join-Path $env:TEMP 'wordslab-installer-webview'
 if (Test-Path -LiteralPath $webview) {
