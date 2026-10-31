@@ -11,7 +11,7 @@
 # ext4.vhdx lives in <drive>:\wordslab-platform\wordslab-platform-disk<letter>\ — and published each instance's
 # /volume folder into /mnt/wsl, which WSL shares across distros (the proven wordslab-notebooks
 # mechanism; no wsl --mount, no admin). Here the app machine bind-mounts those folders under
-# /mnt/wordslab-platform/<letter> — one stable in-distro place for the core to keep data (ADR-0004 §8).
+# /mnt/wordslab-platform/disk<letter> — one stable in-distro place for the core to keep data (ADR-0004 §8).
 set -euo pipefail
 
 # shellcheck source=_parameters.sh
@@ -22,7 +22,7 @@ found=0
 for published in /mnt/wsl/wordslab-platform-*; do
   [ -d "$published" ] || continue          # glob unmatched: no Wordslab Linux disks published
   letter="${published##*/wordslab-platform-}"
-  target="/mnt/wordslab-platform/$letter"
+  target="/mnt/wordslab-platform/disk$letter"
   mkdir -p "$target"
   mountpoint -q "$target" || mount --bind "$published" "$target"
   if ! mountpoint -q "$target"; then

@@ -71,9 +71,9 @@ plain command, nothing hidden:
 wsl -l -v                    # wordslab-platform-vm, plus wordslab-platform-disk<letter> per enabled drive — nothing else
 wsl --manage wordslab-platform-vm --show 2>$null  # (older wsl: the import line shows it) -> C:\wordslab-platform\wordslab-platform-vm
 dir D:\wordslab-platform\wordslab-platform-diskd   # contains ext4.vhdx (WSL-managed) — the folder the card promised
-wsl -d wordslab-platform -- ls /mnt/wordslab          # one folder per enabled drive, bind-mounted by step 4
-wsl -d wordslab-platform -- uv --version              # engine slot: uv in /usr/local/bin
-wsl -d wordslab-platform -- sh -c "ls /opt/wordslab/python"   # uv-managed Python landing place
+wsl -d wordslab-platform-vm -- ls /mnt/wordslab-platform   # disk<letter> per enabled drive, bind-mounted by step 4
+wsl -d wordslab-platform-vm -- uv --version              # engine slot: uv in /usr/local/bin
+wsl -d wordslab-platform-vm -- sh -c "ls /opt/wordslab/python"   # uv-managed Python landing place
 dir $env:LOCALAPPDATA\..* -Filter wordslab-front-door.url  # or next to the exe: the handoff address file step 6 writes (only when a home page answered)
 ```
 
@@ -84,7 +84,7 @@ data disk touched.
 
 And the **re-runnable promise**: from WSL, run a shared script by hand with the same file the
 UI wrote:
-`wsl -d wordslab-platform -- bash /mnt/c/.../installer/scripts/distro/04-data-volumes.sh --parameters <the parameters.json>`
+`wsl -d wordslab-platform-vm -- bash /mnt/c/.../installer/scripts/distro/04-data-volumes.sh --parameters <the parameters.json>`
 → same output, exit 0, mounts unchanged.
 
 ## S6 — what must NOT happen

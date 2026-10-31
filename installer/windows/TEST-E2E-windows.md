@@ -48,7 +48,7 @@ Fresh reset, `dotnet run --project Wizard.App`, press **Start install**. Expect:
   `C:\wordslab-platform\wordslab-platform-vm\`). If the feature is off: see E6.
 - Step 3: version lines end with "Wordslab engine ready - uv 0.x and Python 3.12.x …".
 - Step 4: one "Creating the Wordslab Linux disk on drive C:" per ticked drive + the shared
-  script's `Wordslab Linux disk c mounted at /mnt/wordslab-platform/c` lines.
+  script's `Wordslab Linux disk c mounted at /mnt/wordslab-platform/diskc` lines.
 - Step 5: "engine slot present … core install slot ready".
 - **Step 6 RED with the plain sentence** ("The Wordslab home page did not answer yet…") —
   this is the honest, expected state until #62 (page) and #92 (cert + name) land. A green
@@ -62,8 +62,8 @@ Same wizard window state, press Start install again. Expect every step to say it
 sentence — "already switched on", "already installed - keeping it", "already there - keeping
 it" — and nothing re-download (compare: `C:\wordslab-platform\cache` file timestamps unchanged). Data
 on the disks must survive: make a file first —
-`wsl -d wordslab-platform -- sh -c "mkdir -p /mnt/wordslab-platform/c/e2e && echo keep > /mnt/wordslab-platform/c/e2e/probe.txt"` —
-re-run, then `wsl -d wordslab-platform -- cat /mnt/wordslab-platform/c/e2e/probe.txt` still says `keep`.
+`wsl -d wordslab-platform-vm -- sh -c "mkdir -p /mnt/wordslab-platform/diskc/e2e && echo keep > /mnt/wordslab-platform/diskc/e2e/probe.txt"` —
+re-run, then `wsl -d wordslab-platform-vm -- cat /mnt/wordslab-platform/diskc/e2e/probe.txt` still says `keep`.
 Then `check.ps1` again → 0 failed.
 
 ### E3 — reset → reinstall loops

@@ -98,8 +98,8 @@ foreach ($l in $letters) {
 #    -AfterRestart: surviving shutdown/reboot is the launcher's re-bind job (#94).
 if (-not $AfterRestart) {
     foreach ($l in $letters) {
-        CheckExit "disk published at /mnt/wordslab-platform/$($l.ToLower()) inside the VM" {
-            & wsl -d wordslab-platform-vm -- sh -c "mountpoint -q /mnt/wordslab-platform/$($l.ToLower())"
+        CheckExit "disk published at /mnt/wordslab-platform/disk$($l.ToLower()) inside the VM" {
+            & wsl -d wordslab-platform-vm -- sh -c "mountpoint -q /mnt/wordslab-platform/disk$($l.ToLower())"
         }
     }
 }

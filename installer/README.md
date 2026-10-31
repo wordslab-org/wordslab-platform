@@ -87,7 +87,7 @@ Design rulings, recorded on #88 (Laurent, 2026-10-24) — they shape every step:
 - **The disk model:** one minimal WSL instance per enabled drive (`wordslab-platform-disk<letter>`, imported
   from a pinned Alpine minirootfs URL), folder `<drive>:\wordslab-platform\wordslab-platform-disk<letter>\`; each
   instance publishes `/volume` into `/mnt/wsl/wordslab-platform-disk<letter>` (shared across distros), and
-  the shared `04-data-volumes.sh` bind-mounts those into the app machine at `/mnt/wordslab-platform/<letter>`.
+  the shared `04-data-volumes.sh` bind-mounts those into the app machine at `/mnt/wordslab-platform/disk<letter>`.
 - **Engine landing place:** uv in `/usr/local/bin`, uv-managed CPython 3.12 under
   `/opt/wordslab/python` — ticket #62's core plugs into the same slot (`05-first-core.sh` is the
   line that installs it once #62 ships).
