@@ -96,7 +96,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               try { wsl --status *>$null; $ok = ($LASTEXITCODE -eq 0) } catch {}
               if (-not $ok) {
                   Write-Error 'Windows needs Windows admin approval (and possibly one restart) to finish switching on its built-in Linux. Nothing else was changed.';
-                  exit 3   // = Script02WslFeatureAndVm.ExitCodeNeedsAdminOrRestart (contract above)
+                  exit 3
               }
               Write-Output "Windows' built-in Linux is switched on."
             }
@@ -215,7 +215,7 @@ public sealed class Script04DataVolumes : DistroShellScript
                       wsl --import {{name}} '{{dir}}' $tar;
                       if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab Linux disk on drive {{letter}}: could not be created - see the lines above.'; exit 1 };
                       wsl -d {{name}} -- sh -c "printf '[automount]\nenabled = false\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
-                      wsl --terminate {{name}};   // config applies at the instance's next start
+                      wsl --terminate {{name}};
                       Write-Output 'The Wordslab Linux disk on drive {{letter}}: is ready (its disk file lives in {{dir}})'
                     };
                     wsl -d {{name}} -- sh -c "mkdir -p /volume /mnt/wsl/{{name}}; mountpoint -q /mnt/wsl/{{name}} || mount --bind /volume /mnt/wsl/{{name}}";

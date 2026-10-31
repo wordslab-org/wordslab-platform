@@ -486,6 +486,24 @@ public class SupportTests
     }
 
     [Fact]
+    public async Task no_command_body_carries_a_csharp_style_comment()
+    {
+        // #88 live bug: `exit 3 // = …` inside a PowerShell body — PowerShell reads // as
+        // division and the bare '=' dies with ExpectedValueExpression at RUN time on Windows,
+        // invisible to argv pinning. A leaked // (not part of a URL) is always this bug.
+        var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
+        var scripts = new NumberedScript[]
+        {
+            new Script01NetworkReachability(), new Script02WslFeatureAndVm(), new Script03UvPythonInDistro(),
+            new Script04DataVolumes(), new Script05FirstPlatformCore(), new Script06FrontDoor(),
+        };
+        foreach (var script in scripts)
+        foreach (var command in await script.PlanAsync(ctx))
+        foreach (var arg in command.Args)
+            Assert.DoesNotMatch(@"(?<!:)//", arg);
+    }
+
+    [Fact]
     public void the_path_layout_helpers_answer_the_ui_promise()
     {
         var volumes = InstallDirs.EnabledVolumes(new Dictionary<string, string>
