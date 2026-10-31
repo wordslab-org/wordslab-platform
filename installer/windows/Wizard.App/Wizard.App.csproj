@@ -19,7 +19,14 @@
     <!-- Bundle the Windows App SDK native runtime with the app: nothing needs to be
          installed on the target machine (no "Windows App Runtime" dependency). Together
          with a self-contained publish this yields a standalone folder that runs on any
-         Windows 10/11 x64 with no .NET installed. -->
+         Windows 10/11 x64 with no .NET installed.
+
+         The SDK's self-contained payload needs a CONCRETE Windows architecture: plain
+         `dotnet build` is AnyCPU with no RID and Microsoft.WindowsAppSDK.SelfContained.targets
+         fails with "requires a supported Windows architecture". So when no RID is given we
+         derive the host's (win-x64 / win-arm64) — an explicit -r still wins, and dev runs,
+         tests and the standalone publish then all bundle the same runtime. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(OS)' == 'Windows_NT'">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>Wordslab.Wizard.App</RootNamespace>
