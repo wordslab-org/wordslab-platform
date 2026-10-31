@@ -23,10 +23,25 @@ public abstract class DistroShellScript : NumberedScript
     public override async Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx)
     {
         string windowsPath = ctx.DistroScript(ScriptFile);
-        // Without WSL the path cannot translate; the step then fails loudly with the distro's own
-        // error rather than silently skipping — nothing is ever hidden from the user.
-        string distroPath = await ctx.WslPaths.ToDistroPathAsync(windowsPath) ?? windowsPath;
-        return new[] { Wsl.RunBash(distroPath) };
+        // A checkout with CRLF (Git for Windows' default core.autocrlf) makes bash die with
+        // "set: pipefail: invalid option name" — a message that blames the wrong thing. Name
+        // the real cause here instead (the .gitattributes file keeps future checkouts LF).
+        if (File.Exists(windowsPath) && File.ReadAllText(windowsPath).Contains("\r\n"))
+            throw new InvalidOperationException(
+                $"'{Path.GetFileName(windowsPath)}' has Windows line endings (CRLF) and bash cannot run it. " +
+                "Re-checkout the repository with its .gitattributes in place: git rm --cached -r . then git reset --hard.");
+        // NEVER fall back to the raw Windows path: wsl.exe strips the backslashes on its way to
+        // Linux ("C:Userslaure…", exit 127 — live bug) and the error blames the wrong thing.
+        string distroPath = await ctx.WslPaths.ToDistroPathAsync(windowsPath)
+            ?? throw new InvalidOperationException(
+                $"the installer cannot reach '{windowsPath}' from inside the Wordslab virtual machine " +
+                "(only paths on a Windows drive can be shared with it)");
+        // #88: the shared scripts read the same parameters contract the wizard wrote — the file
+        // crosses the distro boundary translated, exactly like the script path.
+        string paramsDistro = await ctx.WslPaths.ToDistroPathAsync(ctx.ParametersFile)
+            ?? throw new InvalidOperationException(
+                $"the installer cannot reach the parameters file '{ctx.ParametersFile}' from inside the virtual machine");
+        return new[] { Wsl.RunBash(distroPath, new[] { "--parameters", paramsDistro }) };
     }
 }
 

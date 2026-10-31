@@ -1,0 +1,60 @@
+name: installer
+
+# Builds the Windows installer as a self-contained folder + zip, so it can be carried to another
+# machine (a VM for the elevation path, a colleague's PC, ...) without a .NET SDK there.
+#
+#   workflow_dispatch  -> zip attached to the run as an artifact (download from the Actions UI)
+#   tag installer-v*   -> same zip attached to a GitHub Release (stable download URL)
+#
+# Packaging scope: this is the TEST-delivery path. The final exe name, icon/version metadata,
+# payload signing and the launcher belong to ticket #94.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'installer-v*'
+
+permissions:
+  contents: write   # only used by the release step
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Contract tests (the journey's argv/contract seam)
+        run: dotnet test installer/windows/Wizard.Tests -c Release
+
+      - name: Publish (self-contained win-x64) + payload + zip
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File installer/windows/publish.ps1 -OutDir artifacts -Zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordslab-installer-win-x64
+          path: artifacts/wordslab-installer-win-x64.zip
+          if-no-files-found: error
+
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/installer-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/wordslab-installer-win-x64.zip
+          generate_release_notes: true
+          body: |
+            Windows installer build for e2e testing.
+
+            Unzip anywhere and run `Wizard.App.exe` — no .NET or Windows App Runtime needed.
+            The archive is unsigned, so a download from the internet triggers SmartScreen's
+            "Windows protected your PC": choose "More info" then "Run anyway".
+
+            `installer\windows\e2e\` ships inside the archive: `reset.ps1`, `check.ps1`,
+            `loop.ps1` (run them with `powershell -ExecutionPolicy Bypass -File ...`).

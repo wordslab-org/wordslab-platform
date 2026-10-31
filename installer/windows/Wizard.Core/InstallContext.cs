@@ -15,7 +15,9 @@ public sealed class InstallContext
     public required WslPathTranslator WslPaths { get; init; }
 
     public string DistroScript(string relativeName) =>
-        Path.Combine(InstallerDir, "scripts", relativeName);
+        // one separator style on the host: Path.Combine with "windows/03-engine.sh" otherwise
+        // yields "…\\scripts\\windows/03-engine.sh" and confuses the wsl boundary
+        Path.Combine(InstallerDir, "scripts", relativeName).Replace('/', Path.DirectorySeparatorChar);
     public string PythonScript(string relativeName) =>
         Path.Combine(InstallerDir, "python", relativeName);
 }
@@ -35,6 +37,67 @@ public static class PayloadLocator
             if (dir.Parent is null) break;
         }
         return null;
+    }
+}
+
+/// <summary>The fixed v1 path layout the UI promises and every step consumes (ADR-0014 §5, #88):
+/// the program folder, one Wordslab Linux disk per enabled drive — a WSL-managed ext4.vhdx inside
+/// the drive's Wordslab folder — and the shared cache for imported rootfs images. One place to
+/// compute each path, so class and script bodies never re-derive them.</summary>
+public static class InstallDirs
+{
+    public static string ProgramFolderOrThrow(IReadOnlyDictionary<string, string> parameters)
+    {
+        if (!parameters.TryGetValue("install_dir", out string? dir) || string.IsNullOrWhiteSpace(dir))
+            throw new InvalidOperationException(
+                "the parameters file has no install_dir - the wizard writes it before the journey starts");
+        return dir.TrimEnd('\\');
+    }
+
+    /// <summary>Enabled drives (the wizard writes one volume_&lt;DRIVE&gt; key per enabled drive;
+    /// disabled drives get no key at all), sorted by drive letter.</summary>
+    public static IEnumerable<(string drive, string folder)> EnabledVolumes(
+        IReadOnlyDictionary<string, string> parameters) =>
+        parameters
+            .Where(kv => kv.Key.StartsWith("volume_") && kv.Key.Length == "volume_X".Length)
+            .Select(kv => (drive: kv.Key["volume_".Length..] + ":", folder: kv.Value))
+            .OrderBy(v => v.drive, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    /// <summary>The app VM's folder: <c>&lt;install_dir&gt;\wordslab-platform-vm\</c>; its distro
+    /// carries the same name, so folder name == distro name == what it is.</summary>
+    public const string VmFolderName = "wordslab-platform-vm";
+
+    public static string AppVmFolder(string installDir) =>
+        Path.Combine(installDir.TrimEnd('\\'), VmFolderName);
+
+    /// <summary>The disk's distro name: <c>wordslab-platform-disk&lt;letter&gt;</c> (e.g.
+    /// wordslab-platform-diskd for D:) — explicit, and never adjacent to another product's names.</summary>
+    public static string VolumeDistroName(string drive) =>
+        "wordslab-platform-disk" + drive.TrimEnd(':', '\\').ToLowerInvariant();
+
+    /// <summary>The disk's folder on its own drive: <c>&lt;drive&gt;:\wordslab-platform\wordslab-platform-disk&lt;letter&gt;\</c>
+    /// (the UI card promises exactly this — a folder, the WSL-managed ext4.vhdx lives inside it).</summary>
+    public static string VolumeDistroFolder(string volumeFolder, string drive) =>
+        Path.Combine(volumeFolder.TrimEnd('\\'), VolumeDistroName(drive));
+}
+
+/// <summary>The front-door address file step 6's probe writes next to the parameters file.
+/// #88 ruling: the wizard hands off to the VM's own address until #92/#94 land mDNS naming and
+/// CA trust — the handoff stays an address, never a process switch (ADR-0014 §3 phase 3).</summary>
+public static class FrontDoorAddress
+{
+    public const string UrlFileName = "wordslab-front-door.url";
+
+    public static string ReadFor(string parametersFile, string fallback)
+    {
+        string path = Path.Combine(Path.GetDirectoryName(parametersFile) ?? ".", UrlFileName);
+        if (File.Exists(path))
+        {
+            string url = File.ReadAllText(path).Trim();
+            if (url.StartsWith("https://")) return url;
+        }
+        return fallback;
     }
 }
 
@@ -67,13 +130,13 @@ public static class Parameters
     public static string? ValidateInstallDir(string value) =>
         value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/')
             ? null
-            : "Please type a full folder path for the Wordslab program, like C:\\wordslab.";
+            : "Please type a full folder path for the Wordslab program, like C:\\wordslab-platform.";
 
     /// <summary>A volume folder must sit on the drive it names.</summary>
     public static string? ValidateVolumeFolder(string folder, string drive) =>
         folder.Length >= 3 && folder[0] == drive[0] && folder[1] == ':' && (folder[2] == '\\' || folder[2] == '/')
             ? null
-            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\wordslab.";
+            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\wordslab-platform.";
 
     public static void Write(IReadOnlyDictionary<string, string> answers, string path) =>
         File.WriteAllText(path, JsonSerializer.Serialize(answers, new JsonSerializerOptions { WriteIndented = true }));

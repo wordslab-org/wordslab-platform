@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Wordslab Platform — Linux entry point (ADR-0014 §7: curl https://wordslab.org/install.sh | bash).
 # Thin by design: it downloads the installer payload, then runs the same guided journey as the
-# Windows .exe. The numbered bootstrap scripts are ticket #88's home; here they are the visible
-# numbered slots the journey drives. Nothing is installed silently.
+# Windows .exe. The bootstrap machinery landed with #88; the Linux payload packaging is #94;
+# until it ships, the numbered slots below run their visible placeholders. Nothing silent.
 set -euo pipefail
 
 WORDSLAB_INSTALL_DIR="${WORDSLAB_INSTALL_DIR:-$HOME/.wordslab/installer}"
@@ -26,7 +26,7 @@ step() {
 }
 
 # The numbered scripts are real files (installer/scripts/linux/) so the re-run promise is
-# literal. Chicken-and-egg until #88 ships the payload: under `curl | bash` those very files are
+# literal. Chicken-and-egg until #94 ships the payload packaging: under `curl | bash` those very files are
 # what step 1 downloads, so when they are not on disk yet each step runs its visible inline
 # placeholder instead — named out loud, never silently.
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo .)"   # $0 is `bash` under curl|bash
@@ -40,14 +40,14 @@ if [ -n "$SCRIPTS" ]; then
   step 2 "Check network reachability (github, pypi)" bash "$SCRIPTS/02-reachability.sh"
   step 3 "Install uv + Python" bash "$SCRIPTS/03-uv-python.sh"
 else
-  # Payload not extracted yet (#88's job): the same numbered steps, visible inline placeholders.
-  step 1 "Download the Wordslab installer payload" bash -c "echo 'payload download: placeholder until #88 ($WORDSLAB_PAYLOAD_URL -> $WORDSLAB_INSTALL_DIR); the numbered scripts live inside the payload'"
-  step 2 "Check network reachability (github, pypi)" bash -c "echo 'reachability check: placeholder until #88'"
-  step 3 "Install uv + Python" bash -c "echo 'uv bootstrap: placeholder until #88'"
+  # Payload not extracted yet (#94's packaging job): the same numbered steps, visible inline placeholders.
+  step 1 "Download the Wordslab installer payload" bash -c "echo 'payload download: placeholder until #94 ($WORDSLAB_PAYLOAD_URL -> $WORDSLAB_INSTALL_DIR); the numbered scripts live inside the payload'"
+  step 2 "Check network reachability (github, pypi)" bash -c "echo 'reachability check: placeholder until #94'"
+  step 3 "Install uv + Python" bash -c "echo 'uv bootstrap: placeholder until #94'"
 fi
 
 # Handoff (ADR-0014 §3 phase 2): gated on ARTIFACTS (interpreter + extracted payload), never on
-# the user's command line — `curl … | bash` must be able to hand off once #88's payload exists.
+# the user's command line — `curl … | bash` must be able to hand off once #94 ships the payload.
 TUI=""
 for candidate in "$WORDSLAB_INSTALL_DIR/python/tui.py" "$SCRIPT_DIR/../python/tui.py"; do
   if [ -f "$candidate" ]; then TUI="$candidate"; break; fi
@@ -58,15 +58,15 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 if [ -z "$TUI" ]; then
-  echo "[--] The installer payload is not extracted at $WORDSLAB_INSTALL_DIR — payload extraction ships with ticket #88."
+  echo "[--] The installer payload is not extracted at $WORDSLAB_INSTALL_DIR — payload packaging ships with ticket #94."
   echo "[--] The journey stops here; nothing further is installed."
   exit 1
 fi
 if [[ " $* " != *" --parameters "* ]]; then
-  # Linux parameter prompts arrive with #88's payload; until then a file can be passed through
-  # the pipe: curl … | bash -s -- --parameters <file>
-  echo "[--] No parameters file: Linux parameter prompts ship with ticket #88."
-  echo "[--] Until then pass one through: … | bash -s -- --parameters <file>. The journey stops here."
+  # Linux v1 reads parameters from a file passed through the pipe; prompts arrive with
+  # #94's payload journey: curl … | bash -s -- --parameters <file>
+  echo "[--] No parameters file: Linux v1 reads install parameters from a file — pass one through:"
+  echo "[--]   … | bash -s -- --parameters <parameters.json>. The journey stops here; nothing is installed."
   exit 1
 fi
 

@@ -75,10 +75,16 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
             // Without this, every console app we run (pwsh, wsl.exe) pops its own console
             // window — the wizard must run everything invisibly in the background.
             CreateNoWindow = true,
-            // null for system-default tools; set for UTF-16LE emitters like wsl.exe/wslpath
+            // null for system-default tools; set for processes whose console encoding is not
+            // the system default — every wsl.exe command is UTF-8 (see WSL_UTF8 below)
             StandardOutputEncoding = command.OutputEncoding,
             StandardErrorEncoding = command.OutputEncoding,
         };
+        // wsl.exe prints its OWN messages (--list, wslpath, early errors) as UTF-16LE by default;
+        // WSL_UTF8=1 switches that to UTF-8, matching the UTF-8 bytes it relays from the Linux
+        // child. One encoding for all of it — the alternative was a per-command guess.
+        if (command.Program.EndsWith("wsl.exe", StringComparison.OrdinalIgnoreCase))
+            p.StartInfo.Environment["WSL_UTF8"] = "1";
         foreach (var a in command.Args) p.StartInfo.ArgumentList.Add(a);
         try
         {
@@ -111,6 +117,11 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
     {
         string? line;
         while ((line = await stream.ReadLineAsync()) is not null)
-            report(new ReportLine(kind, line));
+            report(new ReportLine(kind, AnsiEscape.Replace(line, "")));
     }
+
+    /// <summary>Installer tools colour their errors (ESC[31mERROR ESC[0m); the card shows plain
+    /// text, so the sequences are stripped at the seam.</summary>
+    private static readonly System.Text.RegularExpressions.Regex AnsiEscape =
+        new(@"\x1b\[[0-9;]*[A-Za-z]", System.Text.RegularExpressions.RegexOptions.Compiled);
 }
