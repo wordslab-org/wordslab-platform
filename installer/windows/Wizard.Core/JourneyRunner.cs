@@ -20,8 +20,10 @@ public sealed class JourneyRunner(ICommandExecutor executor)
         {
             report(new Report(script.Number, ReportKind.Info, script.Title));
             var exits = new List<int>();
-            foreach (var command in await script.PlanAsync(ctx))
+            var commands = await script.PlanAsync(ctx);
+            for (int i = 0; i < commands.Count; i++)
             {
+                var command = commands[i];
                 cancel.ThrowIfCancellationRequested();
                 report(new Report(script.Number, ReportKind.Start, command.Status));
                 int exit = await executor.RunAsync(
@@ -29,7 +31,11 @@ public sealed class JourneyRunner(ICommandExecutor executor)
                 exits.Add(exit);
                 if (exit == 0)
                 {
-                    report(new Report(script.Number, ReportKind.Success, "done"));
+                    // Success only when the STEP is done: a multi-command step (script + probe)
+                    // must not show a green tick while its next command is still running — that
+                    // is how step 6 ended up with a tick AND a red cross at the same time.
+                    if (i == commands.Count - 1)
+                        report(new Report(script.Number, ReportKind.Success, "done"));
                 }
                 else
                 {

@@ -88,18 +88,26 @@ public class ScriptPlanTests
     // ---- #88: every step's real command plan, pinned as argv ----
 
     [Fact]
-    public async Task Step1_checks_reachability_of_github_AND_pypi_and_fails_loudly()
+    public async Task Step1_probes_the_EXACT_urls_every_later_step_downloads_from()
     {
         var ctx = Contexts.Make(ArgAwareProcess.WslWithTranslatedPaths());
         var cmd = (await new Script01NetworkReachability().PlanAsync(ctx)).Single();
 
         Assert.Equal(new[] { "-NoProfile", "-Command" }, cmd.Args.Take(2));
         string body = cmd.Args[2];
-        Assert.Contains("https://github.com", body);
-        Assert.Contains("https://pypi.org", body);
-        Assert.Contains("-Method Head", body);          // probes, not just resolves DNS
-        Assert.Contains("exit 1", body);                // unreachable -> loud non-zero exit
-        Assert.Contains("Internet connection OK", body); // its own final human sentence
+
+        // The list is generated from JourneyEndpoints — every real download, not the site roots:
+        // an enterprise firewall must fail HERE, naming the blocked target.
+        foreach (var endpoint in JourneyEndpoints.All)
+            Assert.Contains($"url = '{endpoint.Url}'", body);
+        Assert.Contains("https://partner-images.canonical.com/oci/noble/current/ubuntu-noble-oci-amd64-root.tar.gz", body);
+        Assert.Contains("https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-minirootfs-3.24.3-x86_64.tar.gz", body);
+        Assert.Contains("https://astral.sh/uv/install.sh", body);
+        Assert.Contains("objects.githubusercontent.com", body);   // redirect host named for IT
+        Assert.Contains("files.pythonhosted.org", body);   // redirect host named for IT
+        Assert.Contains("-Method Head", body);            // probes, not just resolves DNS
+        Assert.Contains("exit 1", body);                  // unreachable -> loud non-zero exit
+        Assert.Contains("Internet connection OK", body);   // its own final human sentence
         Assert.DoesNotContain("placeholder", body);
     }
 
@@ -354,6 +362,37 @@ public class JourneyRunnerTests
         // Windows run proved the DEFAULT distro can lack the interpreter entirely ("bash: not found",
         // exit 127). Every distro-facing command must target the named Wordslab distro.
         Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "python3", "--version" }, proc.Calls.Single().args);
+    }
+
+    [Fact]
+    public async Task a_multi_command_step_reports_Success_only_after_its_LAST_command()
+    {
+        // Step 6 = shared script + probe. Reporting Success per command painted a green tick
+        // while the probe was still running, and the failed probe then added a red cross next
+        // to it (live bug 2026-10-31).
+        var proc = new FakeProcess(new() { ["echo"] = (0, new[] { "ok" }, Array.Empty<string>()) });
+        var reports = new List<Report>();
+        var runner = new JourneyRunner(proc);
+        var step = new TwoCommandScript(6, "Two commands", "echo");
+
+        await runner.RunAsync(new[] { step }, Contexts.Make(proc), reports.Add);
+
+        var kinds = reports.Where(r => r.Step == 6).Select(r => r.Kind).ToList();
+        Assert.Equal(1, kinds.Count(k => k == ReportKind.Success));   // exactly one, at the end
+        Assert.Equal(ReportKind.Success, kinds[^1]);
+        Assert.Equal(2, kinds.Count(k => k == ReportKind.Start));
+    }
+
+    sealed class TwoCommandScript(int number, string title, string program) : NumberedScript
+    {
+        public override int Number => number;
+        public override string Title => title;
+        public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx) =>
+            Task.FromResult<IReadOnlyList<Command>>(new[]
+            {
+                new Command(program, Array.Empty<string>(), "first"),
+                new Command(program, Array.Empty<string>(), "second"),
+            });
     }
 
     sealed class SingleCommandScript(int number, string title, string program) : NumberedScript

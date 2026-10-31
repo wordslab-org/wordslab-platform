@@ -37,16 +37,38 @@ public sealed class StepVm : INotifyPropertyChanged
         set { _isRunning = value; Raise(nameof(IsRunning)); }
     }
 
+    /// <summary>Failed, done and running are MUTUALLY EXCLUSIVE — a step that shows a green tick
+    /// and a red cross at once (live bug on step 6: script ok, probe failed) is nonsense on
+    /// screen, so each state clears the others.</summary>
     public bool IsFailed
     {
         get => _isFailed;
-        set { _isFailed = value; Raise(nameof(IsFailed)); }
+        set
+        {
+            _isFailed = value;
+            if (value) { _isDone = false; _isRunning = false; Raise(nameof(IsDone)); Raise(nameof(IsRunning)); }
+            Raise(nameof(IsFailed));
+        }
     }
 
     public bool IsDone
     {
         get => _isDone;
-        set { _isDone = value; Raise(nameof(IsDone)); }
+        set
+        {
+            _isDone = value;
+            if (value) { _isFailed = false; Raise(nameof(IsFailed)); }
+            Raise(nameof(IsDone));
+        }
+    }
+
+    /// <summary>Start of a run: every card back to its opening state (a second Start install
+    /// must not keep the previous run's ticks and red marks).</summary>
+    public void ResetForRun()
+    {
+        _isFailed = false; _isDone = false; _isRunning = false;
+        _statusText = "";
+        Raise(nameof(IsFailed)); Raise(nameof(IsDone)); Raise(nameof(IsRunning)); Raise(nameof(StatusText));
     }
 
     public bool Expanded

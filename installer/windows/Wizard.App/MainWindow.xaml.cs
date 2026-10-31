@@ -111,6 +111,7 @@ public sealed partial class MainWindow : Window
 
         _running = true;
         StartButton.IsEnabled = false;
+        foreach (var step in Steps) step.ResetForRun();   // a re-run starts clean, not with old ticks
         StatusLine.Text = "Starting the six steps below. Nothing is installed silently — each one runs live, and starting again is always safe.";
 
         IReadOnlyList<StepResult> results;

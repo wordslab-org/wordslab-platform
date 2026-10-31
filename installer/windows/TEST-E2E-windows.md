@@ -40,7 +40,10 @@ written by the step that creates the folder (`<install_dir>\wordslab-platform-vm
 
 ### E1 — first install from the clean state
 Fresh reset, `dotnet run --project Wizard.App`, press **Start install**. Expect:
-- Step 1 green: `github.com: reachable (HTTP 200)` + `pypi.org: …` + "Internet connection OK".
+- Step 1 green: one line per download location the install will use — "GitHub - uv's release
+  downloads: OK (HTTP 200)", "PyPI - the package index uv installs from: OK", "uv's installer script
+  (step 3): OK", the Ubuntu and Alpine root images — then "Internet connection OK - all 5 download
+  locations are reachable." A blocked one fails here, named, with the host list to give IT.
 - Step 2: if WSL is already on (your machine): the guard line
   ("Windows' built-in Linux is already switched on - nothing to do."), then
   "Creating the Wordslab virtual machine — the
@@ -84,12 +87,25 @@ a previous run) is **kept, untouched** (the data-volume invariant — switching 
 v1 never deletes data). Tick it back, re-run: "already there - keeping it".
 To actually test fresh-per-drive, reset first.
 
-### E6 — the one elevation moment
-Only reachable on a machine where Windows' built-in Linux has never been switched on
-(a fresh Windows VM — your daily machine has it). Expect: step 2's guard sentence, one UAC
-dialog (never a console window), wizard restarts itself and continues; declining the dialog
-leaves "The Windows approval was declined…" with both ways forward. If Windows then needs
-one restart, the elevated run says so plainly and a later Start install completes.
+### E6 — the one elevation moment (needs a machine where WSL was never on)
+Only reachable on a machine where Windows' built-in Linux has never been switched on.
+
+**Do not switch the feature off on your daily machine to test this.** Toggling the optional
+components does not delete registered distros (their `ext4.vhdx` files and Lxss registry entries
+stay put), but it puts every VM you own — wordslab-notebooks included — on the line for one test,
+and a half-applied feature state is a bad trade.
+
+Use a throwaway Windows 11 VM instead (Hyper-V or any desktop virtualisation tool):
+
+1. Create the VM from a Windows 11 ISO, finish OOBE, and take a checkpoint ("clean, WSL off").
+2. Copy the repo/build in, run `e2e\loop.ps1 -Runs 1`.
+3. On step 2 expect: the guard sentence, then **one UAC dialog**, the wizard relaunching itself
+   elevated, and the install continuing in the same window — no console window anywhere.
+4. If Windows needs the one restart to finish enabling the feature: the wizard says so plainly
+   and stops. Start Windows again, run the wizard, and the journey continues from step 2
+   ("already switched on").
+5. Declining the UAC must leave "The Windows approval was declined…" naming both ways forward.
+6. Revert to the checkpoint between attempts — that is what the VM is for.
 
 ### E7 — what must NEVER happen in any cycle
 - Any console window (cmd/powershell/pwsh) opening during the journey.

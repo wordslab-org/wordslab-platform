@@ -18,42 +18,50 @@ using System.Text;
 
 namespace Wordslab.Wizard.Core.Scripts;
 
-/// <summary>Contract (as documented per #88): in — nothing (parameters for paths only); out —
-/// one loud line per target + a final human sentence; exit — 0 both reachable · 1 anything
-/// unreachable (journey stops); re-run — read-only probe, always safe. Streams: every line
-/// mirrored by the runner, stderr prefixed "!".</summary>
+/// <summary>Contract: in — nothing; out — one line per download location the journey will use,
+/// then a final human sentence; exit — 0 all reachable · 1 any unreachable (journey stops, naming
+/// the blocked targets and the hosts IT must allow); re-run — read-only probe, always safe.
+/// Probes the EXACT urls the later steps fetch (JourneyEndpoints), not just the site roots.</summary>
 public sealed class Script01NetworkReachability : NumberedScript
 {
     public override int Number => 1;
     public override string Title => "Check the internet connection";
 
-    public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx) => Task.FromResult<IReadOnlyList<Command>>(
-        new[]
+    public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx)
+    {
+        // One source of truth: the same URLs the later steps download from.
+        // No trailing comma: PowerShell rejects a dangling ',' before ')' in this construct.
+        string targets = string.Join(",\n", JourneyEndpoints.All.Select(e =>
+            $"  @{{ url = '{e.Url}'; what = \"{e.Purpose}\" }}"));
+
+        string body = $$"""
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
+            $targets = @(
+            {{targets}}
+            );
+            $fail = $false;
+            foreach ($t in $targets) {
+              try {
+                $r = Invoke-WebRequest -Method Head -UseBasicParsing -TimeoutSec 25 $t.url;
+                Write-Output ($t.what + ': OK (HTTP ' + $r.StatusCode + ')')
+              } catch {
+                [Console]::Error.WriteLine($t.what + ': NOT reachable - ' + $_.Exception.Message);
+                $fail = $true
+              }
+            }
+            if ($fail) {
+              [Console]::Error.WriteLine('Wordslab cannot install: at least one download is blocked on this network. Corporate firewalls often allow github.com while blocking the file hosts behind it - ask IT to allow these hosts: {{JourneyEndpoints.HostsToAllow}}');
+              exit 1
+            }
+            Write-Output ('Internet connection OK - all ' + $targets.Count + ' download locations are reachable.')
+            """;
+
+        return Task.FromResult<IReadOnlyList<Command>>(new[]
         {
-            // HTTPS HEAD on both targets, PS 5.1-compatible (TLS 1.2 set explicitly). Loud per
-            // target either way; a failure exits non-zero so the runner stops the journey.
-            new Command(PowerShellHost.Resolve(),
-                new[]
-                {
-                    "-NoProfile", "-Command",
-                    """
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
-                    $fail = $false;
-                    foreach ($target in 'https://github.com', 'https://pypi.org') {
-                      try {
-                        $r = Invoke-WebRequest -Method Head -UseBasicParsing -TimeoutSec 20 $target;
-                        Write-Output (([uri]$target).DnsSafeHost + ': reachable (HTTP ' + $r.StatusCode + ')')
-                      } catch {
-                        [Console]::Error.WriteLine((([uri]$target).DnsSafeHost + ': NOT reachable - ' + $_.Exception.Message));
-                        $fail = $true
-                      }
-                    }
-                    if ($fail) { [Console]::Error.WriteLine('Wordslab needs github.com and pypi.org to be reachable. Check the connection, then press Start install again.'); exit 1 }
-                    Write-Output 'Internet connection OK - github.com and pypi.org reachable.'
-                    """
-                },
-                "Checking the internet connection"),
+            new Command(PowerShellHost.Resolve(), new[] { "-NoProfile", "-Command", body },
+                "Checking every download location the install will use"),
         });
+    }
 }
 
 /// <summary>Switches Windows' built-in Linux on, then imports the named Wordslab virtual machine.
@@ -149,6 +157,9 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
 /// Linux side of wsl.exe and bash dies with exit 2 (live bug, 2026-10-31).</summary>
 public sealed class Script03UvPythonInDistro : DistroShellScript
 {
+    /// <summary>The one uv installer script: step 1 probes it, step 3 runs it (03-engine.sh).</summary>
+    public const string UvInstallerUrl = "https://astral.sh/uv/install.sh";
+
     public override int Number => 3;
     public override string Title => "Install the Wordslab engine (Python)";
     protected override string ScriptFile => "windows/03-engine.sh";
