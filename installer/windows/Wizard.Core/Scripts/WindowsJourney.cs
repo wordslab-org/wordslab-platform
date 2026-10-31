@@ -118,6 +118,10 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               if (-not (Test-Path $tar)) { curl.exe -sSL -o $tar '{{UbuntuRootfsUrl}}' };
               wsl --import {{Wsl.Distro}} '{{vmDir}}' $tar;
               if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab virtual machine could not be created - see the lines above.'; exit 1 };
+              # Ownership marker: reset/e2e tooling may only ever delete folders carrying it - the
+              # parent C:\wordslab\virtual-machines is ALSO used by wordslab-notebooks (incident
+              # 2026-10-24: deleting that parent destroyed data). Never delete by parent again.
+              Set-Content -LiteralPath (Join-Path '{{vmDir}}' '.wordslab-installer') -Value 'created-by=wordslab-platform-installer';
               wsl -d {{Wsl.Distro}} -- sh -c "printf '[boot]\nsystemd = true\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
               wsl --shutdown;
               Write-Output 'The Wordslab virtual machine is ready.'
@@ -214,6 +218,8 @@ public sealed class Script04DataVolumes : DistroShellScript
                       if (-not (Test-Path $tar)) { curl.exe -sSL -o $tar '{{AlpineRootfsUrl}}' };
                       wsl --import {{name}} '{{dir}}' $tar;
                       if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab Linux disk on drive {{letter}}: could not be created - see the lines above.'; exit 1 };
+                      # Ownership marker (see Script02): only marked folders may ever be deleted.
+                      Set-Content -LiteralPath (Join-Path '{{dir}}' '.wordslab-installer') -Value 'created-by=wordslab-platform-installer';
                       wsl -d {{name}} -- sh -c "printf '[automount]\nenabled = false\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
                       wsl --terminate {{name}};
                       Write-Output 'The Wordslab Linux disk on drive {{letter}}: is ready (its disk file lives in {{dir}})'

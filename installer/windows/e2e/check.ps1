@@ -62,9 +62,14 @@ foreach ($l in $letters) {
 CheckBool "VM folder ($installDir\virtual-machines\wordslab\ext4.vhdx)" {
     Test-Path "$installDir\virtual-machines\wordslab\ext4.vhdx"
 }
+# Ownership marker: proves reset.ps1 may ever delete this folder (and nothing else around it).
+CheckBool "app VM folder carries the installer marker (.wordslab-installer)" {
+    Test-Path (Join-Path (Join-Path (Join-Path $installDir 'virtual-machines') 'wordslab') '.wordslab-installer')
+}
 foreach ($l in $letters) {
-    $folder = "$($l):\wordslab\wordslab-$($l.ToLower())\ext4.vhdx"
-    CheckBool "disk folder ($folder)" { Test-Path $folder }
+    $folder = "$($l):\wordslab\wordslab-$($l.ToLower())"
+    CheckBool "disk folder ($folder\ext4.vhdx)" { Test-Path "$folder\ext4.vhdx" }
+    CheckBool "disk folder carries the installer marker ($folder)" { Test-Path "$folder\.wordslab-installer" }
 }
 
 # 3) Cached rootfs downloads exist (fetched once, reused by Test-Path guard).

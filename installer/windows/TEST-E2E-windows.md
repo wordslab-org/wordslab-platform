@@ -7,7 +7,7 @@ The loop harness lives in `e2e\`:
 
 | script | what it does |
 |---|---|
-| `e2e\reset.ps1` | Deletes **exactly** what the journey creates — the `wordslab` + `wordslab-<letter>` distros (pattern-guarded: **no other distro can be touched**), the `<drive>:\wordslab\wordslab-<letter>\` folders, `C:\wordslab\virtual-machines\`, `C:\wordslab\cache\`, the parameters/front-door files, the WebView2 profile. **Never removes Windows' built-in Linux** — the feature stays switched on between cycles, by design. `-DryRun` previews, `-KeepDownloads` keeps the cached rootfs tarballs (faster cycles, downloads once ever). |
+| `e2e\reset.ps1` | Deletes **only folders carrying the installer's ownership marker** (`.wordslab-installer`, written by the steps that created them) and the files/ distros a run wrote. An unmarked folder is reported, never touched — `C:\wordslab\virtual-machines` is also used by **wordslab-notebooks**, so no parent folder is ever deleted (a parent goes only when empty). Distros are unregistered only when their WSL registry `BasePath` is one of those marked folders; orphans are listed, and `-RemoveOrphans` unregisters them on explicit request. **Never removes Windows' built-in Linux** — the feature stays on between cycles, by design. `-DryRun` previews every deletion, `-KeepDownloads` keeps the cached rootfs tarballs. |
 | `e2e\check.ps1` | Asserts the machine state the six steps promise: distros registered, folders exactly where the UI card showed them (`ext4.vhdx` inside), cached downloads, each `wsl.conf` **in effect** (not just written), engine slot filled, disk mounts inside the app VM, step-6 honesty. Exit 0 = every promise holds. `-AfterRestart` skips the bind-mount checks (re-binding at every launch is #94's launcher job). |
 | `e2e\loop.ps1` | One cycle = reset → launch the wizard → check. `-Runs N` (default 3), `-KeepDownloads`, `-Exe <path>` to test a published setup.exe instead of `dotnet run`. Prints a per-cycle PASS/FAIL summary and exits non-zero if any cycle broke a promise. |
 
@@ -19,6 +19,21 @@ powershell -ExecutionPolicy Bypass -File e2e\reset.ps1 -DryRun                  
 `-ExecutionPolicy Bypass` is per-run (nothing changes on the machine): a default Windows
 policy of `Restricted` refuses any `.ps1`. If you prefer it once per shell:
 `Set-ExecutionPolicy -Scope Process Bypass` then drop the flag from every command.
+
+## Reset safety contract (read once)
+
+`reset.ps1` may delete a folder ONLY when it contains `.wordslab-installer`. That marker is
+written by the step that creates the folder (`<install_dir>\virtual-machines\wordslab`,
+`<drive>:\wordslab\wordslab-<letter>`). Consequences you can rely on:
+
+- A machine shared with **wordslab-notebooks** (same `C:\wordslab\virtual-machines` parent) is
+  safe: only the marked `wordslab` child is removed, and the parent only if it ends up empty.
+- Any folder you or another project created has no marker → reported as KEPT, never deleted.
+- Distros: unregistered only when the WSL registry shows a `BasePath` inside a marked folder.
+  `wordslab-notebooks*`, `docker-desktop`, `Ubuntu-24.04` never match the name pattern at all.
+- Leftovers from a broken install (registered distro whose folder is gone) are listed, not
+  removed: `powershell -ExecutionPolicy Bypass -File e2e\reset.ps1 -RemoveOrphans` is the
+  explicit way to clean them — an orphaned registration is the last trace of data.
 
 ## What "everything" covers
 
