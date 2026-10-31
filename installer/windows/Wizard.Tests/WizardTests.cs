@@ -525,6 +525,22 @@ public class SupportTests
     }
 
     [Fact]
+    public async Task ProcessCommandExecutor_strips_ansi_colour_codes_from_streamed_lines()
+    {
+        // Installer tools colour their errors ("ESC[31mERROR ESC[0m: unknown option" — the uv
+        // installer, live); the card shows plain text, so the codes never reach the UI.
+        var lines = new List<ReportLine>();
+        var exe = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh";
+        var args = OperatingSystem.IsWindows()
+            ? new[] { "/c", "echo", "plain" }
+            : new[] { "-c", "printf '\\033[31mERROR\\033[0m: unknown option\\n'" };
+        int exit = await new ProcessCommandExecutor().RunAsync(new Command(exe, args, "colour probe"), lines.Add);
+        Assert.Equal(0, exit);
+        if (!OperatingSystem.IsWindows())
+            Assert.Contains(lines, l => l.Text == "ERROR: unknown option");
+    }
+
+    [Fact]
     public void wsl_commands_declare_their_utf8_output_encoding()
     {
         // ONE contract: UTF-8 everywhere. The executor sets WSL_UTF8=1 for wsl.exe, so its own

@@ -117,6 +117,11 @@ public sealed class ProcessCommandExecutor : ICommandExecutor
     {
         string? line;
         while ((line = await stream.ReadLineAsync()) is not null)
-            report(new ReportLine(kind, line));
+            report(new ReportLine(kind, AnsiEscape.Replace(line, "")));
     }
+
+    /// <summary>Installer tools colour their errors (ESC[31mERROR ESC[0m); the card shows plain
+    /// text, so the sequences are stripped at the seam.</summary>
+    private static readonly System.Text.RegularExpressions.Regex AnsiEscape =
+        new(@"\x1b\[[0-9;]*[A-Za-z]", System.Text.RegularExpressions.RegexOptions.Compiled);
 }

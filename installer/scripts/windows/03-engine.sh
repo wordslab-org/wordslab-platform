@@ -25,7 +25,12 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 # Engine landing place (#88 ruling): uv in /usr/local/bin, CPython + cache under /opt/wordslab.
-curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --install-dir /usr/local/bin
+# uv's installer takes ENV, not flags (a --install-dir flag made it exit "unknown option",
+# live 2026-10-31): UV_INSTALL_DIR sets the destination, UV_NO_MODIFY_PATH keeps it out of
+# shell rc files (/usr/local/bin is already on the default PATH).
+curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+# Verification (not a skip-guard): the installer re-runs every time, but uv must be THERE after.
+test -x /usr/local/bin/uv || { echo "03 ! uv did not land in /usr/local/bin" >&2; exit 1; }
 grep -q UV_PYTHON_INSTALL_DIR /etc/environment 2>/dev/null ||
   printf 'UV_PYTHON_INSTALL_DIR=/opt/wordslab/python\nUV_CACHE_DIR=/opt/wordslab/uv-cache\n' >> /etc/environment
 export UV_PYTHON_INSTALL_DIR=/opt/wordslab/python

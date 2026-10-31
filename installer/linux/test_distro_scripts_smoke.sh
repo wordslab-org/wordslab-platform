@@ -29,6 +29,8 @@ done
 
 # Step 03's engine script keeps its ruled content (it runs uv for real on Windows only).
 grep -q "astral.sh/uv/install.sh" "$ENGINE" || fail "03-engine.sh must install uv"
+grep -q "UV_INSTALL_DIR=/usr/local/bin" "$ENGINE" || fail "03-engine.sh must land uv in /usr/local/bin (env, not a flag)"
+if grep -q -- "sh -s -- --install-dir" "$ENGINE"; then fail "03-engine.sh must not pass --install-dir (uv's installer rejects it)"; fi
 grep -q "/opt/wordslab/python" "$ENGINE" || fail "03-engine.sh must name the engine slot"
 grep -q "Wordslab engine ready" "$ENGINE" || fail "03-engine.sh must end on its human sentence"
 if grep -q "command -v uv" "$ENGINE"; then fail "03-engine.sh must re-run the uv installer (update lane)"; fi
