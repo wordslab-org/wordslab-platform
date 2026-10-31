@@ -79,7 +79,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
     public override Task<IReadOnlyList<Command>> PlanAsync(InstallContext ctx)
     {
         string installDir = InstallDirs.ProgramFolderOrThrow(ctx.Parameters);
-        string vmDir = $@"{installDir}\virtual-machines\{Wsl.Distro}";
+        string vmDir = InstallDirs.AppVmFolder(installDir);
         string cacheDir = $@"{installDir}\cache";
 
         // Guarded inline (like every step here): re-running this step changes nothing when the
@@ -108,7 +108,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
         // re-home of that (recorded on the ticket).
         string ensureVm =
             $$"""
-            wsl -d {{Wsl.Distro}} -e /bin/true 2>$null;
+            wsl -d {{Wsl.VmDistro}} -e /bin/true 2>$null;
             if ($LASTEXITCODE -eq 0) {
               Write-Output 'The Wordslab virtual machine is already installed - keeping it.'
             } else {
@@ -116,7 +116,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               New-Item -ItemType Directory -Force '{{cacheDir}}', '{{vmDir}}' | Out-Null;
               $tar = Join-Path '{{cacheDir}}' 'ubuntu-noble-oci-amd64-root.tar.gz';
               if (-not (Test-Path $tar)) { curl.exe -sSL -o $tar '{{UbuntuRootfsUrl}}' };
-              wsl --import {{Wsl.Distro}} '{{vmDir}}' $tar;
+              wsl --import {{Wsl.VmDistro}} '{{vmDir}}' $tar;
               if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab virtual machine could not be created - see the lines above.'; exit 1 };
               # Ownership marker: only folders carrying it may ever be deleted (reset/e2e tooling).
               # Our own root is C:\wordslab-platform (or whatever install_dir says). C:\wordslab is
@@ -124,7 +124,7 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               # virtual-machines parent there destroyed three notebooks VMs. Never write into
               # another product's root, never delete by parent: only marked folders, only exact files.
               Set-Content -LiteralPath (Join-Path '{{vmDir}}' '.wordslab-installer') -Value 'created-by=wordslab-platform-installer';
-              wsl -d {{Wsl.Distro}} -- sh -c "printf '[boot]\nsystemd = true\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
+              wsl -d {{Wsl.VmDistro}} -- sh -c "printf '[boot]\nsystemd = true\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
               wsl --shutdown;
               Write-Output 'The Wordslab virtual machine is ready.'
             }
@@ -270,7 +270,7 @@ public sealed class Script06FrontDoor : DistroShellScript
             {
                 "-NoProfile", "-Command",
                 $$"""
-                $ip = ((wsl -d {{Wsl.Distro}} -- hostname -I) | Out-String).Trim().Split(' ')[0];
+                $ip = ((wsl -d {{Wsl.VmDistro}} -- hostname -I) | Out-String).Trim().Split(' ')[0];
                 if (-not $ip) { Write-Error 'The Wordslab virtual machine did not report an address - press Start install again.'; exit 1 };
                 $ok = $false;
                 try {

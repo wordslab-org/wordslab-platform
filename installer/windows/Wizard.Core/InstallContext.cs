@@ -62,10 +62,19 @@ public static class InstallDirs
             .OrderBy(v => v.drive, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    public static string VolumeDistroName(string drive) =>
-        "wordslab-platform-" + drive.TrimEnd(':', '\\').ToLowerInvariant();
+    /// <summary>The app VM's folder: <c>&lt;install_dir&gt;\wordslab-platform-vm\</c>; its distro
+    /// carries the same name, so folder name == distro name == what it is.</summary>
+    public const string VmFolderName = "wordslab-platform-vm";
 
-    /// <summary>The disk's folder on its own drive: <c>&lt;drive&gt;:\wordslab-platform\wordslab-platform-&lt;letter&gt;\</c>
+    public static string AppVmFolder(string installDir) =>
+        Path.Combine(installDir.TrimEnd('\\'), VmFolderName);
+
+    /// <summary>The disk's distro name: <c>wordslab-platform-disk&lt;letter&gt;</c> (e.g.
+    /// wordslab-platform-diskd for D:) — explicit, and never adjacent to another product's names.</summary>
+    public static string VolumeDistroName(string drive) =>
+        "wordslab-platform-disk" + drive.TrimEnd(':', '\\').ToLowerInvariant();
+
+    /// <summary>The disk's folder on its own drive: <c>&lt;drive&gt;:\wordslab-platform\wordslab-platform-disk&lt;letter&gt;\</c>
     /// (the UI card promises exactly this — a folder, the WSL-managed ext4.vhdx lives inside it).</summary>
     public static string VolumeDistroFolder(string volumeFolder, string drive) =>
         Path.Combine(volumeFolder.TrimEnd('\\'), VolumeDistroName(drive));

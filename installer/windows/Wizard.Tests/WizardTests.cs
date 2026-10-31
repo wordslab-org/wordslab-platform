@@ -80,7 +80,7 @@ public class ScriptPlanTests
 
         var s3 = await new Script03UvPythonInDistro().PlanAsync(ctx);
         Assert.Equal(Wsl.Exe, s3.Single().Program);
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "bash", "-c" }, s3.Single().Args.Take(5));
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash", "-c" }, s3.Single().Args.Take(5));
     }
 
     // ---- #88: every step's real command plan, pinned as argv ----
@@ -119,9 +119,9 @@ public class ScriptPlanTests
         string vm = cmds[1].Args[2];
         // The #88 ruling: wsl --import (never wsl --install distro, never wsl --mount) — the disk
         // lands in a plain folder under the program folder WSL itself manages.
-        Assert.Contains("wsl --import wordslab-platform", vm);
+        Assert.Contains("wsl --import wordslab-platform-vm", vm);
         Assert.Contains(Script02WslFeatureAndVm.UbuntuRootfsUrl, vm);
-        Assert.Contains(@"C:\wordslab-platform\virtual-machines\wordslab-platform", vm);
+        Assert.Contains(Path.Combine(@"C:\wordslab-platform", "wordslab-platform-vm"), vm); // host-native separator
         Assert.Contains("systemd = true", vm);
         Assert.Contains("appendWindowsPath = false", vm);   // no interop: the VM never calls Windows
         Assert.Contains("wsl --shutdown", vm);              // applies wsl.conf visibly
@@ -155,20 +155,20 @@ public class ScriptPlanTests
         // C: and D: each get their own guarded import command; the shared script runs last.
         Assert.Equal(3, cmds.Count);
         string diskC = cmds[0].Args[2];
-        Assert.Contains("wsl --import wordslab-platform-c", diskC);
+        Assert.Contains("wsl --import wordslab-platform-diskc", diskC);
         // Path.Combine is host-native: backslashes on Windows where this runs, slashes if a Linux
         // box runs the tests - pin the formula, not one separator.
-        Assert.Contains(Path.Combine(@"C:\wordslab-platform", "wordslab-platform-c"), diskC);
+        Assert.Contains(Path.Combine(@"C:\wordslab-platform", "wordslab-platform-diskc"), diskC);
         Assert.Contains(Script04DataVolumes.AlpineRootfsUrl, diskC);
         string diskD = cmds[1].Args[2];
-        Assert.Contains("wsl --import wordslab-platform-d", diskD);
-        Assert.Contains(Path.Combine(@"D:\wordslab-platform", "wordslab-platform-d"), diskD);
+        Assert.Contains("wsl --import wordslab-platform-diskd", diskD);
+        Assert.Contains(Path.Combine(@"D:\wordslab-platform", "wordslab-platform-diskd"), diskD);
         // The disk instance publishes /volume into the shared /mnt/wsl (notebooks mechanism), and
         // the instance is terminated after wsl.conf so the config actually applies at next start:
-        Assert.Contains("mount --bind /volume /mnt/wsl/wordslab-platform-d", diskD);
-        Assert.Contains("wsl --terminate wordslab-platform-d", diskD);
+        Assert.Contains("mount --bind /volume /mnt/wsl/wordslab-platform-diskd", diskD);
+        Assert.Contains("wsl --terminate wordslab-platform-diskd", diskD);
         var shared = cmds[2];
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "bash",
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash",
                              "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh",
                              "--parameters", "/mnt/c/tmp/wordslab-install-parameters.json" }, shared.Args);
     }
@@ -181,9 +181,9 @@ public class ScriptPlanTests
         var cmds = await new Script06FrontDoor().PlanAsync(ctx);
 
         Assert.Equal(2, cmds.Count);
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "bash" }, cmds[0].Args.Take(4));
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash" }, cmds[0].Args.Take(4));
         string probe = cmds[1].Args[2];
-        Assert.Contains($"-d {Wsl.Distro} -- hostname -I", probe);
+        Assert.Contains($"-d {Wsl.VmDistro} -- hostname -I", probe);
         Assert.Contains("wordslab-front-door.url", probe);   // the handoff address the window reads
         Assert.Contains("one port, one certificate", probe); // its own final human sentence
     }
@@ -203,7 +203,7 @@ public class ScriptPlanTests
         // The shared script file reads the same parameters contract the UI wrote (#88): the
         // parameters file crosses the boundary translated, exactly like the script path. Step 4
         // prepends its disk commands, so the shared script is the LAST command of the plan.
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "bash",
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "bash",
                              "/mnt/c/repo/installer/scripts/distro/04-data-volumes.sh",
                              "--parameters", "/mnt/c/tmp/wordslab-install-parameters.json" },
                      commands.Last().Args);
@@ -231,7 +231,7 @@ public class ScriptPlanTests
         var step = new TestStep();
         var commands = await step.PlanAsync(ctx);
 
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "python3", "/mnt/c/repo/installer/python/steps/step99_demo.py" }, commands.Single().Args);
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "python3", "/mnt/c/repo/installer/python/steps/step99_demo.py" }, commands.Single().Args);
     }
 
     sealed class TestStep : DistroPythonScript
@@ -303,7 +303,7 @@ public class JourneyRunnerTests
         // The regression this pins: `wsl.exe --version` would only prove WSL exists — and the live
         // Windows run proved the DEFAULT distro can lack the interpreter entirely ("bash: not found",
         // exit 127). Every distro-facing command must target the named Wordslab distro.
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "python3", "--version" }, proc.Calls.Single().args);
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "python3", "--version" }, proc.Calls.Single().args);
     }
 
     sealed class SingleCommandScript(int number, string title, string program) : NumberedScript
@@ -514,8 +514,8 @@ public class SupportTests
         });
         Assert.Equal(new[] { ("C:", @"C:\wordslab-platform"), ("D:", @"D:\wordslab-platform") }, volumes);
 
-        Assert.Equal("wordslab-platform-d", InstallDirs.VolumeDistroName("d:"));
-        Assert.Equal(Path.Combine(@"D:\wordslab-platform", "wordslab-platform-c"),
+        Assert.Equal("wordslab-platform-diskd", InstallDirs.VolumeDistroName("d:"));
+        Assert.Equal(Path.Combine(@"D:\wordslab-platform", "wordslab-platform-diskc"),
                      InstallDirs.VolumeDistroFolder(@"D:\wordslab-platform", "C:"));
 
         // A missing program folder is a broken internal state, named as one — never a silent default.
@@ -553,18 +553,18 @@ public class SupportTests
     public void RunPython_keeps_duplicate_argv_entries()
     {
         var args = Wsl.RunPython("/t.py", new[] { "--flag", "--flag" }).Args;
-        Assert.Equal(new[] { "-d", "wordslab-platform", "--", "python3", "/t.py", "--flag", "--flag" }, args);
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm", "--", "python3", "/t.py", "--flag", "--flag" }, args);
     }
 
     [Fact]
     public void every_wsl_command_targets_the_named_wordslab_distro()
     {
         // #88: the live Windows run died on the DEFAULT distro lacking bash. One distro name,
-        // one place to change it (Wsl.Distro), every factory honors it.
-        Assert.Equal("wordslab-platform", Wsl.Distro);
-        Assert.Equal(new[] { "-d", "wordslab-platform" }, Wsl.PythonProbe().Args.Take(2));
-        Assert.Equal(new[] { "-d", "wordslab-platform" }, Wsl.PathTranslate("C:\\x").Args.Take(2));
-        Assert.Equal(new[] { "-d", "wordslab-platform" }, Wsl.RunBash("/x/y.sh").Args.Take(2));
-        Assert.Equal(new[] { "-d", "wordslab-platform" }, Wsl.RunPython("/x/t.py").Args.Take(2));
+        // one place to change it (Wsl.VmDistro), every factory honors it.
+        Assert.Equal("wordslab-platform-vm", Wsl.VmDistro);
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm" }, Wsl.PythonProbe().Args.Take(2));
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm" }, Wsl.PathTranslate("C:\\x").Args.Take(2));
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm" }, Wsl.RunBash("/x/y.sh").Args.Take(2));
+        Assert.Equal(new[] { "-d", "wordslab-platform-vm" }, Wsl.RunPython("/x/t.py").Args.Take(2));
     }
 }

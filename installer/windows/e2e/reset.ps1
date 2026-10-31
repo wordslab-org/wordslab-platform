@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 reset.ps1 - revert this machine to the state the Wordslab journey starts from.
 
@@ -7,7 +7,7 @@ carries the installer's marker file (.wordslab-installer, written by the numbere
 they created that folder). A folder without the marker is NOT ours - it may belong to
 wordslab-notebooks, to the user, or to anything else - and is reported, never touched. A
 registered distro is unregistered ONLY when its WSL BasePath is one of those marked folders.
-Parent folders (<install_dir>\virtual-machines, <drive>:\wordslab-platform) are never deleted as such:
+Parent folders (<install_dir>, <drive>:\wordslab-platform) are never deleted as such:
 at most a parent is removed when it is EMPTY after its own marked children went. C:\wordslab is
 wordslab-notebooks' root and is never written or deleted here (incident 2026-10-24).
 
@@ -67,7 +67,7 @@ try {
         $candidates = @(Get-ChildItem $lxss | ForEach-Object {
             $name = $_.GetValue('DistributionName')
             $path = $_.GetValue('BasePath')
-            if ($name -and $name -match '^wordslab-platform(-[a-z])?$') {
+            if ($name -and $name -match '^wordslab-platform-(vm|disk[a-z])$') {
                 [pscustomobject]@{ Name = $name; BasePath = ($path -replace '^\\\\\?\\', '').TrimEnd('\') }
             }
         })
@@ -94,15 +94,15 @@ foreach ($d in $candidates) {
 }
 
 # 2) Marked folders the journey created. Note the exact paths - never a shared parent:
-#    <install_dir>\virtual-machines\wordslab-platform   (the app VM)
-#    <drive>:\wordslab-platform\wordslab-platform-<letter> (the per-drive disks)
-RemoveOurs (Join-Path (Join-Path $InstallDir 'virtual-machines') 'wordslab-platform') 'app VM import folder'
-RemoveIfEmpty (Join-Path $InstallDir 'virtual-machines')       # only if nothing else lives there
+#    <install_dir>\wordslab-platform-vm       (the app VM)
+#    <drive>:\wordslab-platform\wordslab-platform-disk<letter> (the per-drive disks)
+RemoveOurs (Join-Path $InstallDir 'wordslab-platform-vm') 'app VM import folder'
+RemoveIfEmpty $InstallDir                                       # only if nothing else lives there
 foreach ($d in (Get-PSDrive -PSProvider FileSystem | Where-Object { $null -ne $_.Free })) {
     $root = "$($d.Name):\wordslab-platform"
     if (-not (Test-Path -LiteralPath $root)) { continue }
     Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^wordslab-platform-[a-z]$' } |
+        Where-Object { $_.Name -match '^wordslab-platform-disk[a-z]$' } |
         ForEach-Object { RemoveOurs $_.FullName "Wordslab Linux disk on $($d.Name):" }
 }
 

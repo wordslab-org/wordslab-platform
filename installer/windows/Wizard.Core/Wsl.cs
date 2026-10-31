@@ -10,16 +10,18 @@ public static class Wsl
 {
     public const string Exe = "wsl.exe";
 
-    /// <summary>The named Wordslab distro the journey itself installs (#88). Every distro-facing
-    /// command targets it — the live Windows run proved the machine's DEFAULT distro can lack even
-    /// bash ("/bin/sh: bash: not found", exit 127), so the default is never good enough.</summary>
-    public const string Distro = "wordslab-platform";
+    /// <summary>The ONE distro running the platform (the app VM). Explicit name = folder name =
+    /// thing it is (#88 follow-up): `wordslab-platform-vm`. Every VM-facing command targets it by
+    /// name — the live Windows run proved the machine's DEFAULT distro can lack even bash
+    /// ("/bin/sh: bash: not found", exit 127), so the default is never good enough. The data disks
+    /// are separate distros named `wordslab-platform-disk<letter>` (InstallDirs.VolumeDistroName).</summary>
+    public const string VmDistro = "wordslab-platform-vm";
 
     // wsl.exe (and wslpath) write UTF-16LE — decoding as the system default corrupts the output.
     private static readonly Encoding WslConsoleEncoding = Encoding.Unicode;
 
     private static string[] Targeted(params string[] rest) =>
-        new[] { "-d", Distro }.Concat(rest).ToArray(); // Concat, not Union: argv duplicates are significant
+        new[] { "-d", VmDistro }.Concat(rest).ToArray(); // Concat, not Union: argv duplicates are significant
 
     public static Command PythonProbe() =>
         new(Exe, Targeted("--", "python3", "--version"), "Checking for Python in the Wordslab virtual machine", WslConsoleEncoding);

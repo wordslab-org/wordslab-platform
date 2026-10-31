@@ -8,7 +8,7 @@
 #   re-run: idempotent — an existing bind mount is kept, never remounted over.
 #
 # The Windows host step (Script04) imported one minimal WSL instance per drive — its WSL-managed
-# ext4.vhdx lives in <drive>:\wordslab-platform\wordslab-platform-<letter>\ — and published each instance's
+# ext4.vhdx lives in <drive>:\wordslab-platform\wordslab-platform-disk<letter>\ — and published each instance's
 # /volume folder into /mnt/wsl, which WSL shares across distros (the proven wordslab-notebooks
 # mechanism; no wsl --mount, no admin). Here the app machine bind-mounts those folders under
 # /mnt/wordslab-platform/<letter> — one stable in-distro place for the core to keep data (ADR-0004 §8).

@@ -33,7 +33,7 @@ columns (left: intro + "Where Wordslab will live" card; right: all six step card
    plus two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
 2. The locations card is inform-only (v1 fixed paths, no text boxes): a "Program:
    C:\wordslab-platform\wordslab.exe" line, then one checkbox row per fixed drive showing the exact
-   Linux-disk **folder** it will create (`<drive>:\wordslab-platform\wordslab-platform-<drive>\` — WSL manages
+   Linux-disk **folder** it will create (`<drive>:\wordslab-platform\wordslab-platform-disk<drive>\` — WSL manages
    that folder's contents, its ext4.vhdx lives inside; #88 ruling, no loose VHDX). Untick a
    drive → it must be absent from the written parameters JSON
    (`wordslab-install-parameters.json` next to the exe).
@@ -68,9 +68,9 @@ After a full **Start install** run (S3), check the machine state it claims — e
 plain command, nothing hidden:
 
 ```
-wsl -l -v                    # wordslab-platform, plus wordslab-platform-<letter> per enabled drive — nothing else required
-wsl --manage wordslab-platform --show 2>$null  # (older wsl: the import line shows it) -> C:\wordslab-platform\virtual-machines\wordslab-platform
-dir D:\wordslab-platform\wordslab-platform-d   # contains ext4.vhdx (WSL-managed) — the folder the card promised
+wsl -l -v                    # wordslab-platform-vm, plus wordslab-platform-disk<letter> per enabled drive — nothing else
+wsl --manage wordslab-platform-vm --show 2>$null  # (older wsl: the import line shows it) -> C:\wordslab-platform\wordslab-platform-vm
+dir D:\wordslab-platform\wordslab-platform-diskd   # contains ext4.vhdx (WSL-managed) — the folder the card promised
 wsl -d wordslab-platform -- ls /mnt/wordslab          # one folder per enabled drive, bind-mounted by step 4
 wsl -d wordslab-platform -- uv --version              # engine slot: uv in /usr/local/bin
 wsl -d wordslab-platform -- sh -c "ls /opt/wordslab/python"   # uv-managed Python landing place

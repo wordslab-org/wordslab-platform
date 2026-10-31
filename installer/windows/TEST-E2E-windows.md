@@ -23,8 +23,8 @@ policy of `Restricted` refuses any `.ps1`. If you prefer it once per shell:
 ## Reset safety contract (read once)
 
 `reset.ps1` may delete a folder ONLY when it contains `.wordslab-installer`. That marker is
-written by the step that creates the folder (`<install_dir>\virtual-machines\wordslab-platform`,
-`<drive>:\wordslab-platform\wordslab-platform-<letter>`). Consequences you can rely on:
+written by the step that creates the folder (`<install_dir>\wordslab-platform-vm`,
+`<drive>:\wordslab-platform\wordslab-platform-disk<letter>`). Consequences you can rely on:
 
 - The two products live in **separate roots**: ours is `<install_dir>` (default `C:\wordslab-platform`),
   wordslab-notebooks' is `C:\wordslab` (its VMs sit in `C:\wordslab\virtual-machines`). Even against a
@@ -45,7 +45,7 @@ Fresh reset, `dotnet run --project Wizard.App`, press **Start install**. Expect:
   ("Windows' built-in Linux is already switched on - nothing to do."), then
   "Creating the Wordslab virtual machine — the
   download takes a few minutes the first time." (watch the disk folder appear:
-  `C:\wordslab-platform\virtual-machines\wordslab-platform\`). If the feature is off: see E6.
+  `C:\wordslab-platform\wordslab-platform-vm\`). If the feature is off: see E6.
 - Step 3: version lines end with "Wordslab engine ready - uv 0.x and Python 3.12.x …".
 - Step 4: one "Creating the Wordslab Linux disk on drive C:" per ticked drive + the shared
   script's `Wordslab Linux disk c mounted at /mnt/wordslab-platform/c` lines.
@@ -79,7 +79,7 @@ them at every launch is #94's launcher; re-running Start install re-applies them
 publish line is idempotent).
 
 ### E5 — drives off/on
-Untick D: in the card, run: step 4 creates C: only; an existing `wordslab-platform-d` instance (from
+Untick D: in the card, run: step 4 creates C: only; an existing `wordslab-platform-diskd` instance (from
 a previous run) is **kept, untouched** (the data-volume invariant — switching a drive off in
 v1 never deletes data). Tick it back, re-run: "already there - keeping it".
 To actually test fresh-per-drive, reset first.
@@ -93,7 +93,7 @@ one restart, the elevated run says so plainly and a later Start install complete
 
 ### E7 — what must NEVER happen in any cycle
 - Any console window (cmd/powershell/pwsh) opening during the journey.
-- `wsl --mount`, diskpart, or a loose `.vhdx` outside a `wordslab-platform-<letter>` folder
+- `wsl --mount`, diskpart, or a loose `.vhdx` outside a `wordslab-platform-disk<letter>` folder
   (`reset.ps1 -DryRun` naming only `wordslab*` distros is part of this proof).
 - Reset ever unregistering a distro it doesn't own, or touching the WSL feature.
 - A step succeeding by lying (step 6 green with no page answering).
