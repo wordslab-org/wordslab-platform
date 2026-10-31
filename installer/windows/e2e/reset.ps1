@@ -32,14 +32,19 @@ function Trash($path, $why) {
 Write-Host "reset: starting (DryRun=$DryRun)"
 
 # 1) The distro names: read them from what WSL itself registered - never assume.
-$raw = & wsl --list --quiet 2>$null
-$installed = ($raw | Out-String) -split "`0" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-if ($LASTEXITCODE -ne 0 -or -not $installed) { Step "no WSL distros answer (WSL may be off - nothing to unregister)" }
+$installed = @()
+try {
+    $raw = & wsl --list --quiet 2>$null
+    $installed = @(($raw | Out-String) -split "`0" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+} catch {
+    Step "no WSL answers on this machine - nothing to unregister"
+}
+if (-not $installed) { Step "no WSL distros registered (WSL may be off - nothing to unregister)" }
 
 # Safety pattern: ONLY our own names. docker-desktop, Store Ubuntu, anything else: untouchable.
 $mine = @($installed | Where-Object { $_ -match '^wordslab(-[a-z])?$' })
 Step "registered Wordslab distros: $(if ($mine) { $mine -join ', ' } else { 'none' })"
-& wsl --shutdown 2>$null   # stop everything first: unregister needs no running instance
+try { & wsl --shutdown 2>$null } catch {}   # stop everything first: unregister needs no running instance
 foreach ($name in $mine) {
     if ($DryRun) { Write-Host "reset: WOULD unregister $name (removes its WSL-managed ext4.vhdx)"; continue }
     & wsl --unregister $name 2>&1 | ForEach-Object { Write-Host "  wsl: $_" }
@@ -72,7 +77,9 @@ Trash (Join-Path $env:TEMP 'wordslab-installer-webview') "WebView2 profile"
 
 # 4) Proof of the contract: what is left, shown - the machine state you can trust to re-run.
 Write-Host "reset: --- machine state now ---"
-& wsl --status 2>&1 | ForEach-Object { Write-Host "  wsl --status: $_" }
-if ($LASTEXITCODE -eq 0) { Write-Host "  KEPT: Windows' built-in Linux stays switched on (never removed by this reset)" }
-& wsl --list --quiet 2>$null | Out-String | ForEach-Object { Write-Host "  remaining distros: $($_.Trim() -replace "`0", ' ')" }
+try {
+    & wsl --status 2>&1 | ForEach-Object { Write-Host "  wsl --status: $_" }
+    if ($LASTEXITCODE -eq 0) { Write-Host "  KEPT: Windows' built-in Linux stays switched on (never removed by this reset)" }
+    & wsl --list --quiet 2>$null | Out-String | ForEach-Object { Write-Host "  remaining distros: $($_.Trim() -replace "`0", ' ')" }
+} catch { Write-Host "  (wsl did not answer - nothing to report)" }
 Write-Host "reset: done - the machine is at the journey's starting state again."
