@@ -7,8 +7,9 @@ carries the installer's marker file (.wordslab-installer, written by the numbere
 they created that folder). A folder without the marker is NOT ours - it may belong to
 wordslab-notebooks, to the user, or to anything else - and is reported, never touched. A
 registered distro is unregistered ONLY when its WSL BasePath is one of those marked folders.
-Parent folders (C:\wordslab\virtual-machines, D:\wordslab) are never deleted as such: at most
-a parent is removed when it is EMPTY after its own marked children went.
+Parent folders (<install_dir>\virtual-machines, <drive>:\wordslab-platform) are never deleted as such:
+at most a parent is removed when it is EMPTY after its own marked children went. C:\wordslab is
+wordslab-notebooks' root and is never written or deleted here (incident 2026-10-24).
 
 Never touched, by design: Windows' built-in Linux itself (the feature stays on across cycles),
 other WSL distros (docker-desktop, Ubuntu, wordslab-notebooks*), and any unmarked folder.
@@ -17,7 +18,7 @@ other WSL distros (docker-desktop, Ubuntu, wordslab-notebooks*), and any unmarke
   powershell -ExecutionPolicy Bypass -File reset.ps1                   # the real reset
   powershell -ExecutionPolicy Bypass -File reset.ps1 -KeepDownloads    # keep cached tarballs
   powershell -ExecutionPolicy Bypass -File reset.ps1 -RemoveOrphans    # ALSO unregister
-      # wordslab-named distros whose backing folder is gone or unmarked (leftovers of a broken
+      # wordslab-platform-named distros whose backing folder is gone or unmarked (leftovers of a broken
       # install). Opt-in on purpose: an orphaned registration is the last trace of data.
 #>
 [CmdletBinding()]
@@ -25,7 +26,7 @@ param(
     [switch]$DryRun,
     [switch]$KeepDownloads,
     [switch]$RemoveOrphans,
-    [string]$InstallDir = 'C:\wordslab'
+    [string]$InstallDir = 'C:\wordslab-platform'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -66,13 +67,13 @@ try {
         $candidates = @(Get-ChildItem $lxss | ForEach-Object {
             $name = $_.GetValue('DistributionName')
             $path = $_.GetValue('BasePath')
-            if ($name -and $name -match '^wordslab(-[a-z])?$') {
+            if ($name -and $name -match '^wordslab-platform(-[a-z])?$') {
                 [pscustomobject]@{ Name = $name; BasePath = ($path -replace '^\\\\\?\\', '').TrimEnd('\') }
             }
         })
     } else { Step "no WSL registry here - no distros to consider" }
 } catch { Step "could not read the WSL registry ($($_.Exception.Message)) - no distro will be unregistered" }
-if (-not $candidates) { Step "no wordslab-named distros registered" }
+if (-not $candidates) { Step "no wordslab-platform-named distros registered" }
 
 try { & wsl --shutdown 2>$null } catch {}   # stop everything first; unregister needs no running instance
 
@@ -93,15 +94,15 @@ foreach ($d in $candidates) {
 }
 
 # 2) Marked folders the journey created. Note the exact paths - never a shared parent:
-#    <install_dir>\virtual-machines\wordslab   (the app VM)
-#    <drive>:\wordslab\wordslab-<letter>       (the per-drive disks)
-RemoveOurs (Join-Path (Join-Path $InstallDir 'virtual-machines') 'wordslab') 'app VM import folder'
+#    <install_dir>\virtual-machines\wordslab-platform   (the app VM)
+#    <drive>:\wordslab-platform\wordslab-platform-<letter> (the per-drive disks)
+RemoveOurs (Join-Path (Join-Path $InstallDir 'virtual-machines') 'wordslab-platform') 'app VM import folder'
 RemoveIfEmpty (Join-Path $InstallDir 'virtual-machines')       # only if nothing else lives there
 foreach ($d in (Get-PSDrive -PSProvider FileSystem | Where-Object { $null -ne $_.Free })) {
-    $root = "$($d.Name):\wordslab"
+    $root = "$($d.Name):\wordslab-platform"
     if (-not (Test-Path -LiteralPath $root)) { continue }
     Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^wordslab-[a-z]$' } |
+        Where-Object { $_.Name -match '^wordslab-platform-[a-z]$' } |
         ForEach-Object { RemoveOurs $_.FullName "Wordslab Linux disk on $($d.Name):" }
 }
 

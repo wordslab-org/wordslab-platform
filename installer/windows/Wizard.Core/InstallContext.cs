@@ -63,9 +63,9 @@ public static class InstallDirs
             .ToArray();
 
     public static string VolumeDistroName(string drive) =>
-        "wordslab-" + drive.TrimEnd(':', '\\').ToLowerInvariant();
+        "wordslab-platform-" + drive.TrimEnd(':', '\\').ToLowerInvariant();
 
-    /// <summary>The disk's folder on its own drive: <c>&lt;drive&gt;:\wordslab\wordslab-&lt;letter&gt;\</c>
+    /// <summary>The disk's folder on its own drive: <c>&lt;drive&gt;:\wordslab-platform\wordslab-platform-&lt;letter&gt;\</c>
     /// (the UI card promises exactly this — a folder, the WSL-managed ext4.vhdx lives inside it).</summary>
     public static string VolumeDistroFolder(string volumeFolder, string drive) =>
         Path.Combine(volumeFolder.TrimEnd('\\'), VolumeDistroName(drive));
@@ -119,13 +119,13 @@ public static class Parameters
     public static string? ValidateInstallDir(string value) =>
         value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/')
             ? null
-            : "Please type a full folder path for the Wordslab program, like C:\\wordslab.";
+            : "Please type a full folder path for the Wordslab program, like C:\\wordslab-platform.";
 
     /// <summary>A volume folder must sit on the drive it names.</summary>
     public static string? ValidateVolumeFolder(string folder, string drive) =>
         folder.Length >= 3 && folder[0] == drive[0] && folder[1] == ':' && (folder[2] == '\\' || folder[2] == '/')
             ? null
-            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\wordslab.";
+            : $"The Wordslab folder for drive {drive} must be on that drive, like {drive}\\wordslab-platform.";
 
     public static void Write(IReadOnlyDictionary<string, string> answers, string path) =>
         File.WriteAllText(path, JsonSerializer.Serialize(answers, new JsonSerializerOptions { WriteIndented = true }));

@@ -118,9 +118,11 @@ public sealed class Script02WslFeatureAndVm : NumberedScript
               if (-not (Test-Path $tar)) { curl.exe -sSL -o $tar '{{UbuntuRootfsUrl}}' };
               wsl --import {{Wsl.Distro}} '{{vmDir}}' $tar;
               if ($LASTEXITCODE -ne 0) { Write-Error 'The Wordslab virtual machine could not be created - see the lines above.'; exit 1 };
-              # Ownership marker: reset/e2e tooling may only ever delete folders carrying it - the
-              # parent C:\wordslab\virtual-machines is ALSO used by wordslab-notebooks (incident
-              # 2026-10-24: deleting that parent destroyed data). Never delete by parent again.
+              # Ownership marker: only folders carrying it may ever be deleted (reset/e2e tooling).
+              # Our own root is C:\wordslab-platform (or whatever install_dir says). C:\wordslab is
+              # wordslab-notebooks' root - incident 2026-10-24: a reset deleting the shared
+              # virtual-machines parent there destroyed three notebooks VMs. Never write into
+              # another product's root, never delete by parent: only marked folders, only exact files.
               Set-Content -LiteralPath (Join-Path '{{vmDir}}' '.wordslab-installer') -Value 'created-by=wordslab-platform-installer';
               wsl -d {{Wsl.Distro}} -- sh -c "printf '[boot]\nsystemd = true\n\n[interop]\nenabled = false\nappendWindowsPath = false\n' > /etc/wsl.conf";
               wsl --shutdown;

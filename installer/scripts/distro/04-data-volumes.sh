@@ -8,10 +8,10 @@
 #   re-run: idempotent — an existing bind mount is kept, never remounted over.
 #
 # The Windows host step (Script04) imported one minimal WSL instance per drive — its WSL-managed
-# ext4.vhdx lives in <drive>:\wordslab\wordslab-<letter>\ — and published each instance's
+# ext4.vhdx lives in <drive>:\wordslab-platform\wordslab-platform-<letter>\ — and published each instance's
 # /volume folder into /mnt/wsl, which WSL shares across distros (the proven wordslab-notebooks
 # mechanism; no wsl --mount, no admin). Here the app machine bind-mounts those folders under
-# /mnt/wordslab/<letter> — one stable in-distro place for the core to keep data (ADR-0004 §8).
+# /mnt/wordslab-platform/<letter> — one stable in-distro place for the core to keep data (ADR-0004 §8).
 set -euo pipefail
 
 # shellcheck source=_parameters.sh
@@ -19,10 +19,10 @@ set -euo pipefail
 echo "04: install parameters read from $PARAMS"
 
 found=0
-for published in /mnt/wsl/wordslab-*; do
+for published in /mnt/wsl/wordslab-platform-*; do
   [ -d "$published" ] || continue          # glob unmatched: no Wordslab Linux disks published
-  letter="${published##*/wordslab-}"
-  target="/mnt/wordslab/$letter"
+  letter="${published##*/wordslab-platform-}"
+  target="/mnt/wordslab-platform/$letter"
   mkdir -p "$target"
   mountpoint -q "$target" || mount --bind "$published" "$target"
   if ! mountpoint -q "$target"; then

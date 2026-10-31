@@ -63,7 +63,7 @@ public sealed partial class MainWindow : Window
             long freeGb;
             try { freeGb = d.AvailableFreeSpace / (1024 * 1024 * 1024); }
             catch (Exception) { freeGb = -1; } // fixed but momentarily locked — still list it
-            Disks.Add(new DriveVm { Drive = drive, FreeGb = freeGb, Folder = drive + "\\wordslab" });
+            Disks.Add(new DriveVm { Drive = drive, FreeGb = freeGb, Folder = drive + "\\wordslab-platform" });
         }
         DiskList.ItemsSource = Disks;
         if (skipped.Count > 0) // transparency over silence: say what was left out and why
@@ -72,10 +72,10 @@ public sealed partial class MainWindow : Window
                 " — Wordslab's Linux disks live on physical internal drives.";
             SkipsLine.Visibility = Visibility.Visible;
         }
-        // v1: paths are fixed — <drive>:\wordslab everywhere (one less decision for a
+        // v1: paths are fixed — <drive>:\wordslab-platform everywhere (one less decision for a
         // first-time user). The window only informs: program exe + the exact Linux disk folders.
         string systemRoot = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
-        _installDir = systemRoot.TrimEnd('\\') + "\\wordslab";
+        _installDir = systemRoot.TrimEnd('\\') + "\\wordslab-platform";
         ProgramLine.Text = $"Program:  {_installDir}\\wordslab.exe";
 
         if (webViewPreview)

@@ -13,7 +13,7 @@ public static class Wsl
     /// <summary>The named Wordslab distro the journey itself installs (#88). Every distro-facing
     /// command targets it — the live Windows run proved the machine's DEFAULT distro can lack even
     /// bash ("/bin/sh: bash: not found", exit 127), so the default is never good enough.</summary>
-    public const string Distro = "wordslab";
+    public const string Distro = "wordslab-platform";
 
     // wsl.exe (and wslpath) write UTF-16LE — decoding as the system default corrupts the output.
     private static readonly Encoding WslConsoleEncoding = Encoding.Unicode;

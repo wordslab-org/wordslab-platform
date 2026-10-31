@@ -31,10 +31,10 @@ WPF remain banned).
     (`WindowsPackageType=None`). **Builds on Windows only** — XAML markup compilation
     (`XamlCompiler.exe`) is Windows tooling; all logic it renders lives in `Wizard.Core`.
     It writes `wordslab-install-parameters.json` with `install_dir` plus `volume_<DRIVE>` keys
-    (one per enabled drive — the drive's wordslab folder; disabled drives get
-    no key). v1 paths are FIXED (`<drive>:\wordslab`; the UI informs, it does not ask — one less
+    (one per enabled drive — the drive's wordslab-platform folder; disabled drives get
+    no key). v1 paths are FIXED (`<drive>:\wordslab-platform`; the UI informs, it does not ask — one less
     decision for a first-timer), and the card shows the exact Linux-disk folder each install step
-    will create (`<drive>:\wordslab\wordslab-<drive>\` — a folder WSL manages: its ext4.vhdx
+    will create (`<drive>:\wordslab-platform\wordslab-platform-<drive>\` — a folder WSL manages: its ext4.vhdx
     lives inside it, created by `wsl --import`, never a loose VHDX needing admin to attach — the
     #88 ruling). #88's scripts consume this contract; a data volume per disk, named after the disk.
   - `Wizard.Tests/` — xunit contract tests over the command-executor seam (no UI needed).
@@ -81,13 +81,13 @@ Design rulings, recorded on #88 (Laurent, 2026-10-24) — they shape every step:
   future start — no diskpart, no loose VHDX, no `wsl --mount` (which needs admin AND detaches at
   each reboot). The single elevation moment (first-time feature switch) asks Windows once via the
   wizard relaunching ITSELF elevated (`runas`, one UAC dialog, zero console windows).
-- **One named distro: `wordslab`.** Every distro-facing C# command carries `-d wordslab` (a live
+- **One named distro: `wordslab-platform`.** Every distro-facing C# command carries `-d wordslab-platform` (a live
   Windows run proved the default distro can lack bash entirely — `/bin/sh: bash: not found`).
   One constant, `Wsl.Distro`, every factory honors it; pinned by `every_wsl_command_targets_the_named_wordslab_distro`.
-- **The disk model:** one minimal WSL instance per enabled drive (`wordslab-<letter>`, imported
-  from a pinned Alpine minirootfs URL), folder `<drive>:\wordslab\wordslab-<letter>\`; each
-  instance publishes `/volume` into `/mnt/wsl/wordslab-<letter>` (shared across distros), and
-  the shared `04-data-volumes.sh` bind-mounts those into the app machine at `/mnt/wordslab/<letter>`.
+- **The disk model:** one minimal WSL instance per enabled drive (`wordslab-platform-<letter>`, imported
+  from a pinned Alpine minirootfs URL), folder `<drive>:\wordslab-platform\wordslab-platform-<letter>\`; each
+  instance publishes `/volume` into `/mnt/wsl/wordslab-platform-<letter>` (shared across distros), and
+  the shared `04-data-volumes.sh` bind-mounts those into the app machine at `/mnt/wordslab-platform/<letter>`.
 - **Engine landing place:** uv in `/usr/local/bin`, uv-managed CPython 3.12 under
   `/opt/wordslab/python` — ticket #62's core plugs into the same slot (`05-first-core.sh` is the
   line that installs it once #62 ships).

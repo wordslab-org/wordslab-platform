@@ -8,8 +8,8 @@ DISTRO="$(cd "$(dirname "$0")/../scripts/distro" && pwd)"
 PARAMS="$(mktemp)"; echo '{"install_dir": "/tmp/ws"}' > "$PARAMS"
 STUB="$(mktemp -d)"; printf '#!/bin/sh\necho "uv 9.9.9 (stub)"\n' > "$STUB/uv"; chmod +x "$STUB/uv"
 export PATH="$STUB:$PATH"
-if [ -d /mnt/wsl ] && ls /mnt/wsl/wordslab-* >/dev/null 2>&1; then
-  echo "SKIP: /mnt/wsl/wordslab-* exists on this host — the 04 mounts path needs real WSL, not CI." >&2
+if [ -d /mnt/wsl ] && ls /mnt/wsl/wordslab-platform-* >/dev/null 2>&1; then
+  echo "SKIP: /mnt/wsl/wordslab-platform-* exists on this host — the 04 mounts path needs real WSL, not CI." >&2
   exit 0
 fi
 

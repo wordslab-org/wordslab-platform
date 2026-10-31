@@ -42,7 +42,7 @@
           <StackPanel Spacing="10">
             <TextBlock Text="Where Wordslab will live" FontWeight="SemiBold" />
             <TextBlock x:Name="ProgramLine" TextWrapping="Wrap"
-                       Text="Program:  C:\wordslab\wordslab.exe" />
+                       Text="Program:  C:\wordslab-platform\wordslab.exe" />
             <TextBlock Text="Linux disks (one per drive):" FontWeight="SemiBold" Margin="0,4,0,0" />
             <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"

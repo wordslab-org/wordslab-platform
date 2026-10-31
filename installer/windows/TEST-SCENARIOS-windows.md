@@ -32,8 +32,8 @@ columns (left: intro + "Where Wordslab will live" card; right: all six step card
    Wordslab lab-flask mark (wordmark included) in the title bar, taskbar and beside the heading,
    plus two intro paragraphs: what Wordslab is (soul-faithful) and what this installer will do.
 2. The locations card is inform-only (v1 fixed paths, no text boxes): a "Program:
-   C:\wordslab\wordslab.exe" line, then one checkbox row per fixed drive showing the exact
-   Linux-disk **folder** it will create (`<drive>:\wordslab\wordslab-<drive>\` — WSL manages
+   C:\wordslab-platform\wordslab.exe" line, then one checkbox row per fixed drive showing the exact
+   Linux-disk **folder** it will create (`<drive>:\wordslab-platform\wordslab-platform-<drive>\` — WSL manages
    that folder's contents, its ext4.vhdx lives inside; #88 ruling, no loose VHDX). Untick a
    drive → it must be absent from the written parameters JSON
    (`wordslab-install-parameters.json` next to the exe).
@@ -68,12 +68,12 @@ After a full **Start install** run (S3), check the machine state it claims — e
 plain command, nothing hidden:
 
 ```
-wsl -l -v                    # wordslab, plus wordslab-<letter> per enabled drive — nothing else required
-wsl --manage wordslab --show 2>$null  # (older wsl: get the location from the import line) shows the folder under C:\wordslab\virtual-machines\wordslab
-dir D:\wordslab\wordslab-d   # contains ext4.vhdx (WSL-managed) — the folder the card promised
-wsl -d wordslab -- ls /mnt/wordslab          # one folder per enabled drive, bind-mounted by step 4
-wsl -d wordslab -- uv --version              # engine slot: uv in /usr/local/bin
-wsl -d wordslab -- sh -c "ls /opt/wordslab/python"   # uv-managed Python landing place
+wsl -l -v                    # wordslab-platform, plus wordslab-platform-<letter> per enabled drive — nothing else required
+wsl --manage wordslab-platform --show 2>$null  # (older wsl: the import line shows it) -> C:\wordslab-platform\virtual-machines\wordslab-platform
+dir D:\wordslab-platform\wordslab-platform-d   # contains ext4.vhdx (WSL-managed) — the folder the card promised
+wsl -d wordslab-platform -- ls /mnt/wordslab          # one folder per enabled drive, bind-mounted by step 4
+wsl -d wordslab-platform -- uv --version              # engine slot: uv in /usr/local/bin
+wsl -d wordslab-platform -- sh -c "ls /opt/wordslab/python"   # uv-managed Python landing place
 dir $env:LOCALAPPDATA\..* -Filter wordslab-front-door.url  # or next to the exe: the handoff address file step 6 writes (only when a home page answered)
 ```
 
@@ -84,7 +84,7 @@ data disk touched.
 
 And the **re-runnable promise**: from WSL, run a shared script by hand with the same file the
 UI wrote:
-`wsl -d wordslab -- bash /mnt/c/.../installer/scripts/distro/04-data-volumes.sh --parameters <the parameters.json>`
+`wsl -d wordslab-platform -- bash /mnt/c/.../installer/scripts/distro/04-data-volumes.sh --parameters <the parameters.json>`
 → same output, exit 0, mounts unchanged.
 
 ## S6 — what must NOT happen

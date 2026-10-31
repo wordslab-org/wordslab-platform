@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 check.ps1 - assert the machine state the #88 journey promises, right after a run.
 
@@ -52,22 +52,22 @@ Write-Host "check: parameters from $ParametersFile (install_dir=$installDir, dri
 # 1) Distro names registered (the named distro model - never the default).
 $raw = (& wsl --list --quiet 2>$null) | Out-String
 $installed = @(($raw -split "`0") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-CheckBool "distro 'wordslab' is registered" { $installed -contains 'wordslab' }
+CheckBool "distro 'wordslab-platform' is registered" { $installed -contains 'wordslab-platform' }
 foreach ($l in $letters) {
-    $n = "wordslab-$($l.ToLower())"
+    $n = "wordslab-platform-$($l.ToLower())"
     CheckBool "distro '$n' is registered" { $installed -contains $n }
 }
 
 # 2) Folders exactly where the UI card promised them, WSL-managed ext4.vhdx inside.
-CheckBool "VM folder ($installDir\virtual-machines\wordslab\ext4.vhdx)" {
-    Test-Path "$installDir\virtual-machines\wordslab\ext4.vhdx"
+CheckBool "VM folder ($installDir\virtual-machines\wordslab-platform\ext4.vhdx)" {
+    Test-Path "$installDir\virtual-machines\wordslab-platform\ext4.vhdx"
 }
 # Ownership marker: proves reset.ps1 may ever delete this folder (and nothing else around it).
 CheckBool "app VM folder carries the installer marker (.wordslab-installer)" {
-    Test-Path (Join-Path (Join-Path (Join-Path $installDir 'virtual-machines') 'wordslab') '.wordslab-installer')
+    Test-Path (Join-Path (Join-Path (Join-Path $installDir 'virtual-machines') 'wordslab-platform') '.wordslab-installer')
 }
 foreach ($l in $letters) {
-    $folder = "$($l):\wordslab\wordslab-$($l.ToLower())"
+    $folder = "$($l):\wordslab-platform\wordslab-platform-$($l.ToLower())"
     CheckBool "disk folder ($folder\ext4.vhdx)" { Test-Path "$folder\ext4.vhdx" }
     CheckBool "disk folder carries the installer marker ($folder)" { Test-Path "$folder\.wordslab-installer" }
 }
@@ -78,19 +78,19 @@ CheckBool "cached Alpine rootfs ($installDir\cache)" { Test-Path "$installDir\ca
 
 # 4) The VM's wsl.conf written AND in effect. appendWindowsPath off = no Windows PATH in the
 #    VM (cmd.exe not runnable); automount STAYS on by ruling (#93 re-homes it) - payload access.
-CheckExit "VM wsl.conf contents" { & wsl -d wordslab -- sh -c "grep -q 'systemd = true' /etc/wsl.conf && grep -q 'appendWindowsPath = false' /etc/wsl.conf" }
-CheckExit "VM appendWindowsPath in effect (no cmd.exe on the VM PATH)" { & wsl -d wordslab -- sh -c "! command -v cmd.exe >/dev/null" }
-CheckExit "VM automount kept on for payload access (/mnt/c present)" { & wsl -d wordslab -- sh -c "mountpoint -q /mnt/c" }
+CheckExit "VM wsl.conf contents" { & wsl -d wordslab-platform -- sh -c "grep -q 'systemd = true' /etc/wsl.conf && grep -q 'appendWindowsPath = false' /etc/wsl.conf" }
+CheckExit "VM appendWindowsPath in effect (no cmd.exe on the VM PATH)" { & wsl -d wordslab-platform -- sh -c "! command -v cmd.exe >/dev/null" }
+CheckExit "VM automount kept on for payload access (/mnt/c present)" { & wsl -d wordslab-platform -- sh -c "mountpoint -q /mnt/c" }
 
 # 5) Engine slot filled exactly as ruled: uv in /usr/local/bin, CPython 3.12 under /opt/wordslab.
-CheckExit "uv installed at /usr/local/bin/uv" { & wsl -d wordslab -- sh -c "test -x /usr/local/bin/uv" }
-CheckExit "uv-managed Python under /opt/wordslab/python" { & wsl -d wordslab -- sh -c "ls /opt/wordslab/python >/dev/null" }
-CheckExit "python 3.12 answers through uv" { & wsl -d wordslab -- sh -c "UV_PYTHON_INSTALL_DIR=/opt/wordslab/python uv run --no-project --python 3.12 python -c 'import sys; raise SystemExit(0 if sys.version_info[:2]==(3,12) else 1)'" }
+CheckExit "uv installed at /usr/local/bin/uv" { & wsl -d wordslab-platform -- sh -c "test -x /usr/local/bin/uv" }
+CheckExit "uv-managed Python under /opt/wordslab/python" { & wsl -d wordslab-platform -- sh -c "ls /opt/wordslab/python >/dev/null" }
+CheckExit "python 3.12 answers through uv" { & wsl -d wordslab-platform -- sh -c "UV_PYTHON_INSTALL_DIR=/opt/wordslab/python uv run --no-project --python 3.12 python -c 'import sys; raise SystemExit(0 if sys.version_info[:2]==(3,12) else 1)'" }
 
 # 6) Every disk instance: automount off IN EFFECT (the wsl --terminate after wsl.conf worked).
 foreach ($l in $letters) {
-    CheckExit "disk wordslab-$($l.ToLower()): automount in effect (no /mnt/c inside)" {
-        & wsl -d "wordslab-$($l.ToLower())" -- sh -c "! mountpoint -q /mnt/c"
+    CheckExit "disk wordslab-platform-$($l.ToLower()): automount in effect (no /mnt/c inside)" {
+        & wsl -d "wordslab-platform-$($l.ToLower())" -- sh -c "! mountpoint -q /mnt/c"
     }
 }
 
@@ -98,8 +98,8 @@ foreach ($l in $letters) {
 #    -AfterRestart: surviving shutdown/reboot is the launcher's re-bind job (#94).
 if (-not $AfterRestart) {
     foreach ($l in $letters) {
-        CheckExit "disk published at /mnt/wordslab/$($l.ToLower()) inside the VM" {
-            & wsl -d wordslab -- sh -c "mountpoint -q /mnt/wordslab/$($l.ToLower())"
+        CheckExit "disk published at /mnt/wordslab-platform/$($l.ToLower()) inside the VM" {
+            & wsl -d wordslab-platform -- sh -c "mountpoint -q /mnt/wordslab-platform/$($l.ToLower())"
         }
     }
 }
