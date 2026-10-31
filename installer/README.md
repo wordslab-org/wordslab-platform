@@ -93,6 +93,12 @@ Design rulings, recorded on #88 (Laurent, 2026-10-24) — they shape every step:
 - **Engine landing place:** uv in `/usr/local/bin`, uv-managed CPython 3.12 under
   `/opt/wordslab/python` — ticket #62's core plugs into the same slot (`05-first-core.sh` is the
   line that installs it once #62 ships).
+- **The disk mounts are session-scoped.** WSL terminates idle distros, and bind mounts do not
+  survive that: every wizard run re-publishes each disk's `/volume` into `/mnt/wsl` and re-binds
+  it at `/mnt/wordslab-platform/disk<letter>` (idempotent, `mountpoint -q || mount --bind`).
+  Making the mounts survive a reboot is the resident launcher's job (#94, recorded on #88) —
+  `e2e/check.ps1` re-establishes them before asserting, so a check run minutes later is honest
+  rather than red.
 - **Handoff stays an address:** step 6's probe proves the home page answers and writes
   `wordslab-front-door.url` next to the parameters file; the window navigates to that. The
   `wordslab.local` name + one TLS cert land with #92 — until then step 6 fails with a plain

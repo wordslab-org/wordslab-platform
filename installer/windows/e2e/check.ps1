@@ -99,12 +99,22 @@ foreach ($l in $letters) {
     }
 }
 
-# 7) The shared 04 script's bind mounts, visible inside the app VM. Skipped with
-#    -AfterRestart: surviving shutdown/reboot is the launcher's re-bind job (#94).
+# 7) The disk handoff (mounts are SESSION-scoped: WSL terminates idle distros, so a check run
+#    minutes after the install finds no mounts - that is not a broken install). Re-establish
+#    exactly what the wizard's step 4 does - publish in the disk instance, bind inside the app
+#    VM, both idempotent - and then assert the result. Re-binding at every launch is the
+#    resident launcher's job (#94); -AfterRestart skips this block on purpose.
 if (-not $AfterRestart) {
     foreach ($l in $letters) {
-        CheckExit "disk published at /mnt/wordslab-platform/disk$($l.ToLower()) inside the VM" {
-            & wsl -d wordslab-platform-vm -- sh -c "mountpoint -q /mnt/wordslab-platform/disk$($l.ToLower())"
+        $letter = $l.ToLower()
+        $disk = "wordslab-platform-disk$letter"
+        $published = "/mnt/wsl/$disk"
+        $target = "/mnt/wordslab-platform/disk$letter"
+        CheckExit "disk $disk publishes /volume at $published" {
+            & wsl -d $disk -- sh -c "mkdir -p /volume $published; mountpoint -q $published || mount --bind /volume $published"
+        }
+        CheckExit "disk mounted at $target inside the app VM" {
+            & wsl -d wordslab-platform-vm -- sh -c "mkdir -p $target; mountpoint -q $target || mount --bind $published $target; mountpoint -q $target"
         }
     }
 }
